@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using PeaHeads.Net;
 using Unity.Netcode;
 using UnityEngine;
@@ -30,6 +31,14 @@ namespace PeaHeads
         // Declared before _state so clients already have the winner when the state callback runs.
         private readonly NetworkVariable<sbyte> _winner = new(-1);
         private readonly NetworkVariable<byte> _state = new();
+        // Client ids per team, shuffled by the host at every match start. Allocated in Awake (native memory).
+        private NetworkList<ulong> _team0;
+        private NetworkList<ulong> _team1;
+        private readonly System.Random _rng = new();
+
+        public static MatchManager Instance { get; private set; }
+        // Raised on every machine when the team lists change.
+        public static event Action TeamsChanged;
 
         // Server only.
         public event Action RoundStarted;
@@ -49,12 +58,43 @@ namespace PeaHeads
         private bool ClockWaiting => _endTime.Value <= 0d;
         public int Score(int team) => team == 0 ? _score0.Value : _score1.Value;
 
-        public static int TeamOf(ulong clientId) => clientId == NetworkManager.ServerClientId ? 0 : 1;
+        // 0 = Bloom, 1 = Blight. Unknown ids (and scenes without a match) count as Bloom.
+        public static int TeamOf(ulong clientId) => Instance && Instance._team1.Contains(clientId) ? 1 : 0;
+
+        public static bool HasTeam(ulong clientId) =>
+            Instance && (Instance._team0.Contains(clientId) || Instance._team1.Contains(clientId));
+
+        // Shuffle, then deal alternately: team sizes differ by at most one and nobody is tied to a team.
+        public static int[] AssignTeams(IReadOnlyList<ulong> clientIds, System.Random rng)
+        {
+            int count = clientIds.Count;
+            var order = new int[count];
+            for (int i = 0; i < count; i++) order[i] = i;
+            for (int i = count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+
+            var teams = new int[count];
+            for (int k = 0; k < count; k++) teams[order[k]] = k % 2;
+            return teams;
+        }
+
+        private void Awake()
+        {
+            _team0 = new NetworkList<ulong>();
+            _team1 = new NetworkList<ulong>();
+        }
 
         public override void OnNetworkSpawn()
         {
+            Instance = this;
+            _team0.OnListChanged += OnTeamsChanged;
+            _team1.OnListChanged += OnTeamsChanged;
             _state.OnValueChanged += OnStateChanged;
             if (!IsServer) return;
+            ShuffleTeams();
             // In-scene object: values survive a previous host session, so start clean.
             _score0.Value = 0;
             _score1.Value = 0;
@@ -63,13 +103,21 @@ namespace PeaHeads
             ArmClock();
             PlayerHealth.Killed += OnKilled;
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
+            NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
         }
 
         public override void OnNetworkDespawn()
         {
+            if (Instance == this) Instance = null;
+            _team0.OnListChanged -= OnTeamsChanged;
+            _team1.OnListChanged -= OnTeamsChanged;
             _state.OnValueChanged -= OnStateChanged;
             PlayerHealth.Killed -= OnKilled;
-            if (NetworkManager) NetworkManager.OnClientConnectedCallback -= OnClientConnected;
+            if (NetworkManager)
+            {
+                NetworkManager.OnClientConnectedCallback -= OnClientConnected;
+                NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
+            }
             CancelInvoke();
         }
 
@@ -130,6 +178,24 @@ namespace PeaHeads
         {
             if (clientId != NetworkManager.ServerClientId) RestartNow();
         }
+
+        // A leaver's slot is dropped; the remaining players keep their teams until the next round.
+        private void OnClientDisconnected(ulong clientId)
+        {
+            _team0.Remove(clientId);
+            _team1.Remove(clientId);
+        }
+
+        private void ShuffleTeams()
+        {
+            IReadOnlyList<ulong> ids = NetworkManager.ConnectedClientsIds;
+            int[] teams = AssignTeams(ids, _rng);
+            _team0.Clear();
+            _team1.Clear();
+            for (int i = 0; i < ids.Count; i++) (teams[i] == 0 ? _team0 : _team1).Add(ids[i]);
+        }
+
+        private void OnTeamsChanged(NetworkListEvent<ulong> _) => TeamsChanged?.Invoke();
 
         // Host's menu button. Also cancels the automatic restart if the match had already ended.
         public void RestartNow()
