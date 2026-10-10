@@ -13,6 +13,7 @@ namespace PeaHeads
 
         private Transform _owner;
         private ulong _attacker;
+        private PlayerShooting _shooter;
         private float _despawnTime;
         private bool _done;
 
@@ -24,6 +25,7 @@ namespace PeaHeads
         {
             _owner = owner;
             _attacker = owner.GetComponent<NetworkObject>().OwnerClientId;
+            _shooter = owner.GetComponent<PlayerShooting>();
             _despawnTime = Time.time + _lifetime;
 
             Vector3 gap = transform.position - sweepFrom;
@@ -56,7 +58,9 @@ namespace PeaHeads
         private void Impact(RaycastHit hit)
         {
             PlayerHealth health = hit.collider.GetComponentInParent<PlayerHealth>();
-            if (health) health.TakeDamage(_damage, _attacker);
+            bool damaged = health && health.TakeDamage(_damage, _attacker);
+            // The pea despawns now, so the (still spawned) shooter broadcasts the splat and the hit marker.
+            if (_shooter && _shooter.IsSpawned) _shooter.ReportImpact(hit.point, hit.normal, damaged, damaged && health.IsDead);
             Finish();
         }
 

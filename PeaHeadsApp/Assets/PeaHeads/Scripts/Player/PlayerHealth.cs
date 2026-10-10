@@ -41,15 +41,17 @@ namespace PeaHeads
 
         public override void OnNetworkDespawn() => _current.OnValueChanged -= OnHealthChanged;
 
-        public void TakeDamage(int amount, ulong attackerClientId)
+        // Server only. Returns whether damage was applied (false if dead or shielded).
+        public bool TakeDamage(int amount, ulong attackerClientId)
         {
-            if (!IsServer || IsDead || IsShielded) return;
+            if (!IsServer || IsDead || IsShielded) return false;
             _current.Value = Mathf.Max(0, _current.Value - amount);
-            if (!IsDead) return;
+            if (!IsDead) return true;
 
             Died?.Invoke(this);
             Killed?.Invoke(this, attackerClientId);
             if (_respawnDelay > 0f) Invoke(nameof(ResetHealth), _respawnDelay);
+            return true;
         }
 
         public void SetShielded(bool shielded)

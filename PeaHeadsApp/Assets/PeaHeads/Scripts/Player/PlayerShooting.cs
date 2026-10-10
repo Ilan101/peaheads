@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -16,6 +17,12 @@ namespace PeaHeads
         [SerializeField, Range(0f, 2f)] private float _cooldown = 0.6f;
         [SerializeField, Range(10f, 300f)] private float _maxAimDistance = 100f;
         [SerializeField] private AudioClip _fireSfx;
+        [Tooltip("Pea break burst played where a pea hits, on every machine.")]
+        [SerializeField] private ParticleSystem _splatPrefab;
+        [SerializeField, Range(0.2f, 5f)] private float _splatLifetime = 1.5f;
+
+        // Owner only: one of this player's peas damaged something (true = it was a kill).
+        public event Action<bool> HitConfirmed;
 
         private PlantingController _planting;
         private PlayerCameraRig _rig;
@@ -73,6 +80,24 @@ namespace PeaHeads
 
         private bool IsNearShooter(Vector3 point) =>
             (point - transform.position).sqrMagnitude <= MaxOriginDistance * MaxOriginDistance;
+
+        // Server, from PeaProjectile.Impact.
+        public void ReportImpact(Vector3 point, Vector3 normal, bool damaged, bool killed)
+        {
+            SplatRpc(point, normal);
+            if (damaged) HitConfirmRpc(killed);
+        }
+
+        [Rpc(SendTo.ClientsAndHost)]
+        private void SplatRpc(Vector3 point, Vector3 normal)
+        {
+            if (!_splatPrefab) return;
+            Quaternion facing = normal.sqrMagnitude > 0.01f ? Quaternion.LookRotation(normal) : Quaternion.identity;
+            Destroy(Instantiate(_splatPrefab, point, facing).gameObject, _splatLifetime);
+        }
+
+        [Rpc(SendTo.Owner)]
+        private void HitConfirmRpc(bool killed) => HitConfirmed?.Invoke(killed);
 
         [Rpc(SendTo.ClientsAndHost)]
         private void PlayFireSfxRpc(Vector3 position)

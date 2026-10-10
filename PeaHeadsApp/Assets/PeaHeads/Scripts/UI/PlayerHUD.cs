@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -11,14 +12,26 @@ namespace PeaHeads
         [SerializeField, Range(16f, 96f)] private float _heartSize = 40f;
         [Tooltip("Webcam view width; height follows the tracker's 16:9 rectangle.")]
         [SerializeField, Range(128f, 512f)] private float _trackerWidth = 256f;
+        [SerializeField, Range(8f, 64f)] private float _crosshairSize = 22f;
+        [SerializeField, Range(0.05f, 1f)] private float _hitMarkerTime = 0.25f;
+        [Tooltip("Red screen flash when this player takes damage.")]
+        [SerializeField, Range(0.05f, 2f)] private float _damageFlashTime = 0.4f;
+        [SerializeField, Range(0f, 1f)] private float _damageFlashAlpha = 0.35f;
 
         private static Texture2D _heart;
+        private static Texture2D _ring;
+        private static Texture2D _cross;
 
         private PlantingController _planting;
         private PlayerHealth _health;
         private PlayerCameraRig _rig;
         private HeadTrackingInput _tracking;
         private NetworkObject _networkObject;
+        private PlayerShooting _shooting;
+        private int _lastHealth;
+        private float _flashUntil;
+        private float _markerUntil;
+        private bool _markerKill;
         private GUIStyle _style;
         private GUIStyle _factionStyle;
 
@@ -29,6 +42,30 @@ namespace PeaHeads
             _rig = GetComponent<PlayerCameraRig>();
             _tracking = GetComponent<HeadTrackingInput>();
             _networkObject = GetComponent<NetworkObject>();
+            _shooting = GetComponent<PlayerShooting>();
+        }
+
+        private void OnEnable()
+        {
+            _lastHealth = _health.Current;
+            if (_shooting) _shooting.HitConfirmed += OnHitConfirmed;
+        }
+
+        private void OnDisable()
+        {
+            if (_shooting) _shooting.HitConfirmed -= OnHitConfirmed;
+        }
+
+        private void Update()
+        {
+            if (_health.Current < _lastHealth) _flashUntil = Time.time + _damageFlashTime;
+            _lastHealth = _health.Current;
+        }
+
+        private void OnHitConfirmed(bool killed)
+        {
+            _markerUntil = Time.time + _hitMarkerTime;
+            _markerKill = killed;
         }
 
         private void OnGUI()
@@ -36,6 +73,7 @@ namespace PeaHeads
             if (StoryIntro.IsPlaying) return;
             _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
             _factionStyle ??= new GUIStyle(_style);
+            DrawDamageFlash();
 
             GUI.Label(new Rect(Margin, Margin - 8f, 700f, 30f), TrackingLabel(), _style);
             if (_tracking && _tracking.State == TrackingState.Tracking)
@@ -49,9 +87,36 @@ namespace PeaHeads
             GUI.Label(new Rect(Margin, heartsY - 32f, 600f, 30f), $"{_planting.State}{ready}", _style);
             DrawHearts(Margin, heartsY);
 
-            float size = _rig.IsZoomed ? 10f : 6f;
-            GUI.DrawTexture(new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f, size, size),
-                Texture2D.whiteTexture);
+            DrawCrosshair();
+        }
+
+        private void DrawDamageFlash()
+        {
+            float left = _flashUntil - Time.time;
+            if (left <= 0f) return;
+            GUI.color = new Color(0.85f, 0f, 0f, _damageFlashAlpha * left / _damageFlashTime);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
+
+        // Hollow ring; an X flashes around it when one of our peas lands (red on a kill).
+        private void DrawCrosshair()
+        {
+            _ring ??= MaskTexture((u, v) => { float r = Mathf.Sqrt(u * u + v * v); return r <= 1f && r >= 0.72f; });
+            _cross ??= MaskTexture((u, v) =>
+                Mathf.Abs(Mathf.Abs(u) - Mathf.Abs(v)) < 0.16f && Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)) is > 0.45f and <= 1f);
+
+            Vector2 centre = new(Screen.width / 2f, Screen.height / 2f);
+            float size = _rig.IsZoomed ? _crosshairSize * 1.3f : _crosshairSize;
+            GUI.DrawTexture(new Rect(centre.x - size / 2f, centre.y - size / 2f, size, size), _ring);
+
+            if (Time.time < _markerUntil)
+            {
+                float marker = size * 1.8f;
+                GUI.color = _markerKill ? new Color(1f, 0.2f, 0.2f) : Color.white;
+                GUI.DrawTexture(new Rect(centre.x - marker / 2f, centre.y - marker / 2f, marker, marker), _cross);
+                GUI.color = Color.white;
+            }
         }
 
         private string TrackingLabel() => !_tracking ? "Webcam: off (keyboard)" : _tracking.State switch
@@ -77,7 +142,13 @@ namespace PeaHeads
 
         private void DrawHearts(float x, float y)
         {
-            _heart ??= HeartTexture();
+            // Filled heart from the implicit curve (x² + y² − 1)³ − x²y³ ≤ 0.
+            _heart ??= MaskTexture((u, v) =>
+            {
+                float x = u * 1.3f, y = v * 1.35f + 0.05f;
+                float a = x * x + y * y - 1f;
+                return a * a * a - x * x * y * y * y <= 0f;
+            });
             for (int i = 0; i < _health.Max; i++)
             {
                 GUI.color = i < _health.Current ? new Color(0.9f, 0.15f, 0.2f) : new Color(0.2f, 0.2f, 0.2f, 0.6f);
@@ -86,19 +157,17 @@ namespace PeaHeads
             GUI.color = Color.white;
         }
 
-        // White filled heart from the implicit curve (x² + y² − 1)³ − x²y³ ≤ 0; tinted per heart via GUI.color.
-        private static Texture2D HeartTexture()
+        // White mask texture (tint with GUI.color); inside(u, v) gets u, v in -1..1, v up.
+        private static Texture2D MaskTexture(Func<float, float, bool> inside)
         {
             const int size = 64;
             var pixels = new Color32[size * size];
             for (int py = 0; py < size; py++)
             for (int px = 0; px < size; px++)
             {
-                float u = (px + 0.5f) / size * 2.6f - 1.3f;
-                float v = (py + 0.5f) / size * 2.7f - 1.3f;
-                float a = u * u + v * v - 1f;
-                bool inside = a * a * a - u * u * v * v * v <= 0f;
-                pixels[py * size + px] = new Color32(255, 255, 255, inside ? (byte)255 : (byte)0);
+                float u = (px + 0.5f) / size * 2f - 1f;
+                float v = (py + 0.5f) / size * 2f - 1f;
+                pixels[py * size + px] = new Color32(255, 255, 255, inside(u, v) ? (byte)255 : (byte)0);
             }
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
             texture.SetPixels32(pixels);
