@@ -1,0 +1,19 @@
+{
+    "name": "PeaHeads.Editor",
+    "rootNamespace": "PeaHeads.EditorTools",
+    "references": [
+        "PeaHeads",
+        "Unity.Netcode.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
