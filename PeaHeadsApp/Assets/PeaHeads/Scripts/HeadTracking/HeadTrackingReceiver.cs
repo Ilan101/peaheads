@@ -27,14 +27,15 @@ namespace PeaHeads
 
         [Header("Latest values (read these from other scripts)")]
         public bool FaceVisible;
-        public float Dx;       // + = you leaned right
-        public float Dy;       // + = you moved up
+        public float Dx;       // -1..1, + = you leaned right
+        public float Dy;       // -1..1, + = you moved up
         public bool Aim;       // one eye closed
         public bool Shoot;     // mouth open
 
         [Header("Test cube (optional)")]
         public Transform testHead;
-        public float sensitivity = 3f;
+        public float rangeX = 4f;       // world units the cube travels left/right at full lean
+        public float rangeY = 2.25f;    // keep rangeX:rangeY at 16:9
         public float followSpeed = 15f;
 
         [Header("Debug")]
@@ -107,7 +108,7 @@ namespace PeaHeads
 
             if (testHead != null)
             {
-                var target = new Vector3(Dx * sensitivity, Dy * sensitivity, 0f);
+                var target = new Vector3(Dx * rangeX, Dy * rangeY, 0f);
                 testHead.localPosition = Vector3.Lerp(testHead.localPosition, target, followSpeed * Time.deltaTime);
 
                 var r = testHead.GetComponent<Renderer>();
