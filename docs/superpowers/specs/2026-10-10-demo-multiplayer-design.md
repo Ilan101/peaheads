@@ -58,7 +58,7 @@ Make the first-person demo (`DemoArena`, `Player` prefab) playable by two player
 
 **`PlayerShooting`** → NetworkBehaviour
 - Owner, on `FirePressed`: local pre-check (`CanShoot`, not dead, cooldown) → compute aim (camera ray → target point → direction from mouth) → `FireRpc(Vector3 mouthPos, Vector3 direction, Vector3 headPos)` with `[Rpc(SendTo.Server)]`.
-- Host `FireRpc`: re-check `planting.CanShoot` (synced state), not dead, cooldown → instantiate Pea, `Launch(shooterRoot, headPos)`, `Spawn(destroyWithScene: true)`. Fire SFX played via a client RPC (all clients).
+- Host `FireRpc` (owner-only invoke permission): not dead, cooldown (×0.8 tolerance), NaN-safe origin/direction sanity → (plant state is trusted from the owner; the host's synced copy lags and would drop the first shot after planting) → instantiate Pea, `Launch(shooterRoot, headPos)`, `Spawn(destroyWithScene: true)`. Fire SFX played via a client RPC (all clients).
 
 **`PeaProjectile`** → NetworkBehaviour
 - Prefab gets `NetworkObject` + `NetworkTransform` (position only, server authority, interpolate).
@@ -101,7 +101,7 @@ All:     HP change → flash/SFX/hide/show; host timer → HP reset → owner te
 
 - Local camera/lean/movement never wait on the network.
 - Owner is trusted for transform, head pose and plant state (LAN, no anti-cheat). Host is authoritative for peas, hits, HP.
-- Known window: a shot fired in the first network tick after `Planted` may be rejected by the host if the synced state still reads `Planting`.
+- Plant state for firing is trusted from the owner (changed after code review: a host-side re-check dropped the first shot after planting).
 
 ## Edge cases
 

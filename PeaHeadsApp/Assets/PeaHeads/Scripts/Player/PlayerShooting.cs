@@ -55,13 +55,14 @@ namespace PeaHeads
         private bool CanFire(float nextFireTime) =>
             _planting.CanShoot && !_health.IsDead && Time.time >= nextFireTime;
 
-        [Rpc(SendTo.Server)]
+        // Owner is trusted for plant state (host's synced copy lags, which would eat the first shot after planting).
+        // Comparisons are written so NaN fails them.
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
         private void FireRpc(Vector3 origin, Vector3 direction, Vector3 sweepFrom)
         {
-            if (!CanFire(_hostNextFireTime)) return;
-            if (direction.sqrMagnitude < 0.5f) return;
-            if ((origin - transform.position).sqrMagnitude > MaxOriginDistance * MaxOriginDistance) return;
-            if ((sweepFrom - transform.position).sqrMagnitude > MaxOriginDistance * MaxOriginDistance) return;
+            if (_health.IsDead || Time.time < _hostNextFireTime) return;
+            if (!(direction.sqrMagnitude >= 0.5f)) return;
+            if (!IsNearShooter(origin) || !IsNearShooter(sweepFrom)) return;
             _hostNextFireTime = Time.time + _cooldown * HostCooldownTolerance;
 
             PeaProjectile pea = Instantiate(_peaPrefab, origin, Quaternion.LookRotation(direction.normalized));
@@ -69,6 +70,9 @@ namespace PeaHeads
             pea.Launch(transform, sweepFrom);
             PlayFireSfxRpc(origin);
         }
+
+        private bool IsNearShooter(Vector3 point) =>
+            (point - transform.position).sqrMagnitude <= MaxOriginDistance * MaxOriginDistance;
 
         [Rpc(SendTo.ClientsAndHost)]
         private void PlayFireSfxRpc(Vector3 position)
