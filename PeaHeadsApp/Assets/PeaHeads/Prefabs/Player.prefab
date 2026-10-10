@@ -389,6 +389,8 @@ GameObject:
   - component: {fileID: 6559153631543594811}
   - component: {fileID: 7002818379305711566}
   - component: {fileID: 2167027642314637930}
+  - component: {fileID: 1067587369484226165}
+  - component: {fileID: 6560599614020909876}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -452,8 +454,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlantingController
   _plantTime: 0.5
   _unplantTime: 0.5
-  _visual: {fileID: 4201618126745001407}
-  _plantedSquash: 0.8
+  _plantedHeight: 0.8
 --- !u!114 &6822468299848805421
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -647,6 +648,111 @@ MonoBehaviour:
   - {fileID: 9118644184780454952}
   _hostColor: {r: 0.55, g: 0.85, b: 0.25, a: 1}
   _clientColor: {r: 0.95, g: 0.6, b: 0.2, a: 1}
+--- !u!114 &1067587369484226165
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4859009225941106794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5edffd49399b264ca28e32ca82043f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: PeaHeads::PeaHeads.StemBender
+  _sourceStem: {fileID: 1911556372817978050}
+  _baseAnchor: {fileID: 2905154562388265406}
+  _headPivot: {fileID: 8697404522973941986}
+  _headSink: 0.3
+  _segmentMesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+  _segments: 7
+  _thickness: 0.14
+  _overlap: 0.04
+  _volumeKeep: 0.5
+  _springStiffness: 120
+  _springDamping: 14
+  _springAmount: 0.5
+--- !u!114 &6560599614020909876
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4859009225941106794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ddedb003cef7e04c9d21638313345ed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: PeaHeads::PeaHeads.PlantVisuals
+  _leafBase: {fileID: 2905154562388265406}
+  _plantedScale: {x: 1.35, y: 0.6}
+  _plantCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.8
+      value: 1.12
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _unplantCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.15
+      value: -0.1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _plantPuff: {fileID: 0}
 --- !u!1 &5519229150126660072
 GameObject:
   m_ObjectHideFlags: 0
