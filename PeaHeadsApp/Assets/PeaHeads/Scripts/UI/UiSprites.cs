@@ -49,6 +49,26 @@ namespace PeaHeads
             return (cap && !spot) || stem ? 1f : 0f;
         });
 
+        // Filled heart from (x² + y² − 1)³ − x²y³ ≤ 0.
+        public static Sprite Heart(int size = 64) => Make(size, p =>
+        {
+            float x = p.x * 1.3f, y = p.y * 1.35f + 0.05f;
+            float a = x * x + y * y - 1f;
+            return a * a * a - x * x * y * y * y <= 0f ? 1f : 0f;
+        });
+
+        // Diagonal X with an open centre (hit marker).
+        public static Sprite Cross(int size = 64) => Make(size, p =>
+            Mathf.Abs(Mathf.Abs(p.x) - Mathf.Abs(p.y)) < 0.16f &&
+            Mathf.Max(Mathf.Abs(p.x), Mathf.Abs(p.y)) is > 0.42f and <= 1f ? 1f : 0f);
+
+        // Screen-edge vignette: clear centre, dense corners. Stretch it over the screen.
+        public static Sprite Vignette(int size = 128) => Make(size, p =>
+        {
+            float r = Mathf.Max(0f, p.magnitude - 0.5f) / 0.9f;
+            return Mathf.Clamp01(r * r * 1.8f);
+        }, 1);
+
         // 9-sliced rounded rectangle; radius in pixels of the source texture.
         public static Sprite RoundedRect(int size = 64, int radius = 16)
         {

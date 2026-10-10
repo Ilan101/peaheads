@@ -149,7 +149,7 @@ namespace PeaHeads
             for (int i = 0; i < _spots.Length; i++)
             {
                 bool was = (previous & (1 << i)) != 0, now = (current & (1 << i)) != 0;
-                if (now && !was) _spots[i].Show();
+                if (now && !was) _spots[i].Show(effects);
                 if (now || !was) continue;
                 _spots[i].Hide();
                 if (effects) _spots[i].PlayCollect();

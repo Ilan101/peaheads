@@ -35,6 +35,7 @@ namespace PeaHeads
         private GameObject _connectingPanel;
         private GameObject _pausePanel;
         private GameObject _restartButton;
+        private Text _musicLabel;
         private Text _startInfo;
         private Text _startStatus;
         private Text _connectingText;
@@ -65,6 +66,7 @@ namespace PeaHeads
             if (!_font) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (!TryGetComponent(out _story)) _story = gameObject.AddComponent<StoryIntro>();
             if (!TryGetComponent(out Minimap _)) gameObject.AddComponent<Minimap>();
+            if (!TryGetComponent(out MusicPlayer _)) gameObject.AddComponent<MusicPlayer>();
             EnsureEventSystem();
             BuildCanvas();
         }
@@ -164,6 +166,14 @@ namespace PeaHeads
             if (_match) _match.RestartNow();
         }
 
+        private void OnToggleMusic()
+        {
+            MusicPlayer.Muted = !MusicPlayer.Muted;
+            _musicLabel.text = MusicLabel();
+        }
+
+        private static string MusicLabel() => MusicPlayer.Muted ? "Music: Off" : "Music: On";
+
         private static void EnsureEventSystem()
         {
             if (FindFirstObjectByType<EventSystem>()) return;
@@ -209,6 +219,7 @@ namespace PeaHeads
             _pauseInfo = AddLabel(_pausePanel, "", 16, _textColor);
             AddButton(_pausePanel, "Resume", OnResume);
             _restartButton = AddButton(_pausePanel, "Restart Match", OnRestart);
+            _musicLabel = AddButton(_pausePanel, MusicLabel(), OnToggleMusic).GetComponentInChildren<Text>();
             AddButton(_pausePanel, "Leave", OnLeave);
             _pauseStatus = AddLabel(_pausePanel, "", 16, _textColor);
         }
@@ -264,6 +275,7 @@ namespace PeaHeads
             colors.colorMultiplier = 1f;
             button.colors = colors;
             button.onClick.AddListener(onClick);
+            button.onClick.AddListener(() => GameAudio.Play(Sfx.Click, 0.7f, 0.04f));
 
             var labelGo = new GameObject("Text", typeof(RectTransform), typeof(Text));
             labelGo.transform.SetParent(go.transform, false);

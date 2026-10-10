@@ -1,23 +1,57 @@
 using PeaHeads.Net;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PeaHeads
 {
-    // ponytail: IMGUI score bars + winner banner, like PlayerHUD; swap for a Canvas with the UI pass.
+    // Match HUD (uGUI, built in code): top-centre scoreboard (faction scores, bars, clock badge), "+N" score pop-ups,
+    // "GO!" when the clock starts, last-seconds countdown, mushroom collect bar, rival-in-story note and the end-of-match
+    // banner. Lives on the Match object; display and local sounds only.
     [RequireComponent(typeof(MatchManager))]
     public class ScoreHUD : MonoBehaviour
     {
-        [SerializeField, Range(100f, 600f)] private float _barWidth = 320f;
-        [SerializeField] private Color _collectColor = new(0.5f, 0.3f, 0.12f);
+        private static readonly Vector2 Top = new(0.5f, 1f);
+        private static readonly Vector2 Bottom = new(0.5f, 0f);
+        private static readonly Vector2 Centre = new(0.5f, 0.5f);
+        private static readonly Vector2 MidLeft = new(0f, 0.5f);
+        private static readonly Vector2 MidRight = new(1f, 0.5f);
+        private static readonly Color Live = new(0.45f, 0.95f, 0.5f);
+        private static readonly Color Warn = new(1f, 0.78f, 0.3f);
+        private static readonly Color Bad = new(1f, 0.36f, 0.32f);
+        private static readonly Color Dim = new(1f, 1f, 1f, 0.6f);
+        private static readonly Color Ink = new(0.06f, 0.08f, 0.06f);
+
+        [SerializeField, Range(400f, 900f)] private float _panelWidth = 580f;
+        [SerializeField] private Color _collectColor = new(1f, 0.42f, 0.26f);
+        [Tooltip("Ticks and a warning in the last seconds of the clock.")]
+        [SerializeField, Range(0, 30)] private int _warningSeconds = 10;
 
         private MatchManager _match;
         private MushroomSpawner _mushrooms;
-        private GUIStyle _label;
-        private GUIStyle _banner;
-        private GUIStyle _line;
         private bool _rivalShielded;
         private float _nextRivalCheck;
+
+        private bool _initialised;
+        private readonly int[] _lastScore = new int[2];
+        private readonly float[] _scoredAt = { float.NegativeInfinity, float.NegativeInfinity };
+        private bool _wasRunning, _wasEnded;
+        private int _lastSecond = -1;
+        private float _goAt = float.NegativeInfinity, _warnAt = float.NegativeInfinity, _endedAt;
+
+        private RectTransform _canvas;
+        private float _barWidth;
+        private readonly Text[] _names = new Text[2], _scores = new Text[2], _popups = new Text[2];
+        private readonly Image[] _fills = new Image[2];
+        private Image _clockRing;
+        private Text _clock, _clockSub;
+        private Image _shieldPill;
+        private Text _shieldText;
+        private Image _collectPanel, _collectFill;
+        private Text _go, _goSub, _warn;
+        private CanvasGroup _banner;
+        private Image _bannerTop, _bannerBottom;
+        private Text _bannerTitle, _bannerLine, _bannerResult, _bannerScore, _bannerNext;
 
         private void Awake()
         {
@@ -25,9 +59,82 @@ namespace PeaHeads
             _mushrooms = GetComponent<MushroomSpawner>();
         }
 
+        private void OnDestroy()
+        {
+            if (_canvas) Destroy(_canvas.gameObject);
+        }
+
         private void Update()
         {
-            if (!_match.IsSpawned || Time.unscaledTime < _nextRivalCheck) return;
+            if (!_match.IsSpawned || NetworkManager.Singleton == null)
+            {
+                if (_canvas) _canvas.gameObject.SetActive(false);
+                _initialised = false;
+                return;
+            }
+            if (!_canvas) Build();
+            int local = MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId);
+            if (!_initialised) Initialise();
+            TrackEvents();
+            CheckRival();
+
+            bool show = !StoryIntro.IsPlaying;
+            if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
+            if (!show) return;
+            UpdateScoreboard(local);
+            UpdateCollect(local);
+            UpdateSplashes(local);
+            UpdateBanner(local);
+        }
+
+        private void Initialise()
+        {
+            _initialised = true;
+            for (int team = 0; team < 2; team++) _lastScore[team] = _match.Score(team);
+            _wasRunning = _match.ClockRunning;
+            _wasEnded = _match.IsEnded;
+            _lastSecond = -1;
+        }
+
+        // Score pop-ups, GO!, countdown ticks and the end timestamp, from state changes.
+        private void TrackEvents()
+        {
+            float now = Time.unscaledTime;
+            for (int team = 0; team < 2; team++)
+            {
+                int score = _match.Score(team);
+                if (score > _lastScore[team])
+                {
+                    _popups[team].text = $"+{score - _lastScore[team]}";
+                    _scoredAt[team] = now;
+                }
+                _lastScore[team] = score;
+            }
+
+            bool running = _match.ClockRunning;
+            if (running && !_wasRunning)
+            {
+                _goAt = now;
+                GameAudio.Play(Sfx.Go, 0.9f);
+            }
+            _wasRunning = running;
+
+            bool ended = _match.IsEnded;
+            if (ended && !_wasEnded) _endedAt = now;
+            _wasEnded = ended;
+
+            int second = Mathf.CeilToInt(_match.TimeRemaining);
+            if (running && second != _lastSecond && second > 0 && second <= _warningSeconds)
+            {
+                GameAudio.Play(second <= 3 ? Sfx.TickFinal : Sfx.Tick, 0.7f);
+                if (second == _warningSeconds) _warnAt = now;
+            }
+            _lastSecond = second;
+        }
+
+        private void CheckRival()
+        {
+            if (Time.unscaledTime < _nextRivalCheck) return;
             _nextRivalCheck = Time.unscaledTime + 0.5f;
             _rivalShielded = false;
             foreach (PlayerNetSync player in FindObjectsByType<PlayerNetSync>(FindObjectsSortMode.None))
@@ -35,67 +142,215 @@ namespace PeaHeads
                     _rivalShielded = true;
         }
 
-        private void OnGUI()
+        // ---------- Scoreboard ----------
+
+        private void UpdateScoreboard(int local)
         {
-            if (!_match.IsSpawned || StoryIntro.IsPlaying) return;
-            _label ??= new GUIStyle(GUI.skin.label)
-                { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.black } };
-            _banner ??= new GUIStyle(_label) { fontSize = 52 };
-            _line ??= new GUIStyle(_label) { fontSize = 24 };
+            float now = Time.unscaledTime;
+            for (int team = 0; team < 2; team++)
+            {
+                Color color = Faction.Color(team);
+                int score = _match.Score(team);
+                _names[team].text = team == local
+                    ? (team == 0 ? $"{Faction.Name(team)}  · YOU" : $"YOU ·  {Faction.Name(team)}")
+                    : Faction.Name(team);
+                _names[team].color = color;
+                _scores[team].text = score.ToString();
+                _scores[team].rectTransform.localScale = Vector3.one * UiBuild.Pop(now - _scoredAt[team], 0.35f, 0.5f);
+                float fill = Mathf.Clamp01(score / (float)_match.TargetScore);
+                _fills[team].enabled = fill > 0f;
+                _fills[team].rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, _barWidth * fill), 10f);
+                _fills[team].color = color;
 
-            int localTeam = MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId);
-            float mid = Screen.width / 2f;
-            DrawBar(new Rect(mid - _barWidth - 10f, 12f, _barWidth, 26f), 0, false, localTeam);
-            DrawBar(new Rect(mid + 10f, 12f, _barWidth, 26f), 1, true, localTeam);
+                float since = now - _scoredAt[team];
+                _popups[team].enabled = since < 1.2f;
+                if (!_popups[team].enabled) continue;
+                _popups[team].color = UiBuild.WithAlpha(color, Mathf.Clamp01((1.2f - since) / 0.4f));
+                float x = (team == 0 ? -1f : 1f) * (_panelWidth * 0.5f - 16f - _barWidth * fill);
+                _popups[team].rectTransform.anchoredPosition = new Vector2(x, -46f - 22f * since);
+                _popups[team].rectTransform.localScale = Vector3.one * UiBuild.Pop(since, 0.3f, 0.6f);
+            }
 
+            bool waiting = !_match.ClockRunning && !_match.IsEnded;
             int seconds = Mathf.CeilToInt(_match.TimeRemaining);
-            GUI.Label(new Rect(mid - 60f, 42f, 120f, 30f), $"{seconds / 60}:{seconds % 60:00}", _label);
+            bool warning = _match.ClockRunning && seconds <= _warningSeconds;
+            _clock.text = $"{seconds / 60}:{seconds % 60:00}";
+            _clock.color = warning ? Bad : Color.white;
+            _clock.rectTransform.localScale = Vector3.one * (warning ? 1f + 0.12f * Mathf.Abs(Mathf.Sin(now * Mathf.PI)) : 1f);
+            _clockRing.color = warning ? UiBuild.WithAlpha(Bad, 0.9f) : new Color(1f, 1f, 1f, 0.25f);
+            _clockSub.text = waiting ? "WAITING" : $"FIRST TO {_match.TargetScore}";
+            _clockSub.color = waiting ? UiBuild.WithAlpha(Warn, 0.7f + 0.3f * Mathf.Sin(now * 5f)) : Dim;
 
-            float collect = _mushrooms ? _mushrooms.CollectProgress(localTeam) : 0f;
-            if (collect > 0f) DrawCollectBar(collect);
+            bool shield = _rivalShielded && !_match.IsEnded;
+            _shieldPill.enabled = _shieldText.enabled = shield;
+            if (shield) _shieldText.text = $"{Faction.Name(1 - local)} is still hearing the story  ·  can't be hit yet";
+        }
 
-            if (_rivalShielded && !_match.IsEnded)
-                GUI.Label(new Rect(0f, 72f, Screen.width, 24f),
-                    $"{Faction.Name(1 - localTeam)} is still hearing the story... (can't be hit yet)", _label);
+        private void UpdateCollect(int local)
+        {
+            float progress = _mushrooms ? _mushrooms.CollectProgress(local) : 0f;
+            bool show = progress > 0f && !_match.IsEnded;
+            _collectPanel.gameObject.SetActive(show);
+            if (!show) return;
+            _collectFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, 230f * progress), 10f);
+            _collectFill.color = Color.Lerp(_collectColor, Color.white, 0.25f * Mathf.Sin(Time.unscaledTime * 8f) + 0.25f);
+        }
 
-            if (!_match.IsEnded) return;
+        // ---------- GO! and countdown warning ----------
+
+        private void UpdateSplashes(int local)
+        {
+            float go = Time.unscaledTime - _goAt;
+            _go.enabled = _goSub.enabled = go < 1.8f;
+            if (_go.enabled)
+            {
+                float alpha = go < 0.1f ? go / 0.1f : Mathf.Clamp01((1.8f - go) / 0.6f);
+                _go.color = UiBuild.WithAlpha(Faction.Color(local), alpha);
+                _goSub.color = UiBuild.WithAlpha(Color.white, alpha);
+                _go.rectTransform.localScale = Vector3.one * UiBuild.Pop(go, 0.35f, 0.7f);
+            }
+
+            float warn = Time.unscaledTime - _warnAt;
+            _warn.enabled = warn < 1.8f;
+            if (!_warn.enabled) return;
+            _warn.color = UiBuild.WithAlpha(Bad, warn < 0.1f ? warn / 0.1f : Mathf.Clamp01((1.8f - warn) / 0.6f));
+            _warn.rectTransform.localScale = Vector3.one * UiBuild.Pop(warn, 0.3f, 0.4f);
+        }
+
+        // ---------- End banner ----------
+
+        private void UpdateBanner(int local)
+        {
+            bool ended = _match.IsEnded;
+            _banner.alpha = Mathf.MoveTowards(_banner.alpha, ended ? 1f : 0f, Time.unscaledDeltaTime * 3f);
+            _banner.gameObject.SetActive(_banner.alpha > 0f);
+            if (!ended) return;
+
             int winner = _match.Winner;
-            float y = Screen.height * 0.28f;
             bool draw = winner < 0;
-            _banner.normal.textColor = draw ? Color.black : Faction.Color(winner);
-            GUI.Label(new Rect(0f, y, Screen.width, 64f), draw ? "DRAW" : $"{Faction.Name(winner)} WINS", _banner);
-            GUI.Label(new Rect(0f, y + 68f, Screen.width, 34f), draw ? "Tied on points" : Faction.WinLine(winner), _line);
-            string result = draw ? "" : winner == localTeam ? "You win!   " : "You lose   ";
-            GUI.Label(new Rect(0f, y + 106f, Screen.width, 30f), $"{result}Restarting...", _label);
+            Color color = draw ? Color.white : Faction.Color(winner);
+            _bannerTop.color = _bannerBottom.color = color;
+            _bannerTitle.text = draw ? "DRAW" : $"{Faction.Name(winner)} WINS";
+            _bannerTitle.color = color;
+            _bannerTitle.rectTransform.localScale = Vector3.one * UiBuild.Pop(Time.unscaledTime - _endedAt, 0.45f, 0.5f);
+            _bannerLine.text = draw ? "Neither side prevails. The Grove hangs in the balance." : Faction.WinLine(winner);
+            _bannerResult.text = draw ? "TIED ON POINTS" : winner == local ? "YOU WIN!" : "YOU LOSE";
+            _bannerResult.color = draw ? Color.white : winner == local ? Live : Bad;
+            _bannerScore.text = $"{Faction.Name(0)}  {_match.Score(0)}   —   {_match.Score(1)}  {Faction.Name(1)}";
+            float left = _match.RestartDelay - (Time.unscaledTime - _endedAt);
+            _bannerNext.text = left > 0f ? $"Next round in {Mathf.CeilToInt(left)}" : "";
         }
 
-        // Bottom-centre progress of the mushroom the local player is planted on.
-        private void DrawCollectBar(float progress)
+        // ---------- Build ----------
+
+        private void Build()
         {
-            var rect = new Rect((Screen.width - _barWidth) / 2f, Screen.height - 70f, _barWidth, 22f);
-            GUI.color = new Color(0f, 0f, 0f, 0.5f);
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = _collectColor;
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * progress, rect.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(rect.x, rect.y - 26f, rect.width, 24f), "Collecting mushroom...", _label);
+            _canvas = UiBuild.Canvas("ScoreHUDCanvas", 45);
+            float half = _panelWidth * 0.5f;
+            _barWidth = half - 78f;
+
+            Image panel = UiBuild.Panel(_canvas, Top, new Vector2(0f, -12f), new Vector2(_panelWidth, 74f), UiBuild.Glass);
+            UiBuild.Outline(panel, new Color(1f, 1f, 1f, 0.12f));
+            Transform p = panel.transform;
+            for (int team = 0; team < 2; team++)
+            {
+                float side = team == 0 ? -1f : 1f;
+                Vector2 outer = team == 0 ? MidLeft : MidRight;
+                TextAnchor outerAlign = team == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight;
+                TextAnchor innerAlign = team == 0 ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+
+                _names[team] = UiBuild.Label(p, "", 14, Color.white, outerAlign, outer,
+                    new Vector2(-side * 16f, 18f), new Vector2(220f, 20f));
+                _scores[team] = UiBuild.Label(p, "0", 34, Color.white, innerAlign, Centre,
+                    new Vector2(side * 96f, 8f), new Vector2(80f, 40f));
+                UiBuild.Outline(_scores[team], new Color(0f, 0f, 0f, 0.4f));
+
+                Image track = UiBuild.Panel(p, outer, new Vector2(-side * 16f, -20f), new Vector2(_barWidth, 10f),
+                    new Color(0f, 0f, 0f, 0.45f), 0.3f);
+                _fills[team] = UiBuild.Panel(track.transform, outer, Vector2.zero, new Vector2(10f, 10f), Color.white, 0.3f);
+                _popups[team] = UiBuild.Label(p, "", 22, Color.white, TextAnchor.MiddleCenter, Centre, Vector2.zero,
+                    new Vector2(80f, 30f));
+                UiBuild.Outline(_popups[team], new Color(0f, 0f, 0f, 0.5f));
+                _popups[team].enabled = false;
+            }
+
+            Image badge = UiBuild.Image(p, UiBuild.Circle, new Vector2(0f, -6f), new Vector2(86f, 86f),
+                new Color(0.05f, 0.08f, 0.06f, 0.96f));
+            _clockRing = UiBuild.Image(badge.transform, UiBuild.Ring, Vector2.zero, new Vector2(86f, 86f), Color.white);
+            _clock = UiBuild.Label(badge.transform, "", 24, Color.white, TextAnchor.MiddleCenter, Centre,
+                new Vector2(0f, 7f), new Vector2(86f, 30f));
+            _clockSub = UiBuild.Label(badge.transform, "", 9, Dim, TextAnchor.MiddleCenter, Centre,
+                new Vector2(0f, -16f), new Vector2(86f, 14f), FontStyle.Bold, false);
+
+            _shieldPill = UiBuild.Panel(_canvas, Top, new Vector2(0f, -112f), new Vector2(480f, 26f),
+                UiBuild.WithAlpha(Warn, 0.92f), 0.8f);
+            _shieldText = UiBuild.Label(_shieldPill.transform, "", 13, Ink, TextAnchor.MiddleCenter, Centre, Vector2.zero,
+                new Vector2(480f, 26f), FontStyle.Bold, false);
+
+            _collectPanel = UiBuild.Panel(_canvas, Bottom, new Vector2(0f, 150f), new Vector2(320f, 56f), UiBuild.Glass);
+            UiBuild.Outline(_collectPanel, UiBuild.WithAlpha(_collectColor, 0.6f));
+            Transform c = _collectPanel.transform;
+            UiBuild.Image(c, UiBuild.Glow, MidLeft, new Vector2(2f, 0f), new Vector2(56f, 56f), UiBuild.WithAlpha(_collectColor, 0.5f));
+            UiBuild.Image(c, UiBuild.Mushroom, MidLeft, new Vector2(14f, 0f), new Vector2(32f, 32f), _collectColor);
+            UiBuild.Label(c, "Drinking the Sporelight…", 14, Color.white, TextAnchor.MiddleLeft, MidLeft,
+                new Vector2(62f, 10f), new Vector2(240f, 20f));
+            Image collectTrack = UiBuild.Panel(c, MidLeft, new Vector2(62f, -12f), new Vector2(230f, 10f),
+                new Color(0f, 0f, 0f, 0.45f), 0.3f);
+            _collectFill = UiBuild.Panel(collectTrack.transform, MidLeft, Vector2.zero, new Vector2(10f, 10f), _collectColor, 0.3f);
+            _collectPanel.gameObject.SetActive(false);
+
+            _go = UiBuild.Label(_canvas, "GO!", 96, Color.white, TextAnchor.MiddleCenter, Centre, new Vector2(0f, 70f),
+                new Vector2(800f, 110f));
+            UiBuild.Outline(_go, new Color(0f, 0f, 0f, 0.6f), 3f);
+            _goSub = UiBuild.Label(_canvas, "Claim the Grove!", 26, Color.white, TextAnchor.MiddleCenter, Centre,
+                new Vector2(0f, 4f), new Vector2(800f, 34f));
+            _warn = UiBuild.Label(_canvas, $"{_warningSeconds} SECONDS LEFT!", 36, Bad, TextAnchor.MiddleCenter, Centre,
+                new Vector2(0f, 150f), new Vector2(800f, 50f));
+            UiBuild.Outline(_warn, new Color(0f, 0f, 0f, 0.6f), 2f);
+            _go.enabled = _goSub.enabled = _warn.enabled = false;
+
+            BuildBanner();
         }
 
-        private void DrawBar(Rect rect, int team, bool fillFromRight, int localTeam)
+        private void BuildBanner()
         {
-            int score = _match.Score(team);
-            float fill = Mathf.Clamp01(score / (float)_match.TargetScore);
-            float width = rect.width * fill;
+            RectTransform band = UiBuild.Node(_canvas, "EndBanner", Centre, new Vector2(0f, 30f), new Vector2(0f, 230f));
+            band.anchorMin = new Vector2(0f, 0.5f);
+            band.anchorMax = new Vector2(1f, 0.5f);
+            band.sizeDelta = new Vector2(0f, 230f);
+            Image back = band.gameObject.AddComponent<Image>();
+            back.color = new Color(0.02f, 0.03f, 0.03f, 0.72f);
+            back.raycastTarget = false;
+            _banner = band.gameObject.AddComponent<CanvasGroup>();
+            _banner.alpha = 0f;
+            _banner.blocksRaycasts = false;
 
-            GUI.color = new Color(0f, 0f, 0f, 0.5f);
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = Faction.Color(team);
-            GUI.DrawTexture(new Rect(fillFromRight ? rect.xMax - width : rect.x, rect.y, width, rect.height),
-                Texture2D.whiteTexture);
-            GUI.color = Color.white;
+            _bannerTop = Line(band, 1f);
+            _bannerBottom = Line(band, 0f);
+            _bannerTitle = UiBuild.Label(band, "", 68, Color.white, TextAnchor.MiddleCenter, Centre, new Vector2(0f, 58f),
+                new Vector2(1000f, 80f));
+            UiBuild.Outline(_bannerTitle, new Color(0f, 0f, 0f, 0.6f), 2.5f);
+            _bannerLine = UiBuild.Label(band, "", 21, Color.white, TextAnchor.MiddleCenter, Centre, new Vector2(0f, 6f),
+                new Vector2(1000f, 30f), FontStyle.Italic);
+            _bannerResult = UiBuild.Label(band, "", 30, Color.white, TextAnchor.MiddleCenter, Centre,
+                new Vector2(0f, -34f), new Vector2(1000f, 40f));
+            _bannerScore = UiBuild.Label(band, "", 17, Dim, TextAnchor.MiddleCenter, Centre, new Vector2(0f, -68f),
+                new Vector2(1000f, 24f));
+            _bannerNext = UiBuild.Label(band, "", 15, Dim, TextAnchor.MiddleCenter, Centre, new Vector2(0f, -94f),
+                new Vector2(1000f, 22f), FontStyle.Normal);
+            band.gameObject.SetActive(false);
+        }
 
-            string you = team == localTeam ? "  (YOU)" : "";
-            GUI.Label(rect, $"{Faction.Name(team)}  {score} / {_match.TargetScore}{you}", _label);
+        // Full-width 4-unit stripe on the band's top (y = 1) or bottom (y = 0) edge.
+        private static Image Line(RectTransform band, float y)
+        {
+            RectTransform rect = UiBuild.Node(band, "Stripe", new Vector2(0.5f, y), Vector2.zero, new Vector2(0f, 4f));
+            rect.anchorMin = new Vector2(0f, y);
+            rect.anchorMax = new Vector2(1f, y);
+            rect.sizeDelta = new Vector2(0f, 4f);
+            Image image = rect.gameObject.AddComponent<Image>();
+            image.raycastTarget = false;
+            return image;
         }
     }
 }

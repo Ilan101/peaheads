@@ -23,8 +23,10 @@ namespace PeaHeads
             Hide();
         }
 
-        public void Show()
+        // effects: a soft chime where it appears (not for the initial field).
+        public void Show(bool effects = false)
         {
+            if (effects) GameAudio.PlayAt(Sfx.Appear, transform.position, 0.6f);
             _visual.gameObject.SetActive(true);
             if (_glow) _glow.enabled = true;
             if (_sparkles) _sparkles.Play();
@@ -40,7 +42,8 @@ namespace PeaHeads
         public void PlayCollect()
         {
             if (_sparkles) _sparkles.Emit(25);
-            if (_collectSfx) AudioSource.PlayClipAtPoint(_collectSfx, transform.position);
+            if (!GameAudio.PlayAt(Sfx.Collect, transform.position, 1f, 0f) && _collectSfx)
+                AudioSource.PlayClipAtPoint(_collectSfx, transform.position);
         }
 
         private void Update()

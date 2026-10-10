@@ -38,6 +38,9 @@ namespace PeaHeads
         public int MushroomPoints => _mushroomPoints;
         public int KillPoints => _killPoints;
         public float MatchDuration => _matchDuration;
+        public float RestartDelay => _restartDelay;
+        // Counting down (not waiting for the intro story, not ended).
+        public bool ClockRunning => IsSpawned && !IsEnded && !ClockWaiting;
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
         // -1 with IsEnded = draw.
         public int Winner => _winner.Value;
@@ -168,7 +171,10 @@ namespace PeaHeads
             if (local && local.TryGetComponent(out PlayerInput input)) input.Frozen = ended;
             if (!ended) return;
 
-            if (_endSfx && local) AudioSource.PlayClipAtPoint(_endSfx, local.transform.position);
+            int team = TeamOf(NetworkManager.LocalClientId);
+            Sfx stinger = _winner.Value < 0 ? Sfx.Draw : _winner.Value == team ? Sfx.Win : Sfx.Lose;
+            if (!GameAudio.Play(stinger) && _endSfx && local) AudioSource.PlayClipAtPoint(_endSfx, local.transform.position);
+            if (MusicPlayer.Instance) MusicPlayer.Instance.Duck(_restartDelay);
             if (!_confettiPrefab) return;
             foreach (PlayerNetSync player in FindObjectsByType<PlayerNetSync>(FindObjectsSortMode.None))
                 if (TeamOf(player.OwnerClientId) == _winner.Value)

@@ -13,7 +13,7 @@ namespace PeaHeads
         // The tracker sends -1..1: its on-screen box edge = 1 (head_tracker.py BOX_FRAC).
         [Tooltip("Real → in-game movement multiplier for both axes. 2 = lean twice as far as you actually move "
                  + "(capped by PlayerCameraRig max lean / rise / duck).")]
-        [SerializeField, Range(0.5f, 6f)] private float _movementMultiplier = 2f;
+        [SerializeField, Range(0.5f, 8f)] private float _movementMultiplier = 5f;
         [Tooltip("Per-axis balance on top of the multiplier. 1 = full lean at the tracker box edge.")]
         [SerializeField, Range(0.5f, 5f)] private float _leanGain = 1f;
         [SerializeField, Range(0.5f, 5f)] private float _verticalGain = 1f;
@@ -38,7 +38,7 @@ namespace PeaHeads
                 SetIdle(TrackingState.Off);
                 return;
             }
-            // No call while the face is lost: PlayerInput's tracker data goes stale and the arrow keys take over.
+            // No call while the face is lost: PlayerInput's tracker data goes stale and the head eases back to neutral.
             if (!tracker.FaceVisible)
             {
                 SetIdle(TrackingState.NoFace);

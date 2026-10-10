@@ -15,10 +15,10 @@ namespace PeaHeads
         [SerializeField] private Vector2 _pitchLimits = new(-70f, 70f);
 
         [Header("Head offset (metres at full input)")]
-        [SerializeField, Range(0f, 2f)] private float _maxLean = 1.1f;
-        [SerializeField, Range(0f, 1f)] private float _maxRise = 0.35f;
-        [SerializeField, Range(0f, 1f)] private float _maxDuck = 0.6f;
-        [SerializeField, Range(1f, 30f)] private float _headSmoothing = 16f;
+        [SerializeField, Range(0f, 2.5f)] private float _maxLean = 1.6f;
+        [SerializeField, Range(0f, 1.5f)] private float _maxRise = 0.6f;
+        [SerializeField, Range(0f, 1.5f)] private float _maxDuck = 0.9f;
+        [SerializeField, Range(1f, 30f)] private float _headSmoothing = 7f;
         [Tooltip("Lean stops this far from walls so the camera can't see through them.")]
         [SerializeField, Range(0.05f, 1f)] private float _headCollisionRadius = 0.3f;
 

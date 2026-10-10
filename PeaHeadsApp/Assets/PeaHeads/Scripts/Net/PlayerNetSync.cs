@@ -42,11 +42,27 @@ namespace PeaHeads.Net
             foreach (Renderer r in _tinted) r.material.color = color;
 
             _health.Revived += OnRevived;
+            _planting.StateChanged += OnPlantStateChanged;
             if (IsOwner) MoveToSpawn();
             else ApplyRemoteState();
         }
 
-        public override void OnNetworkDespawn() => _health.Revived -= OnRevived;
+        public override void OnNetworkDespawn()
+        {
+            _health.Revived -= OnRevived;
+            _planting.StateChanged -= OnPlantStateChanged;
+        }
+
+        // Digging in / pulling out is heard by everyone nearby; "ready to spit" only by the owner.
+        private void OnPlantStateChanged(PlantState state)
+        {
+            switch (state)
+            {
+                case PlantState.Planting: GameAudio.PlayAt(Sfx.Plant, transform.position, 0.9f); break;
+                case PlantState.Unplanting: GameAudio.PlayAt(Sfx.Unplant, transform.position, 0.9f); break;
+                case PlantState.Planted when IsOwner: GameAudio.Play(Sfx.Ready, 0.55f); break;
+            }
+        }
 
         private void Update()
         {

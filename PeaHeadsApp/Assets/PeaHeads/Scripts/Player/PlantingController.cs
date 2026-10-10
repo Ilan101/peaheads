@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -16,6 +17,8 @@ namespace PeaHeads
         [SerializeField, Range(0.3f, 1f)] private float _plantedHeight = 0.8f;
 
         public PlantState State { get; private set; }
+        // Every transition except ResetState (respawn is silent). Fires on remote copies too, from ApplyRemote/Tick.
+        public event Action<PlantState> StateChanged;
         public bool CanMove => State == PlantState.Unplanted;
         public bool CanShoot => State == PlantState.Planted;
         // 0 = unplanted, 1 = planted, linear. Visual components shape it with their own curves.
@@ -45,7 +48,7 @@ namespace PeaHeads
             if (State is PlantState.Planting or PlantState.Unplanting)
             {
                 _timer -= deltaTime;
-                if (_timer <= 0f) State = State == PlantState.Planting ? PlantState.Planted : PlantState.Unplanted;
+                if (_timer <= 0f) SetState(State == PlantState.Planting ? PlantState.Planted : PlantState.Unplanted);
             }
 
             float target = State is PlantState.Planting or PlantState.Planted ? 1f : 0f;
@@ -57,7 +60,7 @@ namespace PeaHeads
         {
             if (state == _lastRemote) return;
             _lastRemote = state;
-            State = state;
+            SetState(state);
             _timer = Duration(state);
         }
 
@@ -77,8 +80,15 @@ namespace PeaHeads
 
         private void Begin(PlantState state)
         {
-            State = state;
+            SetState(state);
             _timer = Duration(state);
+        }
+
+        private void SetState(PlantState state)
+        {
+            if (State == state) return;
+            State = state;
+            StateChanged?.Invoke(state);
         }
 
         private float Duration(PlantState state) => state == PlantState.Unplanting ? _unplantTime : _plantTime;

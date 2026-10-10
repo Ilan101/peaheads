@@ -18,7 +18,7 @@
 | Netcode | **Netcode for GameObjects + Unity Transport, direct IP over LAN**. Host-authoritative. Add Unity Relay only if venue Wi-Fi blocks peer connections. |
 | CV | **Python + MediaPipe Face Mesh** (`head_tracker.py`, repo root), one process per machine, JSON over **UDP `127.0.0.1:5052`**. No video leaves the machine. |
 | Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
-| Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Webcam lean is proportional (HeadTrackingInput gain); arrow keys give full lean. Plain light-blue background, no skybox. |
+| Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Webcam lean is proportional (HeadTrackingInput gain). **Head is webcam-only** (no keyboard lean, user decision 2026-10-10: dodging with your real head is the game). Plain light-blue background, no skybox. |
 | Testing | Hackathon override of global rules: **no 80% coverage / strict TDD.** EditMode tests only for pure logic (planting state machine, gesture edge-detection, packet parsing). Everything else verified by playing. |
 
 ## Repo layout
@@ -27,6 +27,7 @@
 peaheads/                      repo (git@github.com:Ilan101/peaheads.git)
 ├── PeaHeads_Specification.md
 ├── head_tracker.py            Python webcam tracker — Person 1
+├── tools/make_audio.py        Synthesises all music + SFX (numpy/scipy, deterministic) into Audio/Resources
 └── PeaHeadsApp/               Unity project (its .gitignore excludes Library/Temp/Logs/UserSettings)
 ```
 
@@ -65,7 +66,13 @@ Assets/PeaHeads/
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart, fresh match when a client connects; TeamOf), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
-│   ├── UI/         PlayerHUD (IMGUI placeholder: faction, state, HP, crosshair), ScoreHUD (IMGUI faction score bars + win banner),
+│   ├── Audio/      GameAudio (static: Sfx enum → Resources "Sfx/<name>" clips, variants name_0..n; PlayAt 3D / Play 2D; returns
+│   │                 false if missing so inspector clips stay as fallback), MusicPlayer (added by GameMenu: crossfades
+│   │                 menu/story/game loops from Resources "Music/", ducks when paused / under end stinger, Muted in PlayerPrefs)
+│   ├── UI/         PlayerHUD (uGUI built in code, owner only: webcam panel, player card with hearts + plant state, crosshair with
+│   │                 cooldown ring + hit marker, damage/zoom vignettes, knocked-out overlay, kill toast, feedback sounds),
+│   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks,
+│   │                 collect bar, end banner), UiBuild (shared uGUI helpers + cached UiSprites),
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
 │   │                 nearest-Sporelight distance; M enlarges), UiSprites (procedural icon sprites),
@@ -87,7 +94,7 @@ Assets/PeaHeads/
 ```
 
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase = dirt mound, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments; Gen_GroundLeaves) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable, r 0.54), `Snout` (lathe trumpet + Gen_MouthHole), `Mouth` (pea spawn), `PlayerCamera`, Gen_EyeL/EyeR (+Gen_Pupil, Gen_LidR on the right eye), Gen_Collar, Gen_Tuft.
-Head input = arrow keys in `PlayerInput`; `HeadTrackingInput` calls `PlayerInput.SetTrackerInput(head, shoot, aim)` each frame while a face is tracked. Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
+Head input = webcam only; `HeadTrackingInput` calls `PlayerInput.SetTrackerInput(head, shoot, aim)` each frame while a face is tracked. Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
 Only make files when needed. One scene, no MainMenu scene (GameMenu start screen overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
@@ -109,7 +116,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 
 Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
-Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
+Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. Mouse fallbacks: LMB = fire, RMB = zoom. **No keyboard head fallback** (removed 2026-10-10 by the user's call); without a face the head eases to neutral.
 
 ## Story (StoryIntro)
 
@@ -119,7 +126,7 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 
 - States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
-- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.0 m lateral, 0.5 m up / 0.75 m down, no roll (raw position only), movement multiplier 4.2, smoothing 5 (Player prefab).
+- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.6 m lateral, 0.6 m up / 0.9 m down, no roll (raw position only), movement multiplier 5, smoothing 7 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
@@ -150,7 +157,7 @@ Put tunables as `[SerializeField]` on components (inspector-tweakable), defaults
 4. NGO two-player over LAN (validate in **hour 0–2** with a cube).
 5. Arena with trees/rocks (ProBuilder + template art).
 6. Win + restart.
-7. Wink zoom + crosshair, HUD, tracking indicator, SFX (`Assets/PeaHeads/Audio`).
+7. Wink zoom + crosshair, HUD, tracking indicator, SFX + music (`Assets/PeaHeads/Audio/Resources`, generated by `tools/make_audio.py`; regenerate, don't hand-edit).
 8. Stem bend, hit/defeat anims, polish.
 
 Feature freeze when 1–6 work. Never trade webcam reliability for content.

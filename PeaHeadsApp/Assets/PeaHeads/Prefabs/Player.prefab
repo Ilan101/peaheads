@@ -1334,10 +1334,10 @@ MonoBehaviour:
   - {fileID: 8792274178797252570}
   - {fileID: 6821918235367720439}
   _pitchLimits: {x: -70, y: 70}
-  _maxLean: 1
-  _maxRise: 0.5
-  _maxDuck: 0.75
-  _headSmoothing: 5
+  _maxLean: 1.6
+  _maxRise: 0.6
+  _maxDuck: 0.9
+  _headSmoothing: 7
   _headCollisionRadius: 0.3
   _zoomFactor: 1.5
   _zoomSpeed: 12
@@ -1625,7 +1625,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7ebb9a6e510e41479723460a86a18ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.HeadTrackingInput
-  _movementMultiplier: 4.2
+  _movementMultiplier: 5
   _leanGain: 1
   _verticalGain: 1
   _useMouthFire: 1

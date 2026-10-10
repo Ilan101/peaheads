@@ -18,7 +18,8 @@ namespace PeaHeads
         public bool RecenterPressed;
     }
 
-    // The only reader of keyboard/mouse (and later the webcam). Enabled only on the local player's plant.
+    // The only reader of keyboard/mouse and the webcam hook. Enabled only on the local player's plant. The head is
+    // webcam-only on purpose (dodging with your real head is the game): no keyboard lean.
     [DefaultExecutionOrder(-100)]
     public class PlayerInput : MonoBehaviour
     {
@@ -107,9 +108,7 @@ namespace PeaHeads
             {
                 Move = new Vector2(Axis(kb.aKey, kb.dKey), Axis(kb.sKey, kb.wKey)),
                 Look = locked ? mouse.delta.ReadValue() * _mouseSensitivity : Vector2.zero,
-                Head = trackerFresh
-                    ? _trackerHead
-                    : new Vector2(Axis(kb.leftArrowKey, kb.rightArrowKey), Axis(kb.downArrowKey, kb.upArrowKey)),
+                Head = trackerFresh ? _trackerHead : Vector2.zero,
                 PlantPressed = kb.eKey.wasPressedThisFrame,
                 FirePressed = locked && (click || _trackerFirePending),
                 ZoomHeld = locked && (mouse.rightButton.isPressed || (trackerFresh && _trackerAim)),

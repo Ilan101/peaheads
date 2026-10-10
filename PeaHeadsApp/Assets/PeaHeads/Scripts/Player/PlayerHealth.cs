@@ -21,6 +21,7 @@ namespace PeaHeads
 
         public int Current => _current.Value;
         public int Max => _maxHealth;
+        public float RespawnDelay => _respawnDelay;
         public bool IsDead => _current.Value <= 0;
         // True while the owner is watching the story intro: peas don't hurt.
         public bool IsShielded => _shielded.Value;

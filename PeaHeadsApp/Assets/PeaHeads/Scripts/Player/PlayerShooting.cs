@@ -23,6 +23,11 @@ namespace PeaHeads
 
         // Owner only: one of this player's peas damaged something (true = it was a kill).
         public event Action<bool> HitConfirmed;
+        // Owner only: fire was pressed while not planted (HUD hint).
+        public event Action FireBlocked;
+
+        // 0 right after a shot, 1 when the next one is allowed.
+        public float CooldownProgress => _cooldown <= 0f ? 1f : Mathf.Clamp01(1f - (_nextFireTime - Time.time) / _cooldown);
 
         private PlantingController _planting;
         private PlayerCameraRig _rig;
@@ -41,7 +46,8 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (IsSpawned && IsOwner && _input.Current.FirePressed) TryFire();
+            if (!IsSpawned || !IsOwner || !_input.Current.FirePressed) return;
+            if (!TryFire() && !_planting.CanShoot && !_health.IsDead) FireBlocked?.Invoke();
         }
 
         // Owner only. Aim at whatever is under the crosshair, but launch from the mouth.
@@ -56,6 +62,7 @@ namespace PeaHeads
                 ? hit.point
                 : cam.position + cam.forward * _maxAimDistance;
             FireRpc(_mouth.position, (target - _mouth.position).normalized, cam.position);
+            PlayFireSfx(_mouth.position); // the shooter hears it now; everyone else via PlayFireSfxRpc
             return true;
         }
 
@@ -92,6 +99,7 @@ namespace PeaHeads
         [Rpc(SendTo.ClientsAndHost)]
         private void SplatRpc(Vector3 point, Vector3 normal)
         {
+            GameAudio.PlayAt(Sfx.Splat, point, 0.9f, 0.12f);
             if (!_splatPrefab) return;
             Quaternion facing = normal.sqrMagnitude > 0.01f ? Quaternion.LookRotation(normal) : Quaternion.identity;
             ParticleSystem splat = Instantiate(_splatPrefab, point, facing);
@@ -110,7 +118,13 @@ namespace PeaHeads
         [Rpc(SendTo.ClientsAndHost)]
         private void PlayFireSfxRpc(Vector3 position)
         {
-            if (_fireSfx) AudioSource.PlayClipAtPoint(_fireSfx, position);
+            if (!IsOwner) PlayFireSfx(position);
+        }
+
+        // Bubble pop (generated); the inspector clip is only a fallback.
+        private void PlayFireSfx(Vector3 position)
+        {
+            if (!GameAudio.PlayAt(Sfx.Pop, position, 1f, 0.1f) && _fireSfx) AudioSource.PlayClipAtPoint(_fireSfx, position);
         }
     }
 }
