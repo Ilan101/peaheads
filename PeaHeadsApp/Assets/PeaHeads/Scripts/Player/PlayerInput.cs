@@ -26,6 +26,8 @@ namespace PeaHeads
         [SerializeField] private Behaviour[] _localOnlyBehaviours = new Behaviour[0];
 
         public PlayerInputFrame Current { get; private set; }
+        // Set by MatchManager while a match has ended: input reads as nothing.
+        public bool Frozen { get; set; }
 
         private Vector2 _trackerHead;
         private bool _trackerAim;
@@ -83,6 +85,12 @@ namespace PeaHeads
             }
             bool locked = Cursor.lockState == CursorLockMode.Locked;
             bool trackerFresh = Time.time - _trackerTime < _trackerTimeout;
+            if (Frozen)
+            {
+                Current = default;
+                _trackerFirePending = false;
+                return;
+            }
 
             Current = new PlayerInputFrame
             {

@@ -22,6 +22,8 @@ namespace PeaHeads
         public bool IsDead => _current.Value <= 0;
         public event Action<PlayerHealth> Died;
         public event Action Revived;
+        // Server only: victim, attacker client id.
+        public static event Action<PlayerHealth, ulong> Killed;
 
         private bool _flashing;
         private Color _flashOriginal;
@@ -35,13 +37,14 @@ namespace PeaHeads
 
         public override void OnNetworkDespawn() => _current.OnValueChanged -= OnHealthChanged;
 
-        public void TakeDamage(int amount)
+        public void TakeDamage(int amount, ulong attackerClientId)
         {
             if (!IsServer || IsDead) return;
             _current.Value = Mathf.Max(0, _current.Value - amount);
             if (!IsDead) return;
 
             Died?.Invoke(this);
+            Killed?.Invoke(this, attackerClientId);
             if (_respawnDelay > 0f) Invoke(nameof(ResetHealth), _respawnDelay);
         }
 
