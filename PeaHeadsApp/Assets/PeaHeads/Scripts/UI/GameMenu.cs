@@ -82,7 +82,9 @@ namespace PeaHeads
                 _storyStarted = false;
                 _story.Stop();
             }
-            else if (connected && !_storyStarted)
+            // Teams are reshuffled when a client joins; wait for ours so the story tells the right side.
+            else if (connected && !_storyStarted &&
+                     (!FindFirstObjectByType<MatchManager>() || MatchManager.HasTeam(nm.LocalClientId)))
             {
                 _storyStarted = true;
                 _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(), null);

@@ -208,6 +208,7 @@ namespace PeaHeads
         private void Restart()
         {
             if (!IsSpawned) return;
+            ShuffleTeams();
             _score0.Value = 0;
             _score1.Value = 0;
             _winner.Value = -1;
@@ -215,16 +216,11 @@ namespace PeaHeads
                 if (client.PlayerObject && client.PlayerObject.TryGetComponent(out PlayerHealth health))
                     health.ResetHealth();
             RoundStarted?.Invoke();
-            RoundStartedRpc();
+            foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+                if (client.PlayerObject && client.PlayerObject.TryGetComponent(out PlayerNetSync sync))
+                    sync.RespawnOnSideRpc((byte)TeamOf(client.ClientId));
             ArmClock();
             _state.Value = (byte)MatchState.Playing;
-        }
-
-        [Rpc(SendTo.Everyone)]
-        private void RoundStartedRpc()
-        {
-            NetworkObject player = NetworkManager.LocalClient?.PlayerObject;
-            if (player && player.TryGetComponent(out PlayerNetSync sync)) sync.Respawn();
         }
 
         private void OnStateChanged(byte previous, byte current)

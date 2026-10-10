@@ -38,15 +38,26 @@ namespace PeaHeads.Net
             _input.SetLocal(IsOwner);
             _rig.SetLocal(IsOwner);
 
-            Color color = Faction.Color(MatchManager.TeamOf(OwnerClientId));
-            foreach (Renderer r in _tinted) r.material.color = color;
+            ApplyTint();
+            MatchManager.TeamsChanged += ApplyTint;
 
             _health.Revived += OnRevived;
-            if (IsOwner) MoveToSpawn();
+            if (IsOwner) MoveToSpawn(MatchManager.TeamOf(OwnerClientId));
             else ApplyRemoteState();
         }
 
-        public override void OnNetworkDespawn() => _health.Revived -= OnRevived;
+        public override void OnNetworkDespawn()
+        {
+            _health.Revived -= OnRevived;
+            MatchManager.TeamsChanged -= ApplyTint;
+        }
+
+        // Teams are reshuffled every match, so the head colour follows the current assignment.
+        private void ApplyTint()
+        {
+            Color color = Faction.Color(MatchManager.TeamOf(OwnerClientId));
+            foreach (Renderer r in _tinted) r.material.color = color;
+        }
 
         private void Update()
         {
@@ -78,21 +89,26 @@ namespace PeaHeads.Net
             _plantFace.SetFlags(mouthOpen, wink);
         }
 
-        // Owner only: back to spawn, unplanted. Used on revive and on match restart.
-        public void Respawn()
+        // Owner only: back to spawn on its team's side, unplanted. Used on revive.
+        public void Respawn() => Respawn(MatchManager.TeamOf(OwnerClientId));
+
+        // Host → owner at round start: the side comes with the call, so a late team-list update can't misplace us.
+        [Rpc(SendTo.Owner)]
+        public void RespawnOnSideRpc(byte team) => Respawn(team);
+
+        private void Respawn(int team)
         {
             if (!IsOwner) return;
             _planting.ResetState();
-            MoveToSpawn();
+            MoveToSpawn(team);
         }
 
         private void OnRevived() => Respawn();
 
-        // Host spawns on team 0's side, any client on team 1's (a rejoining client gets a new id, so ids can't be
-        // used). Random point each time, never the previous one.
-        private void MoveToSpawn()
+        // Random point on the team's side each time, never the previous one.
+        private void MoveToSpawn(int team)
         {
-            SpawnPoint spawn = SpawnPoint.GetRandom(IsHost ? 0 : 1, _lastSpawn);
+            SpawnPoint spawn = SpawnPoint.GetRandom(team, _lastSpawn);
             if (!spawn) return;
             _lastSpawn = spawn;
             _movement.Teleport(spawn.transform.position, spawn.transform.rotation);
