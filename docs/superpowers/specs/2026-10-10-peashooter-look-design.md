@@ -60,7 +60,7 @@ Menu **PeaHeads > Build Plant Body**. Idempotent; overwrites hand edits on gener
 
 ### 4. `PlantFace` (new, `Scripts/Player/PlantFace.cs`, MonoBehaviour)
 
-Serialized: `Transform _snout`, `Transform _mouthHole`, `Transform _winkEye` (right eye), `float _openFlare = 1.22f`, `float _openHole = 1.6f`, `float _winkSquint = 0.15f`, `float _smoothing = 14f`.
+Serialized: `Transform _snout`, `Transform _mouthHole`, `Transform _winkEye` (right eye), `float _openFlare = 1.22f`, `float _openHole = 1.3f`, `float _winkSquint = 0.15f`, `float _smoothing = 14f`.
 
 - `void SetFlags(bool mouthOpen, bool wink)` — targets; `Update` eases current values with `1 − exp(−_smoothing·dt)`.
 - Applies: `_snout.localScale = (flare, flare, 1)`, `_mouthHole.localScale = (hole, hole, 1)`, `_winkEye.localScale.y = rest.y · squint`. Rest scales captured in `Awake`.
