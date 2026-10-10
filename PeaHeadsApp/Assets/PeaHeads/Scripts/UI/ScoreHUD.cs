@@ -45,6 +45,22 @@ namespace PeaHeads
 
             int localTeam = MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId);
             float mid = Screen.width / 2f;
+            if (!PlayerHUD.Scoped) DrawMatchStatus(localTeam, mid);
+
+            if (!_match.IsEnded) return;
+            int winner = _match.Winner;
+            float y = Screen.height * 0.28f;
+            bool draw = winner < 0;
+            _banner.normal.textColor = draw ? Color.black : Faction.Color(winner);
+            GUI.Label(new Rect(0f, y, Screen.width, 64f), draw ? "DRAW" : $"{Faction.Name(winner)} WINS", _banner);
+            GUI.Label(new Rect(0f, y + 68f, Screen.width, 34f), draw ? "Tied on points" : Faction.WinLine(winner), _line);
+            string result = draw ? "" : winner == localTeam ? "You win!   " : "You lose   ";
+            GUI.Label(new Rect(0f, y + 106f, Screen.width, 30f), $"{result}Restarting...", _label);
+        }
+
+        // Score bars, clock, mushroom progress, rival-shield note. Hidden while scoped in.
+        private void DrawMatchStatus(int localTeam, float mid)
+        {
             DrawBar(new Rect(mid - _barWidth - 10f, 12f, _barWidth, 26f), 0, false, localTeam);
             DrawBar(new Rect(mid + 10f, 12f, _barWidth, 26f), 1, true, localTeam);
 
@@ -57,16 +73,6 @@ namespace PeaHeads
             if (_rivalShielded && !_match.IsEnded)
                 GUI.Label(new Rect(0f, 72f, Screen.width, 24f),
                     $"{Faction.Name(1 - localTeam)} is still hearing the story... (can't be hit yet)", _label);
-
-            if (!_match.IsEnded) return;
-            int winner = _match.Winner;
-            float y = Screen.height * 0.28f;
-            bool draw = winner < 0;
-            _banner.normal.textColor = draw ? Color.black : Faction.Color(winner);
-            GUI.Label(new Rect(0f, y, Screen.width, 64f), draw ? "DRAW" : $"{Faction.Name(winner)} WINS", _banner);
-            GUI.Label(new Rect(0f, y + 68f, Screen.width, 34f), draw ? "Tied on points" : Faction.WinLine(winner), _line);
-            string result = draw ? "" : winner == localTeam ? "You win!   " : "You lose   ";
-            GUI.Label(new Rect(0f, y + 106f, Screen.width, 30f), $"{result}Restarting...", _label);
         }
 
         // Bottom-centre progress of the mushroom the local player is planted on.

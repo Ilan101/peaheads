@@ -15,6 +15,8 @@ namespace PeaHeads
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;
         [SerializeField, Range(0f, 2f)] private float _cooldown = 0.6f;
+        [Tooltip("Seconds between shots while zoomed (wink / RMB) with fire held (mouth open / LMB): full auto.")]
+        [SerializeField, Range(0.05f, 2f)] private float _autoFireInterval = 0.3f;
         [SerializeField, Range(10f, 300f)] private float _maxAimDistance = 100f;
         [SerializeField] private AudioClip _fireSfx;
         [Tooltip("Pea break burst played where a pea hits, on every machine.")]
@@ -41,14 +43,18 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (IsSpawned && IsOwner && _input.Current.FirePressed) TryFire();
+            if (!IsSpawned || !IsOwner) return;
+            PlayerInputFrame input = _input.Current;
+            // Zoomed: hold to fire full auto. Otherwise one shot per press/mouth opening.
+            if (input.ZoomHeld && input.MouthOpen) TryFire(_autoFireInterval);
+            else if (input.FirePressed) TryFire(_cooldown);
         }
 
         // Owner only. Aim at whatever is under the crosshair, but launch from the mouth.
-        public bool TryFire()
+        private bool TryFire(float interval)
         {
             if (!CanFire(_nextFireTime)) return false;
-            _nextFireTime = Time.time + _cooldown;
+            _nextFireTime = Time.time + interval;
 
             Transform cam = _rig.Camera.transform;
             Vector3 target = PhysicsUtil.CastIgnoring(transform, cam.position, 0f, cam.forward, _maxAimDistance,
@@ -70,7 +76,8 @@ namespace PeaHeads
             if (_health.IsDead || Time.time < _hostNextFireTime) return;
             if (!(direction.sqrMagnitude >= 0.5f)) return;
             if (!IsNearShooter(origin) || !IsNearShooter(sweepFrom)) return;
-            _hostNextFireTime = Time.time + _cooldown * HostCooldownTolerance;
+            // Zoom is owner-side, so the host allows the faster (auto) rate.
+            _hostNextFireTime = Time.time + Mathf.Min(_cooldown, _autoFireInterval) * HostCooldownTolerance;
 
             PeaProjectile pea = Instantiate(_peaPrefab, origin, Quaternion.LookRotation(direction.normalized));
             pea.SetTeam(MatchManager.TeamOf(OwnerClientId));

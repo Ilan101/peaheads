@@ -17,10 +17,20 @@ namespace PeaHeads
         [Tooltip("Red screen flash when this player takes damage.")]
         [SerializeField, Range(0.05f, 2f)] private float _damageFlashTime = 0.4f;
         [SerializeField, Range(0f, 1f)] private float _damageFlashAlpha = 0.35f;
+        [Tooltip("Scope vignette darkness at full zoom (0 = off).")]
+        [SerializeField, Range(0f, 1f)] private float _scopeVignette = 0.8f;
+        [SerializeField, Range(1f, 20f)] private float _scopeFadeSpeed = 8f;
+        [Tooltip("Scope circle size relative to the screen height.")]
+        [SerializeField, Range(0.8f, 2.5f)] private float _scopeCircleSize = 1.4f;
+        [SerializeField] private Color _deathTint = new(0.35f, 0f, 0f, 0.6f);
 
         private static Texture2D _heart;
         private static Texture2D _ring;
         private static Texture2D _cross;
+        private static Texture2D _vignette;
+
+        // Local player is scoped in: HUDs hide everything but the crosshair (read by ScoreHUD too).
+        public static bool Scoped { get; private set; }
 
         private PlantingController _planting;
         private PlayerHealth _health;
@@ -32,6 +42,14 @@ namespace PeaHeads
         private float _flashUntil;
         private float _markerUntil;
         private bool _markerKill;
+        private float _scope;
+        private bool _wasDead;
+        private float _diedAt;
+        private GUIStyle _deathTitle;
+        private GUIStyle _deathLine;
+        private MatchManager _match;
+
+        private int Team => _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;
         private GUIStyle _style;
         private GUIStyle _factionStyle;
 
@@ -53,6 +71,7 @@ namespace PeaHeads
 
         private void OnDisable()
         {
+            Scoped = false;
             if (_shooting) _shooting.HitConfirmed -= OnHitConfirmed;
         }
 
@@ -60,6 +79,11 @@ namespace PeaHeads
         {
             if (_health.Current < _lastHealth) _flashUntil = Time.time + _damageFlashTime;
             _lastHealth = _health.Current;
+            _scope = Mathf.MoveTowards(_scope, _rig.IsZoomed ? 1f : 0f, _scopeFadeSpeed * Time.deltaTime);
+            bool dead = _health.IsDead;
+            if (dead && !_wasDead) _diedAt = Time.time;
+            _wasDead = dead;
+            Scoped = _scope > 0.5f && !dead;
         }
 
         private void OnHitConfirmed(bool killed)
@@ -73,21 +97,86 @@ namespace PeaHeads
             if (StoryIntro.IsPlaying) return;
             _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
             _factionStyle ??= new GUIStyle(_style);
+            if (_health.IsDead)
+            {
+                DrawDeathScreen();
+                return;
+            }
+            DrawScopeVignette();
             DrawDamageFlash();
+            if (!Scoped) DrawStatus();
+            DrawCrosshair();
+        }
 
+        private void DrawStatus()
+        {
             GUI.Label(new Rect(Margin, Margin - 8f, 700f, 30f), TrackingLabel(), _style);
             if (_tracking && _tracking.State == TrackingState.Tracking)
                 DrawTrackerView(new Rect(Margin, Margin + 24f, _trackerWidth, _trackerWidth * 9f / 16f), _tracking.Head);
 
-            int team = _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;
+            int team = Team;
             float heartsY = Screen.height - Margin - _heartSize;
             _factionStyle.normal.textColor = Faction.Color(team);
             GUI.Label(new Rect(Margin, heartsY - 64f, 600f, 30f), Faction.Name(team), _factionStyle);
             string ready = _planting.CanShoot ? "  -  READY TO SPIT" : "";
             GUI.Label(new Rect(Margin, heartsY - 32f, 600f, 30f), $"{_planting.State}{ready}", _style);
             DrawHearts(Margin, heartsY);
+        }
 
-            DrawCrosshair();
+        // Round scope view: clear centre, dark edges; the strips beside the circle are filled solid.
+        private void DrawScopeVignette()
+        {
+            if (_scope <= 0f || _scopeVignette <= 0f) return;
+            _vignette ??= VignetteTexture();
+            float side = Screen.height * _scopeCircleSize;
+            float x = (Screen.width - side) / 2f;
+            GUI.color = new Color(1f, 1f, 1f, _scope * _scopeVignette);
+            GUI.DrawTexture(new Rect(x, (Screen.height - side) / 2f, side, side), _vignette);
+            GUI.color = new Color(0f, 0f, 0f, _scope * _scopeVignette);
+            if (x > 0f) GUI.DrawTexture(new Rect(0f, 0f, x, Screen.height), Texture2D.whiteTexture);
+            if (x > 0f) GUI.DrawTexture(new Rect(x + side, 0f, x, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
+
+        // Black, alpha 0 inside ~55% of the radius rising to 1 at the edge.
+        private static Texture2D VignetteTexture()
+        {
+            const int size = 128;
+            var pixels = new Color32[size * size];
+            for (int py = 0; py < size; py++)
+            for (int px = 0; px < size; px++)
+            {
+                float u = (px + 0.5f) / size * 2f - 1f, v = (py + 0.5f) / size * 2f - 1f;
+                float alpha = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, Mathf.Sqrt(u * u + v * v)));
+                pixels[py * size + px] = new Color32(0, 0, 0, (byte)(alpha * 255f));
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            return texture;
+        }
+
+        // Dark red overlay, who got you, respawn countdown. Tint only once the match has ended (its banner says the rest).
+        private void DrawDeathScreen()
+        {
+            GUI.color = _deathTint;
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            _match ??= FindFirstObjectByType<MatchManager>();
+            if (_match && _match.IsEnded) return;
+
+            _deathTitle ??= new GUIStyle(GUI.skin.label)
+                { fontSize = 56, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
+            _deathLine ??= new GUIStyle(_deathTitle) { fontSize = 26, richText = true };
+
+            int rival = 1 - Team;
+            string rivalName = $"<color=#{ColorUtility.ToHtmlStringRGB(Faction.Color(rival))}>{Faction.Name(rival)}</color>";
+            float y = Screen.height * 0.36f;
+            GUI.Label(new Rect(0f, y, Screen.width, 70f), "SPAT OUT!", _deathTitle);
+            GUI.Label(new Rect(0f, y + 72f, Screen.width, 36f), $"{rivalName} got you", _deathLine);
+            if (_health.RespawnDelay <= 0f) return;
+            int left = Mathf.CeilToInt(Mathf.Max(0f, _health.RespawnDelay - (Time.time - _diedAt)));
+            GUI.Label(new Rect(0f, y + 112f, Screen.width, 36f), $"Respawning in {left}...", _deathLine);
         }
 
         private void DrawDamageFlash()
@@ -99,7 +188,7 @@ namespace PeaHeads
             GUI.color = Color.white;
         }
 
-        // Hollow ring; an X flashes around it when one of our peas lands (red on a kill).
+        // Hollow ring; an X flashes around it when one of our peas lands. On a kill the whole crosshair goes red.
         private void DrawCrosshair()
         {
             _ring ??= MaskTexture((u, v) => { float r = Mathf.Sqrt(u * u + v * v); return r <= 1f && r >= 0.72f; });
@@ -108,15 +197,16 @@ namespace PeaHeads
 
             Vector2 centre = new(Screen.width / 2f, Screen.height / 2f);
             float size = _rig.IsZoomed ? _crosshairSize * 1.3f : _crosshairSize;
+            bool marker = Time.time < _markerUntil;
+            // A kill turns the whole crosshair (ring + X) red while the marker shows.
+            GUI.color = marker && _markerKill ? new Color(1f, 0.2f, 0.2f) : Color.white;
             GUI.DrawTexture(new Rect(centre.x - size / 2f, centre.y - size / 2f, size, size), _ring);
-
-            if (Time.time < _markerUntil)
+            if (marker)
             {
-                float marker = size * 1.8f;
-                GUI.color = _markerKill ? new Color(1f, 0.2f, 0.2f) : Color.white;
-                GUI.DrawTexture(new Rect(centre.x - marker / 2f, centre.y - marker / 2f, marker, marker), _cross);
-                GUI.color = Color.white;
+                float cross = size * 1.8f;
+                GUI.DrawTexture(new Rect(centre.x - cross / 2f, centre.y - cross / 2f, cross, cross), _cross);
             }
+            GUI.color = Color.white;
         }
 
         private string TrackingLabel() => !_tracking ? "Webcam: off (keyboard)" : _tracking.State switch

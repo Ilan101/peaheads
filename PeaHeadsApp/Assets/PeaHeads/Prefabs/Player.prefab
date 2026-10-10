@@ -1384,7 +1384,8 @@ MonoBehaviour:
   _peaPrefab: {fileID: 8910985278274626123, guid: d8086ce5b995f6e2c926eddecccb42e9,
     type: 3}
   _mouth: {fileID: 2771974750140794050}
-  _cooldown: 0.05
+  _cooldown: 0.1
+  _autoFireInterval: 0.2
   _maxAimDistance: 100
   _fireSfx: {fileID: 8300000, guid: 53d2238f4c4b2aa4f8e559c7af9e0126, type: 3}
   _splatPrefab: {fileID: 99593127888905355, guid: 5125f0884095cebf190653734ccb07e1,
@@ -1404,7 +1405,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerHealth
   ShowTopMostFoldoutHeaderGroup: 1
   _maxHealth: 3
-  _respawnDelay: 3
+  _respawnDelay: 2
   _flashRenderer: {fileID: 1857080282461240938}
   _hitSfx: {fileID: 8300000, guid: 25e8bbe95ad4f344abd4dd8d7c8636ab, type: 3}
 --- !u!114 &1385081697139971756
@@ -1425,6 +1426,8 @@ MonoBehaviour:
   _hitMarkerTime: 0.25
   _damageFlashTime: 0.4
   _damageFlashAlpha: 0.35
+  _scopeVignette: 0.8
+  _scopeFadeSpeed: 8
 --- !u!114 &6559153631543594811
 MonoBehaviour:
   m_ObjectHideFlags: 0
