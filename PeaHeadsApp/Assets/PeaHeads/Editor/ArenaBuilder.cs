@@ -78,6 +78,16 @@ namespace PeaHeads.EditorTools
             ("tree_pineRoundC", -3f, 18f, 180f, 6f),
         };
 
+        // Hand-added in the editor (2026-10-10, second pass). Placed after the decoration scatter so they don't shift
+        // it (MovedDecoration matches scatter positions).
+        private static readonly (string model, float x, float z, float rot, float height)[] LateCover =
+        {
+            ("tree_pineTallA_detailed", -4.19f, -2.95f, 180f, 7f),
+            ("stump_oldTall", 9.71f, 12.34f, 180f, 2.23f),
+            ("stump_oldTall", -7.67f, -9.63f, 180f, 2.23f),
+            ("rock_tallB", -4.62f, 13.74f, 180f, 2.6f),
+        };
+
         private static readonly string[] Trees =
             { "tree_pineTallA_detailed", "tree_pineTallB_detailed", "tree_pineRoundC", "tree_oak", "tree_fat" };
 
@@ -120,6 +130,8 @@ namespace PeaHeads.EditorTools
             BuildBoundary(env);
             PlaceTreeRing(env, terrain, rng);
             ScatterDecoration(env, terrain, blocked, rng);
+            foreach (var (model, x, z, rot, height) in LateCover)
+                Place(model, env.Find("Cover"), terrain, new Vector2(x, z), rot, height, true);
             ApplyRenderSettings();
             EnsureMatchObject(scene);
             EnsureHeadTrackingObject(scene);
@@ -369,7 +381,11 @@ namespace PeaHeads.EditorTools
             (new(5.14f, 16.05f), new(4.05f, 17.26f)),
             (new(-11.25f, -5.49f), new(-9.73f, -5.15f)),
             (new(-4.63f, 10.9f), new(-10.2f, 13.6f)),
+            (new(6.34f, -15.93f), new(-13.99f, -17.19f)),
         };
+
+        // Hand-deleted in the editor: scattered pieces at these transform x/z are removed.
+        private static readonly Vector2[] RemovedDecoration = { new(-14.48f, -17.39f), new(-3.52f, 14.8f) };
 
         private static void ScatterDecoration(Transform env, Terrain terrain, List<Vector2> cover, System.Random rng)
         {
@@ -394,6 +410,13 @@ namespace PeaHeads.EditorTools
                     Vector2.Distance(new Vector2(t.position.x, t.position.z), from) < 0.05f);
                 if (piece) piece.position = new Vector3(to.x, piece.position.y, to.y);
                 else Debug.LogWarning($"[PeaHeads] Moved decoration at {from} not found: the scatter changed.");
+            }
+            foreach (Vector2 at in RemovedDecoration)
+            {
+                Transform piece = parent.Cast<Transform>().FirstOrDefault(t =>
+                    Vector2.Distance(new Vector2(t.position.x, t.position.z), at) < 0.05f);
+                if (piece) Object.DestroyImmediate(piece.gameObject);
+                else Debug.LogWarning($"[PeaHeads] Removed decoration at {at} not found: the scatter changed.");
             }
         }
 

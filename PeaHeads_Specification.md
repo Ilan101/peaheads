@@ -331,8 +331,8 @@ For the initial demo:
 - A projectile hit removes one health point.
 - A player who reaches zero health is defeated and respawns at their spawn point after a short delay.
 - **Points race** (added 2026-10-10, see `docs/superpowers/specs/2026-10-10-mushroom-scoring-design.md`):
-  - A kill gives the shooter **3 points**.
-  - Collecting a mushroom gives **1 point**. Glowing mushrooms appear at spots around the map, a few at a time; a player collects one by completing a plant on top of it.
+  - A kill gives the shooter **2 points**.
+  - Collecting a mushroom gives **3 points**. Glowing mushrooms appear at spots around the map, a few at a time; a player collects one by completing a plant on top of it.
   - The first player to **20 points** wins. Otherwise, when the **120-second** match clock runs out, the player with the most points wins (a tie is a draw). Each player's score is shown as a bar at the top of the screen, with the countdown below it.
   - All values are adjustable on the components.
 - When a player wins, both screens show the winner, then the match restarts automatically: scores reset and players respawn.

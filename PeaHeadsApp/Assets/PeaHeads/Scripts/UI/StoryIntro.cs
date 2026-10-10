@@ -104,8 +104,8 @@ namespace PeaHeads
         }
 
         private Slide[] BuildFor(int team) =>
-            BuildSlides(team, _match ? _match.TargetScore : 20, _match ? _match.MushroomPoints : 1,
-                _match ? _match.KillPoints : 3, _match ? Mathf.RoundToInt(_match.MatchDuration) : 120);
+            BuildSlides(team, _match ? _match.TargetScore : 20, _match ? _match.MushroomPoints : 3,
+                _match ? _match.KillPoints : 2, _match ? Mathf.RoundToInt(_match.MatchDuration) : 120);
 
         // Teams are reshuffled when a client joins, possibly mid-story: retell it for the team we have now.
         private void OnTeamsChanged()

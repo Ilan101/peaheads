@@ -63,7 +63,7 @@ Assets/PeaHeads/
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
-│   ├── Match/      AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog + sky tint toward the leading team, lead ÷ target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
+│   ├── Match/      AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog colour + thickness build as the leader nears the win, 30% → full at 90% of the target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── Killcam/    FaceFeed (UDP 5053 → 5 s ring of timestamped face JPEGs), ViewRecorder (capture camera on the player
@@ -141,7 +141,7 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
-- Points race: kill = 3, mushroom = 1 (stay planted within 1.5 m of a glowing mushroom for 2 s, brown progress bar; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 10 s. Values on MatchManager / MushroomSpawner.
+- Points race: kill = 2, mushroom = 3 (stay planted within 1.5 m of a glowing mushroom for 2 s, brown progress bar; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 10 s. Values on MatchManager / MushroomSpawner.
 - Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 
