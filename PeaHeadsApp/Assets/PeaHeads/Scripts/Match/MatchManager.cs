@@ -28,6 +28,7 @@ namespace PeaHeads
 
         public int TargetScore => _targetScore;
         public int MushroomPoints => _mushroomPoints;
+        public int KillPoints => _killPoints;
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
         public int Winner => _winner.Value;
         public int Score(int team) => team == 0 ? _score0.Value : _score1.Value;
@@ -44,12 +45,14 @@ namespace PeaHeads
             _winner.Value = -1;
             _state.Value = (byte)MatchState.Playing;
             PlayerHealth.Killed += OnKilled;
+            NetworkManager.OnClientConnectedCallback += OnClientConnected;
         }
 
         public override void OnNetworkDespawn()
         {
             _state.OnValueChanged -= OnStateChanged;
             PlayerHealth.Killed -= OnKilled;
+            if (NetworkManager) NetworkManager.OnClientConnectedCallback -= OnClientConnected;
             CancelInvoke();
         }
 
@@ -70,6 +73,12 @@ namespace PeaHeads
             if (!victim.TryGetComponent(out PlayerNetSync _)) return; // dummies don't score
             int team = TeamOf(attacker);
             if (team != TeamOf(victim.OwnerClientId)) AddPoints(team, _killPoints);
+        }
+
+        // A rival arriving starts a fresh match, so points the host scored alone don't count.
+        private void OnClientConnected(ulong clientId)
+        {
+            if (clientId != NetworkManager.ServerClientId) RestartNow();
         }
 
         // Host's menu button. Also cancels the automatic restart if the match had already ended.

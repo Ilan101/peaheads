@@ -13,8 +13,8 @@ namespace PeaHeads
         [Tooltip("Real head movement (in face widths) ignored around neutral.")]
         [SerializeField, Range(0f, 0.2f)] private float _deadZone = 0.03f;
         [Tooltip("Exaggeration. Full in-game lean is reached at deadZone + 1/gain face widths of real lean.")]
-        [SerializeField, Range(0.5f, 10f)] private float _leanGain = 2.5f;
-        [SerializeField, Range(0.5f, 10f)] private float _verticalGain = 3f;
+        [SerializeField, Range(0.5f, 10f)] private float _leanGain = 3.5f;
+        [SerializeField, Range(0.5f, 10f)] private float _verticalGain = 4f;
         [SerializeField] private bool _useMouthFire = true;
         [SerializeField] private bool _useWinkZoom = true;
 

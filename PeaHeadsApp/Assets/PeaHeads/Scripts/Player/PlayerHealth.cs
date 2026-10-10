@@ -17,9 +17,12 @@ namespace PeaHeads
         [SerializeField] private AudioClip _hitSfx;
 
         private readonly NetworkVariable<int> _current = new(DefaultMaxHealth);
+        private readonly NetworkVariable<bool> _shielded = new(writePerm: NetworkVariableWritePermission.Owner);
 
         public int Current => _current.Value;
         public bool IsDead => _current.Value <= 0;
+        // True while the owner is watching the story intro: peas don't hurt.
+        public bool IsShielded => _shielded.Value;
         public event Action<PlayerHealth> Died;
         public event Action Revived;
         // Server only: victim, attacker client id.
@@ -39,13 +42,18 @@ namespace PeaHeads
 
         public void TakeDamage(int amount, ulong attackerClientId)
         {
-            if (!IsServer || IsDead) return;
+            if (!IsServer || IsDead || IsShielded) return;
             _current.Value = Mathf.Max(0, _current.Value - amount);
             if (!IsDead) return;
 
             Died?.Invoke(this);
             Killed?.Invoke(this, attackerClientId);
             if (_respawnDelay > 0f) Invoke(nameof(ResetHealth), _respawnDelay);
+        }
+
+        public void SetShielded(bool shielded)
+        {
+            if (IsSpawned && IsOwner && _shielded.Value != shielded) _shielded.Value = shielded;
         }
 
         public void ResetHealth()
