@@ -3,6 +3,7 @@
     "rootNamespace": "PeaHeads.Tests",
     "references": [
         "PeaHeads",
+        "Unity.Netcode.Runtime",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

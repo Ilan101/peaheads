@@ -28,7 +28,7 @@ namespace PeaHeads
             GUI.Label(new Rect(20, 300, 700, 30), TrackingLabel(), _style);
             if (_tracking && _tracking.State == TrackingState.Tracking) DrawHeadDot(new Rect(20, 334, 60, 60), _tracking.Head);
             GUI.Label(new Rect(20, Screen.height - 40, 1200, 30),
-                "WASD move   E plant/unplant   LMB fire (planted)   RMB zoom   Arrows lean head   C recenter   Esc free cursor", _style);
+                "WASD move   E plant/unplant   LMB fire (planted)   RMB zoom   Arrows lean head   C recenter   Esc menu", _style);
 
             float size = _rig.IsZoomed ? 10f : 6f;
             GUI.DrawTexture(new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f, size, size),
