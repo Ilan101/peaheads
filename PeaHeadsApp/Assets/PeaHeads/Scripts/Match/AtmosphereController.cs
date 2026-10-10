@@ -3,8 +3,9 @@ using UnityEngine.Rendering;
 
 namespace PeaHeads
 {
-    // Afternoon lighting, a generated cloudy skybox, and a haze that leans toward the leading team: golden when Bloom
-    // leads, purple when Blight leads, neutral blue haze when level (tint = lead ÷ target score). The sky's horizon
+    // Afternoon lighting, a generated cloudy skybox, and a haze that builds as the leading team nears the win: from
+    // ~30% of the target score the fog takes on the leader's colour (golden Bloom, purple Blight) and thickens, both
+    // at full strength by ~90% (18 of 20). Level scores thicken it without colour. The sky's horizon
     // matches the fog so distant hills blend in; the clouds drift slowly. Visual only; runs on every machine from the
     // synced scores. Added to the Match object by MatchManager.
     [RequireComponent(typeof(MatchManager))]
@@ -15,13 +16,13 @@ namespace PeaHeads
 
         [Header("Daylight")]
         [Tooltip("Sun height above the horizon, degrees.")]
-        [SerializeField, Range(2f, 89f)] private float _sunElevation = 40f;
+        [SerializeField, Range(2f, 89f)] private float _sunElevation = 37.2f;
         [SerializeField, Range(-180f, 180f)] private float _sunAzimuth = -50f;
-        [SerializeField] private Color _sunColor = new(1f, 0.92f, 0.8f);
-        [SerializeField, Range(0f, 3f)] private float _sunIntensity = 1.35f;
-        [SerializeField] private Color _ambientSky = new(0.72f, 0.78f, 0.88f);
-        [SerializeField] private Color _ambientEquator = new(0.62f, 0.62f, 0.58f);
-        [SerializeField] private Color _ambientGround = new(0.32f, 0.3f, 0.26f);
+        [SerializeField] private Color _sunColor = new(1f, 0.89f, 0.76f);
+        [SerializeField, Range(0f, 3f)] private float _sunIntensity = 1.33f;
+        [SerializeField] private Color _ambientSky = new(0.71f, 0.75f, 0.85f);
+        [SerializeField] private Color _ambientEquator = new(0.61f, 0.6f, 0.56f);
+        [SerializeField] private Color _ambientGround = new(0.31f, 0.29f, 0.25f);
 
         [Header("Sky")]
         [SerializeField] private Color _zenith = new(0.3f, 0.52f, 0.85f);
@@ -34,15 +35,22 @@ namespace PeaHeads
         [Header("Fog")]
         [SerializeField, Range(0f, 100f)] private float _fogStart = 20f;
         [SerializeField, Range(5f, 200f)] private float _fogEnd = 70f;
+        [Tooltip("Fog distances once the leader is close to winning.")]
+        [SerializeField, Range(0f, 100f)] private float _closeFogStart = 8f;
+        [SerializeField, Range(5f, 200f)] private float _closeFogEnd = 40f;
+        [Tooltip("Leader's score ÷ target where the colour and thickening begin.")]
+        [SerializeField, Range(0f, 1f)] private float _buildFrom = 0.3f;
+        [Tooltip("Leader's score ÷ target where they reach full strength (0.9 = 18 of 20).")]
+        [SerializeField, Range(0f, 1f)] private float _fullAt = 0.9f;
         [Tooltip("Level-score haze; also the sky colour at the horizon.")]
-        [SerializeField] private Color _neutralFog = new(0.78f, 0.84f, 0.9f);
+        [SerializeField] private Color _neutralFog = new(0.79f, 0.82f, 0.86f);
         [SerializeField] private Color _bloomFog = new(0.95f, 0.85f, 0.5f);
         [SerializeField] private Color _blightFog = new(0.7f, 0.55f, 0.8f);
-        [Tooltip("Tint at a lead equal to the target score (1 = full team colour).")]
+        [Tooltip("Colour strength at full build-up (1 = full team colour).")]
         [SerializeField, Range(0f, 1f)] private float _maxTint = 1f;
         [Tooltip("How much of the team tint reaches the whole sky (the horizon always follows the fog).")]
         [SerializeField, Range(0f, 1f)] private float _skyTint = 0.5f;
-        [Tooltip("How fast the fog eases toward its new colour.")]
+        [Tooltip("How fast the fog eases toward its new colour and thickness.")]
         [SerializeField, Range(0.1f, 10f)] private float _tintSpeed = 1.5f;
 
         private static readonly int TintId = Shader.PropertyToID("_Tint");
@@ -51,6 +59,7 @@ namespace PeaHeads
         private MatchManager _match;
         private Material _sky;
         private Color _fog;
+        private float _build;
 
         private void Awake() => _match = GetComponent<MatchManager>();
 
@@ -94,16 +103,25 @@ namespace PeaHeads
 
         private void Update()
         {
-            _fog = Color.Lerp(_fog, TargetFog(), 1f - Mathf.Exp(-_tintSpeed * Time.deltaTime));
+            float blend = 1f - Mathf.Exp(-_tintSpeed * Time.deltaTime);
+            Targets(out Color color, out float build);
+            _fog = Color.Lerp(_fog, color, blend);
+            _build = Mathf.Lerp(_build, build, blend);
+            RenderSettings.fogStartDistance = Mathf.Lerp(_fogStart, _closeFogStart, _build);
+            RenderSettings.fogEndDistance = Mathf.Lerp(_fogEnd, _closeFogEnd, _build);
             Apply();
         }
 
-        private Color TargetFog()
+        // build: 0..1 from how close the leading score is to the target. Colour only when someone is ahead.
+        private void Targets(out Color color, out float build)
         {
-            if (!_match || !_match.IsSpawned || _match.TargetScore <= 0) return _neutralFog;
-            float lead = (_match.Score(0) - _match.Score(1)) / (float)_match.TargetScore;
-            float tint = Mathf.Clamp01(Mathf.Abs(lead)) * _maxTint;
-            return Color.Lerp(_neutralFog, lead >= 0f ? _bloomFog : _blightFog, tint);
+            color = _neutralFog;
+            build = 0f;
+            if (!_match || !_match.IsSpawned || _match.TargetScore <= 0) return;
+            int bloom = _match.Score(0), blight = _match.Score(1);
+            float progress = Mathf.Max(bloom, blight) / (float)_match.TargetScore;
+            build = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(_buildFrom, _fullAt, progress));
+            if (bloom != blight) color = Color.Lerp(_neutralFog, bloom > blight ? _bloomFog : _blightFog, build * _maxTint);
         }
 
         private void Apply()
