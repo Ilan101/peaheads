@@ -18,7 +18,7 @@
 | Netcode | **Netcode for GameObjects + Unity Transport, direct IP over LAN**. Host-authoritative. Add Unity Relay only if venue Wi-Fi blocks peer connections. |
 | CV | **Python + MediaPipe Face Mesh** (`head_tracker.py`, repo root), one process per machine, JSON over **UDP `127.0.0.1:5052`**. No video leaves the machine. |
 | Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
-| Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Plain light-blue background, no skybox. |
+| Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Webcam lean is proportional (HeadTrackingInput gain); arrow keys give full lean. Plain light-blue background, no skybox. |
 | Testing | Hackathon override of global rules: **no 80% coverage / strict TDD.** EditMode tests only for pure logic (planting state machine, gesture edge-detection, packet parsing). Everything else verified by playing. |
 
 ## Repo layout
@@ -53,7 +53,8 @@ Assets/PeaHeads/
 │   │               StemBender (visual: capsule chain on a Bezier leaf base → head; replaces Visual/Stem at runtime),
 │   │               PlantVisuals (visual: leaf base root-in/pop-out curves, stays grounded; optional plant puff),
 │   │               PlayerMovement (CharacterController, owner only, Teleport),
-│   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp, zoom; SetLocal, ApplyRemote),
+│   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
+│   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
 │   │               PlayerHealth (NetworkBehaviour: server HP var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
@@ -61,11 +62,12 @@ Assets/PeaHeads/
 │   │               auto-restart; TeamOf), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner)
-│   ├── Tracking/   (todo) WebcamInputReceiver, GestureController
+│   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
+│   │               HeadTrackingInput (local Player: dead zone + lean/vertical gain → PlayerInput; C recenters)
 │   └── Net/        ConnectionUI (Ilan; IMGUI host / join-by-IP, port 7777); PlayerNetSync (owner-write head/pitch/
 │                   plant vars, random spawn teleport, Respawn(), host/client tint); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
@@ -73,7 +75,7 @@ Assets/PeaHeads/
 ```
 
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
-Head input = arrow keys in `PlayerInput`; the webcam receiver calls `PlayerInput.SetTrackerInput(head, shoot, aim)` (main thread). Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
+Head input = arrow keys in `PlayerInput`; `HeadTrackingInput` calls `PlayerInput.SetTrackerInput(head, shoot, aim)` each frame while a face is tracked. Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
 Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
@@ -93,9 +95,9 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 - No timestamp: Unity treats no packet for > 0.5 s the same as `face: false`.
 - CV never touches gameplay. Unity decides what a gesture means given plant state.
 
-Open items for Person 1: `cv2.VideoCapture(0, cv2.CAP_DSHOW)` uses a Windows-only backend (use the default backend on Linux/macOS); no `requirements.txt` yet.
+Open items for Person 1: no `requirements.txt` yet. (`CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
-Unity side (todo): `WebcamInputReceiver` reads on a background thread (`UdpClient`), stores the latest packet under a lock, main thread reads it in `Update`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
+Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (dead zone, lean/vertical gain, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
 
 ## Gameplay rules to enforce in code
 
@@ -113,7 +115,7 @@ Unity side (todo): `WebcamInputReceiver` reads on a background thread (`UdpClien
 
 - Implemented in `DemoArena`: owner-auth `NetworkTransform` on Player, `PlayerNetSync` vars, `PlayerShooting.FireRpc` → host-spawned `PeaProjectile`, server `PlayerHealth` HP, `MatchManager` points race (design: `docs/superpowers/specs/2026-10-10-mushroom-scoring-design.md`). Players respawn after 3 s. Design: `docs/superpowers/specs/2026-10-10-demo-multiplayer-design.md`.
 - Host = player 1, client = player 2. Connect panel: Host / Join `<IP>`.
-- `NetworkObject` + `NetworkTransform` (owner-authoritative, interpolated) on player root; head pose synced via owner-writable `NetworkVariable<Vector3>` (offset) + aim yaw/pitch, interpolated on remote.
+- `NetworkObject` + `NetworkTransform` (owner-authoritative, interpolated) on player root; head pose synced as the owner's final metre offset (`NetworkVariable<Vector3>`, after the wall sweep) + pitch, interpolated on remote, so per-machine lean tuning can't move the hitbox.
 - `PlantState` as owner-writable `NetworkVariable<byte>`.
 - Fire: owner calls a `[Rpc(SendTo.Server)]` fire method (as in `NetTestPlayer.FireRpc`); server spawns networked `Pea` (`NetworkObject`, server moves it, `NetworkTransform`). Server does collision + damage.
 - `Health` = server-write `NetworkVariable<int>`. Server `MatchManager` scores kills (`PlayerHealth.Killed`, attacker = pea shooter) and mushrooms, ends at the target score, restarts after a delay (`ResetHealth` + `RoundStartedRpc` → `PlayerNetSync.Respawn`). Input frozen while ended.
