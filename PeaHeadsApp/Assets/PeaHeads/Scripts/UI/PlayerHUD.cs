@@ -20,6 +20,7 @@ namespace PeaHeads
         private HeadTrackingInput _tracking;
         private NetworkObject _networkObject;
         private GUIStyle _style;
+        private GUIStyle _factionStyle;
 
         private void Awake()
         {
@@ -32,34 +33,21 @@ namespace PeaHeads
 
         private void OnGUI()
         {
-<<<<<<< HEAD
             if (StoryIntro.IsPlaying) return;
-            _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
-=======
             _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
->>>>>>> fddbf20c3d6b70f7abdb081a8659f6a1b4a5d97a
+            _factionStyle ??= new GUIStyle(_style);
 
-<<<<<<< HEAD
-            int team = _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;
-            string ready = _planting.CanShoot ? "  -  READY TO SPIT" : "";
-            GUI.color = Faction.Color(team);
-            GUI.Label(new Rect(20, 240, 600, 30), Faction.Name(team), _style);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(20, 270, 600, 30), $"HP {_health.Current}    {_planting.State}{ready}", _style);
-            GUI.Label(new Rect(20, 300, 700, 30), TrackingLabel(), _style);
-            if (_tracking && _tracking.State == TrackingState.Tracking) DrawHeadDot(new Rect(20, 334, 60, 60), _tracking.Head);
-            GUI.Label(new Rect(20, Screen.height - 40, 1200, 30),
-                "WASD move   E plant/uproot   LMB / open mouth: spit (planted)   RMB / wink: zoom   Arrows / real head: lean   C recenter   Esc menu", _style);
-=======
             GUI.Label(new Rect(Margin, Margin - 8f, 700f, 30f), TrackingLabel(), _style);
             if (_tracking && _tracking.State == TrackingState.Tracking)
                 DrawTrackerView(new Rect(Margin, Margin + 24f, _trackerWidth, _trackerWidth * 9f / 16f), _tracking.Head);
 
+            int team = _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;
             float heartsY = Screen.height - Margin - _heartSize;
-            string ready = _planting.CanShoot ? "  -  READY TO FIRE" : "";
+            _factionStyle.normal.textColor = Faction.Color(team);
+            GUI.Label(new Rect(Margin, heartsY - 64f, 600f, 30f), Faction.Name(team), _factionStyle);
+            string ready = _planting.CanShoot ? "  -  READY TO SPIT" : "";
             GUI.Label(new Rect(Margin, heartsY - 32f, 600f, 30f), $"{_planting.State}{ready}", _style);
             DrawHearts(Margin, heartsY);
->>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
 
             float size = _rig.IsZoomed ? 10f : 6f;
             GUI.DrawTexture(new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f, size, size),

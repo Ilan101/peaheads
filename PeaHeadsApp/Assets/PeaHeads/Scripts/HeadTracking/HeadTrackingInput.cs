@@ -10,13 +10,6 @@ namespace PeaHeads
     [RequireComponent(typeof(PlayerInput))]
     public class HeadTrackingInput : MonoBehaviour
     {
-<<<<<<< HEAD
-        [Tooltip("Real head movement (in face widths) ignored around neutral.")]
-        [SerializeField, Range(0f, 0.2f)] private float _deadZone = 0.03f;
-        [Tooltip("Exaggeration. Full in-game lean is reached at deadZone + 1/gain face widths of real lean.")]
-        [SerializeField, Range(0.5f, 10f)] private float _leanGain = 3.5f;
-        [SerializeField, Range(0.5f, 10f)] private float _verticalGain = 4f;
-=======
         // The tracker sends -1..1: its on-screen box edge = 1 (head_tracker.py BOX_FRAC).
         [Tooltip("Real → in-game movement multiplier for both axes. 2 = lean twice as far as you actually move "
                  + "(capped by PlayerCameraRig max lean / rise / duck).")]
@@ -24,7 +17,6 @@ namespace PeaHeads
         [Tooltip("Per-axis balance on top of the multiplier. 1 = full lean at the tracker box edge.")]
         [SerializeField, Range(0.5f, 5f)] private float _leanGain = 1f;
         [SerializeField, Range(0.5f, 5f)] private float _verticalGain = 1f;
->>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
         [SerializeField] private bool _useMouthFire = true;
         [SerializeField] private bool _useWinkZoom = true;
 

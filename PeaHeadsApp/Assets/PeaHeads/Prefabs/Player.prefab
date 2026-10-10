@@ -488,20 +488,12 @@ MonoBehaviour:
   - {fileID: 1857080282461240938}
   - {fileID: 9118644184780454952}
   _pitchLimits: {x: -70, y: 70}
-<<<<<<< HEAD
-  _maxLean: 1.1
-  _maxRise: 0.35
-  _maxDuck: 0.6
-  _headSmoothing: 16
-  _leanRoll: 10
-  _headCollisionRadius: 0.3
-=======
   _maxLean: 1
   _maxRise: 0.5
   _maxDuck: 0.75
   _headSmoothing: 5
-  _headCollisionRadius: 0.299715
->>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
+  _leanRoll: 10
+  _headCollisionRadius: 0.3
   _zoomFactor: 1.5
   _zoomSpeed: 12
 --- !u!114 &4373243512297181890
@@ -782,17 +774,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.HeadTrackingInput
   _movementMultiplier: 4.2
-<<<<<<< HEAD
-  _deadZone: 0.03
-<<<<<<< HEAD
-  _leanGain: 3.5
-  _verticalGain: 4
-=======
-=======
->>>>>>> fddbf20c3d6b70f7abdb081a8659f6a1b4a5d97a
   _leanGain: 1
   _verticalGain: 1
->>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
   _useMouthFire: 1
   _useWinkZoom: 1
 --- !u!1 &5117186791582609117
