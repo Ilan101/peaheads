@@ -170,7 +170,7 @@ namespace PeaHeads.EditorTools
             var go = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(path), parent);
             var t = go.transform;
             t.rotation = Quaternion.Euler(0f, yRot, 0f) * t.rotation;
-            t.localScale *= height / WorldBounds(go).size.y;
+            t.localScale *= (height + Sink) / WorldBounds(go).size.y;
 
             var ground = new Vector3(xz.x, 0f, xz.y);
             ground.y = terrain.SampleHeight(ground) + terrain.transform.position.y - Sink;
