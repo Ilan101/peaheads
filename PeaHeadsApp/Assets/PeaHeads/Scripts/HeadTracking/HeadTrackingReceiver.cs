@@ -7,6 +7,8 @@ using UnityEngine;
 
 namespace PeaHeads
 {
+    // Before HeadTrackingInput (-110), so the bridge reads this frame's packet.
+    [DefaultExecutionOrder(-120)]
     public class HeadTrackingReceiver : MonoBehaviour
     {
         [Serializable]
