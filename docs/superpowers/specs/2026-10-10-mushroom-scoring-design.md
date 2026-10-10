@@ -30,7 +30,7 @@ Replace "last plant standing" with a points race. Glowing mushrooms appear aroun
 | `MushroomSpawner` | `_activeCount` | 3 |
 | | `_respawnDelay` (s) | 5 |
 | | `_collectRadius` (m) | 1.5 |
-| `MushroomSpot` | `_bobHeight`, `_bobSpeed`, `_spinSpeed`, `_glowPulseSpeed` | 0.15 m, 2, 45°/s, 3 |
+| `MushroomSpot` | `_glowPulseSpeed` | 3 (mushrooms are stationary; no bob/spin) |
 | `ScoreHUD` | `_team0Color`, `_team1Color` | host green `(0.55, 0.85, 0.25)`, client orange `(0.95, 0.6, 0.2)` (same as `PlayerNetSync`) |
 
 All `[SerializeField, Range(...)]`, as in the earlier slider pass.
@@ -57,7 +57,7 @@ All `[SerializeField, Range(...)]`, as in the earlier slider pass.
 **`MushroomSpot`** (MonoBehaviour, on the `MushroomPickup` prefab)
 - `[SerializeField] int _index` (set by ArenaBuilder), plus references to its visual root, point light and sparkle `ParticleSystem`, and a collect `AudioClip`.
 - `Show()` / `Hide()` toggle the visual root and light, and play / stop the sparkles. `PlayCollect()` emits a 25-particle burst and plays the clip.
-- `Update` (visual only): bob, spin, and pulse the light intensity.
+- `Update` (visual only): pulse the light intensity. The mushroom itself is stationary.
 
 ### New — `Scripts/UI/ScoreHUD.cs` (MonoBehaviour, on `Match`)
 - IMGUI, matching `PlayerHUD`. It draws only while netcode is running.

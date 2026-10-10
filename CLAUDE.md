@@ -56,7 +56,7 @@ Assets/PeaHeads/
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart; TeamOf), MushroomSpawner (active-spot bitmask var, server collect check),
-│   │               MushroomSpot (pickup visual: bob/glow/sparkles)
+│   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner)
 │   ├── Tracking/   (todo) WebcamInputReceiver, GestureController
 │   └── Net/        ConnectionUI (Ilan; IMGUI host / join-by-IP, port 7777); PlayerNetSync (owner-write head/pitch/
