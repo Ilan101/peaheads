@@ -43,21 +43,25 @@ Assets/PeaHeads/
 │                   regenerates NetTest scene + Prefabs/NetTest/*, overwriting hand edits)
 ├── Scripts/
 │   ├── PhysicsUtil.cs   CastIgnoring(): closest ray/sphere hit skipping a root (own colliders)
-│   ├── Player/     PlantingController (state machine, E), PlayerMovement (CharacterController, WASD),
-│   │               PlayerCameraRig (first person: mouse yaw/pitch, head offset + wall clamp, zoom),
-│   │               PlayerShooting (TryFire(): planted + cooldown, aim at crosshair, launch from mouth),
-│   │               PlayerHealth (3 HP, flash, Died event, optional respawn for dummies)
-│   ├── Combat/     PeaProjectile (sphere-sweep per frame, no Rigidbody; Launch() sweeps head→mouth first)
+│   ├── Player/     PlayerInput (ONLY device reader → PlayerInputFrame; SetLocal; SetTrackerInput; cursor lock),
+│   │               PlantingController (Tick(dt, pressed) state machine, ApplyRemote, ResetState),
+│   │               PlayerMovement (CharacterController, owner only, Teleport),
+│   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp, zoom; SetLocal, ApplyRemote),
+│   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
+│   │               PlayerHealth (NetworkBehaviour: server HP var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
+│   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair)
 │   ├── Tracking/   (todo) WebcamInputReceiver, GestureController
-│   └── Net/        ConnectionUI (IMGUI host / join-by-IP, port 7777); Test/ NetTestPlayer, NetTestPea
-│                   (throwaway netcode proof); MatchManager (todo)
+│   └── Net/        ConnectionUI (Ilan; IMGUI host / join-by-IP, port 7777); PlayerNetSync (owner-write head/pitch/
+│                   plant vars, spawn teleport, host/client tint); SpawnPoint; OverviewCamera; Test/ (NetTest proof);
+│                   MatchManager (todo)
+├── Tests/EditMode/ PlantingControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); NetTest/ (generated)
-└── Scenes/         DemoArena (single-player sandbox), NetTest (LAN test), ForestArena (todo, Person 3)
+└── Scenes/         DemoArena (networked: Host alone = solo + dummies, Host/Join = 2P), NetTest (LAN test), ForestArena (todo)
 ```
 
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, Stem; squashed when planted) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
-Head input currently = arrow keys in `PlayerCameraRig` (marked `ponytail:`); tracker replaces that target.
+Head input = arrow keys in `PlayerInput`; the webcam receiver calls `PlayerInput.SetTrackerInput(head, shoot, aim)` (main thread). Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
 Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
@@ -94,7 +98,7 @@ Unity side (todo): `WebcamInputReceiver` reads on a background thread (`UdpClien
 
 ## Networking model (NGO)
 
-- Proven in `NetTest` scene: `ConnectionUI` host/join over LAN, owner-auth player, server-moved pea, server-side hit counting. Bullets below are the target for the real `Player` prefab.
+- Implemented in `DemoArena`: owner-auth `NetworkTransform` on Player, `PlayerNetSync` vars, `PlayerShooting.FireRpc` → host-spawned `PeaProjectile`, server `PlayerHealth` HP. No match loop yet — players respawn after 3 s. Design: `docs/superpowers/specs/2026-10-10-demo-multiplayer-design.md`.
 - Host = player 1, client = player 2. Connect panel: Host / Join `<IP>`.
 - `NetworkObject` + `NetworkTransform` (owner-authoritative, interpolated) on player root; head pose synced via owner-writable `NetworkVariable<Vector3>` (offset) + aim yaw/pitch, interpolated on remote.
 - `PlantState` as owner-writable `NetworkVariable<byte>`.
