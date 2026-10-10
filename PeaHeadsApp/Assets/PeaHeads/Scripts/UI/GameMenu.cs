@@ -17,19 +17,20 @@ namespace PeaHeads
     public class GameMenu : MonoBehaviour
     {
         private const float PanelWidth = 440f;
-        private const float ControlsWidth = 320f;
+        private const float ControlsWidth = 420f;
         private const float PanelGap = 16f;
 
-        private static readonly string[] ControlLines =
+        private static readonly (string keys, string action)[] ControlLines =
         {
-            "WASD — move",
-            "E — plant / unplant",
-            "Lean head / arrows — peek",
-            "Open mouth / LMB — fire",
-            "Wink / RMB — zoom",
-            "C — recenter head",
-            "Mouse — look",
-            "Esc — this menu",
+            ("Mouse", "Look"),
+            ("WASD", "Move"),
+            ("E", "Plant / Unplant"),
+            ("Lean Head / Arrows", "Peek"),
+            ("Open Mouth / LMB", "Fire"),
+            ("Wink / RMB", "Zoom"),
+            ("Zoom + Hold Fire", "Full Auto"),
+            ("C", "Recenter Head"),
+            ("Esc", "Menu"),
         };
 
         [SerializeField] private Font _font;
@@ -234,8 +235,7 @@ namespace PeaHeads
             _controlsPanel = AddPanel("Controls");
             _controlsPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(ControlsWidth, 0f);
             AddLabel(_controlsPanel, "Controls", 24, _accentColor, FontStyle.Bold);
-            foreach (string line in ControlLines)
-                AddLabel(_controlsPanel, line, 16, _textColor).alignment = TextAnchor.MiddleLeft;
+            foreach (var (keys, action) in ControlLines) AddControlRow(_controlsPanel, keys, action);
             _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(ControlsWidth + PanelGap) * 0.5f, 0f);
             _controlsPanel.GetComponent<RectTransform>().anchoredPosition = new Vector2((PanelWidth + PanelGap) * 0.5f, 0f);
         }
@@ -272,6 +272,20 @@ namespace PeaHeads
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             go.GetComponent<LayoutElement>().minHeight = size * 1.4f;
             return label;
+        }
+
+        // Key (bold, accent) on the left, action on the right.
+        private void AddControlRow(GameObject parent, string keys, string action)
+        {
+            var row = new GameObject("Row", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent.transform, false);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            AddLabel(row, keys, 16, _accentColor, FontStyle.Bold).alignment = TextAnchor.MiddleLeft;
+            AddLabel(row, action, 16, _textColor).alignment = TextAnchor.MiddleRight;
         }
 
         private GameObject AddButton(GameObject parent, string text, UnityAction onClick)

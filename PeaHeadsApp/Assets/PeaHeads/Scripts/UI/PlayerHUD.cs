@@ -8,10 +8,10 @@ namespace PeaHeads
     public class PlayerHUD : MonoBehaviour
     {
         private const float Margin = 20f;
-        private const float IconSize = 44f;
+        private const float IconSize = 53f;
         private const int PlantDots = 12;
 
-        [SerializeField, Range(16f, 96f)] private float _heartSize = 40f;
+        [SerializeField, Range(16f, 96f)] private float _heartSize = 48f;
         [Tooltip("Webcam view width; height follows the tracker's 16:9 rectangle.")]
         [SerializeField, Range(128f, 512f)] private float _trackerWidth = 256f;
         [SerializeField, Range(8f, 64f)] private float _crosshairSize = 22f;
@@ -31,7 +31,6 @@ namespace PeaHeads
         private static Texture2D _cross;
         private static Texture2D _vignette;
         private static Texture2D _camera;
-        private static Texture2D _slash;
         private static Texture2D _flower;
         private static Texture2D _thorn;
         private static Texture2D _sprout;
@@ -113,13 +112,12 @@ namespace PeaHeads
             DrawCrosshair();
         }
 
-        // Webcam icon + tracker view, team badge, plant state, hearts. Hidden while scoped in.
+        // Tracker view (or a red camera without webcam), team badge, plant state, hearts. Hidden while scoped in.
         private void DrawStatus()
         {
-            DrawWebcamIcon(new Rect(Margin, Margin, IconSize, IconSize));
             if (_tracking && _tracking.State == TrackingState.Tracking)
-                DrawTrackerView(new Rect(Margin, Margin + IconSize + 6f, _trackerWidth, _trackerWidth * 9f / 16f),
-                    _tracking.Head);
+                DrawTrackerView(new Rect(Margin, Margin, _trackerWidth, _trackerWidth * 9f / 16f), _tracking.Head);
+            else DrawWebcamMissing(new Rect(Margin, Margin, IconSize, IconSize));
 
             int team = Team;
             float heartsY = Screen.height - Margin - _heartSize;
@@ -215,24 +213,12 @@ namespace PeaHeads
             GUI.color = Color.white;
         }
 
-        // Green = tracking, yellow = no face (keyboard), grey + red slash = webcam off (keyboard).
-        private void DrawWebcamIcon(Rect rect)
+        // Red camera in the corner while the webcam isn't driving the head (keyboard fallback).
+        private static void DrawWebcamMissing(Rect rect)
         {
             _camera ??= UiSprites.Camera().texture;
-            _slash ??= UiSprites.Slash().texture;
-            TrackingState state = _tracking ? _tracking.State : TrackingState.Off;
-            GUI.color = state switch
-            {
-                TrackingState.Tracking => new Color(0.3f, 0.85f, 0.3f),
-                TrackingState.NoFace => new Color(0.95f, 0.8f, 0.2f),
-                _ => new Color(0.55f, 0.55f, 0.55f),
-            };
+            GUI.color = new Color(0.85f, 0.15f, 0.15f);
             GUI.DrawTexture(rect, _camera);
-            if (state == TrackingState.Off)
-            {
-                GUI.color = new Color(0.85f, 0.15f, 0.15f);
-                GUI.DrawTexture(rect, _slash);
-            }
             GUI.color = Color.white;
         }
 

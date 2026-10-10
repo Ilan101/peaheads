@@ -1420,7 +1420,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 781d134da118f87dc838f85ac92244ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerHUD
-  _heartSize: 40
+  _heartSize: 48
   _trackerWidth: 256
   _crosshairSize: 22
   _hitMarkerTime: 0.25
