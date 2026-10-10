@@ -23,7 +23,10 @@ namespace PeaHeads
         private readonly NetworkVariable<int> _score0 = new();
         private readonly NetworkVariable<int> _score1 = new();
         // Server-time timestamp, so every machine counts down to the same moment.
-        private readonly NetworkVariable<double> _endTime = new();
+        private readonly NetworkVariable<double> _endTime = new(); // 0 = waiting for the intro story
+        // Lets each player's story start, and its shield reach the host, before the clock may start.
+        private const float ClockGrace = 1f;
+        private float _clockArmedAt;
         // Declared before _state so clients already have the winner when the state callback runs.
         private readonly NetworkVariable<sbyte> _winner = new(-1);
         private readonly NetworkVariable<byte> _state = new();
@@ -38,8 +41,12 @@ namespace PeaHeads
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
         // -1 with IsEnded = draw.
         public int Winner => _winner.Value;
-        public float TimeRemaining =>
-            IsSpawned && !IsEnded ? Mathf.Max(0f, (float)(_endTime.Value - NetworkManager.ServerTime.Time)) : 0f;
+        // Full duration while the clock waits for the intro story, 0 once ended.
+        public float TimeRemaining => !IsSpawned || IsEnded ? 0f
+            : ClockWaiting ? _matchDuration
+            : Mathf.Max(0f, (float)(_endTime.Value - NetworkManager.ServerTime.Time));
+
+        private bool ClockWaiting => _endTime.Value <= 0d;
         public int Score(int team) => team == 0 ? _score0.Value : _score1.Value;
 
         public static int TeamOf(ulong clientId) => clientId == NetworkManager.ServerClientId ? 0 : 1;
@@ -53,7 +60,7 @@ namespace PeaHeads
             _score1.Value = 0;
             _winner.Value = -1;
             _state.Value = (byte)MatchState.Playing;
-            StartClock();
+            ArmClock();
             PlayerHealth.Killed += OnKilled;
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
         }
@@ -76,7 +83,14 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (!IsServer || !IsSpawned || IsEnded || NetworkManager.ServerTime.Time < _endTime.Value) return;
+            if (!IsServer || !IsSpawned || IsEnded) return;
+            if (ClockWaiting)
+            {
+                if (Time.time >= _clockArmedAt + ClockGrace && !AnyoneInStory())
+                    _endTime.Value = NetworkManager.ServerTime.Time + _matchDuration;
+                return;
+            }
+            if (NetworkManager.ServerTime.Time < _endTime.Value) return;
             int winner = _score0.Value == _score1.Value ? -1 : _score0.Value > _score1.Value ? 0 : 1;
             EndMatch(winner);
         }
@@ -88,7 +102,21 @@ namespace PeaHeads
             Invoke(nameof(Restart), _restartDelay);
         }
 
-        private void StartClock() => _endTime.Value = NetworkManager.ServerTime.Time + _matchDuration;
+        // The countdown starts once nobody is watching the intro story (PlayerHealth is shielded while it plays).
+        private void ArmClock()
+        {
+            _endTime.Value = 0d;
+            _clockArmedAt = Time.time;
+        }
+
+        private bool AnyoneInStory()
+        {
+            foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+                if (client.PlayerObject && client.PlayerObject.TryGetComponent(out PlayerHealth health) &&
+                    health.IsShielded)
+                    return true;
+            return false;
+        }
 
         private void OnKilled(PlayerHealth victim, ulong attacker)
         {
@@ -122,7 +150,7 @@ namespace PeaHeads
                     health.ResetHealth();
             RoundStarted?.Invoke();
             RoundStartedRpc();
-            StartClock();
+            ArmClock();
             _state.Value = (byte)MatchState.Playing;
         }
 

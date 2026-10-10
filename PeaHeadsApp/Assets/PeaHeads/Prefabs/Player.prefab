@@ -1338,7 +1338,6 @@ MonoBehaviour:
   _maxRise: 0.5
   _maxDuck: 0.75
   _headSmoothing: 5
-  _leanRoll: 10
   _headCollisionRadius: 0.3
   _zoomFactor: 1.5
   _zoomSpeed: 12

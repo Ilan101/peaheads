@@ -19,8 +19,6 @@ namespace PeaHeads
         [SerializeField, Range(0f, 1f)] private float _maxRise = 0.35f;
         [SerializeField, Range(0f, 1f)] private float _maxDuck = 0.6f;
         [SerializeField, Range(1f, 30f)] private float _headSmoothing = 16f;
-        [Tooltip("Head (and camera) roll at full lean, degrees. Sells the lean.")]
-        [SerializeField, Range(0f, 30f)] private float _leanRoll = 10f;
         [Tooltip("Lean stops this far from walls so the camera can't see through them.")]
         [SerializeField, Range(0.05f, 1f)] private float _headCollisionRadius = 0.3f;
 
@@ -87,8 +85,7 @@ namespace PeaHeads
             }
 
             _headPivot.localPosition = RestPosition() + HeadOffset;
-            float lean = _maxLean > 0f ? Mathf.Clamp(HeadOffset.x / _maxLean, -1f, 1f) : 0f;
-            _headPivot.localRotation = Quaternion.Euler(_pitch, 0f, -lean * _leanRoll);
+            _headPivot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
         }
 
         // Rest position sinks with the planted body.

@@ -116,11 +116,11 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 
 - States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
-- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.0 m lateral, 0.5 m up / 0.75 m down, 10° roll at full lean, movement multiplier 4.2, smoothing 5 (Player prefab).
+- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.0 m lateral, 0.5 m up / 0.75 m down, no roll (raw position only), movement multiplier 4.2, smoothing 5 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
-- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw) → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
+- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
 - Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 
