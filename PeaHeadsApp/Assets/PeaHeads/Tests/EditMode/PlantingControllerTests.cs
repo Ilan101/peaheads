@@ -89,6 +89,18 @@ namespace PeaHeads.Tests
         }
 
         [Test]
+        public void RepeatedRemoteValueDoesNotUndoLocalTransition()
+        {
+            _planting.ApplyRemote(PlantState.Planting);
+            _planting.Tick(1.01f, false);
+            Assert.AreEqual(PlantState.Planted, _planting.State);
+
+            _planting.ApplyRemote(PlantState.Planting);
+
+            Assert.AreEqual(PlantState.Planted, _planting.State);
+        }
+
+        [Test]
         public void ResetStateReturnsToStandingUnplanted()
         {
             Plant();

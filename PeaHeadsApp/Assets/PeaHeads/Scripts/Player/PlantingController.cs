@@ -20,6 +20,7 @@ namespace PeaHeads
         private PlayerHealth _health;
         private float _timer;
         private float _progress;
+        private PlantState? _lastRemote;
 
         private void Awake()
         {
@@ -45,9 +46,11 @@ namespace PeaHeads
             if (_visual) _visual.localScale = new Vector3(1f, HeightScale, 1f);
         }
 
+        // Reacts only to new network values, so a stale repeat can't undo a transition finished locally.
         public void ApplyRemote(PlantState state)
         {
-            if (state == State) return;
+            if (state == _lastRemote) return;
+            _lastRemote = state;
             State = state;
             _timer = _transitionTime;
         }
