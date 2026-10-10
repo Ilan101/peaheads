@@ -94,7 +94,14 @@ namespace PeaHeads
         {
             if (!_splatPrefab) return;
             Quaternion facing = normal.sqrMagnitude > 0.01f ? Quaternion.LookRotation(normal) : Quaternion.identity;
-            Destroy(Instantiate(_splatPrefab, point, facing).gameObject, _splatLifetime);
+            ParticleSystem splat = Instantiate(_splatPrefab, point, facing);
+            // Same colour as the pea (shooter's faction); restart so the burst uses it.
+            splat.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            Color team = Faction.Color(MatchManager.TeamOf(OwnerClientId));
+            ParticleSystem.MainModule main = splat.main;
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(team.r * 0.75f, team.g * 0.75f, team.b * 0.75f), team);
+            splat.Play();
+            Destroy(splat.gameObject, _splatLifetime);
         }
 
         [Rpc(SendTo.Owner)]
