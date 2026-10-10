@@ -13,6 +13,7 @@ namespace PeaHeads
         [SerializeField, Range(0f, 10f)] private float _glowPulseSpeed = 3f;
 
         public int Index => _index;
+        public bool IsShown => _visual && _visual.gameObject.activeSelf;
 
         private float _glowIntensity;
 
