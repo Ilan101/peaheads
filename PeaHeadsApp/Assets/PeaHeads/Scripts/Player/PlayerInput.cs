@@ -13,6 +13,8 @@ namespace PeaHeads
         public bool PlantPressed;
         public bool FirePressed;
         public bool ZoomHeld;
+        // Level, not edge: true while the mouth is open (webcam) or LMB is held. Drives the opponent-visible snout.
+        public bool MouthOpen;
         public bool RecenterPressed;
     }
 
@@ -111,6 +113,7 @@ namespace PeaHeads
                 PlantPressed = kb.eKey.wasPressedThisFrame,
                 FirePressed = locked && (click || _trackerFirePending),
                 ZoomHeld = locked && (mouse.rightButton.isPressed || (trackerFresh && _trackerAim)),
+                MouthOpen = locked && (mouse.leftButton.isPressed || (trackerFresh && _trackerShootPrevious)),
                 RecenterPressed = kb.cKey.wasPressedThisFrame,
             };
             _trackerFirePending = false;

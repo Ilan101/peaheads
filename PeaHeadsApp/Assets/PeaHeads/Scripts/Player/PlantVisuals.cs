@@ -8,6 +8,8 @@ namespace PeaHeads
     public class PlantVisuals : MonoBehaviour
     {
         [SerializeField] private Transform _leafBase;
+        [Tooltip("Optional. Spread outward (x/z) with the same curve as the leaf base when planting.")]
+        [SerializeField] private Transform _groundLeaves;
         [Tooltip("x = width multiplier, y = height multiplier when fully planted.")]
         [SerializeField] private Vector2 _plantedScale = new(1.35f, 0.6f);
         [Tooltip("Plant progress 0→1 to blend. Peaks above 1 for a 'thunk' into the ground.")]
@@ -21,6 +23,7 @@ namespace PeaHeads
         private PlantingController _planting;
         private Vector3 _restScale;
         private Vector3 _restPosition;
+        private Vector3 _groundRest;
         private PlantState _lastState;
 
         private void Awake()
@@ -28,6 +31,7 @@ namespace PeaHeads
             _planting = GetComponent<PlantingController>();
             _restScale = _leafBase.localScale;
             _restPosition = _leafBase.localPosition;
+            if (_groundLeaves) _groundRest = _groundLeaves.localScale;
         }
 
         private void LateUpdate()
@@ -40,6 +44,11 @@ namespace PeaHeads
             _leafBase.localScale = scale;
             _leafBase.localPosition = new Vector3(_restPosition.x,
                 GroundedY(_restPosition.y, _restScale.y, scale.y), _restPosition.z);
+            if (_groundLeaves)
+            {
+                float spread = Mathf.LerpUnclamped(1f, _plantedScale.x, blend);
+                _groundLeaves.localScale = new Vector3(_groundRest.x * spread, _groundRest.y, _groundRest.z * spread);
+            }
 
             if (_plantPuff && state == PlantState.Planted && _lastState != PlantState.Planted) _plantPuff.Play();
             _lastState = state;

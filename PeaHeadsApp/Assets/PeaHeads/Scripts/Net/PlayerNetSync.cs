@@ -8,12 +8,11 @@ namespace PeaHeads.Net
     public class PlayerNetSync : NetworkBehaviour
     {
         [SerializeField] private Renderer[] _tinted;
-        [SerializeField] private Color _hostColor = new(0.55f, 0.85f, 0.25f);
-        [SerializeField] private Color _clientColor = new(0.95f, 0.6f, 0.2f);
 
         private readonly NetworkVariable<Vector3> _headOffset = new(writePerm: NetworkVariableWritePermission.Owner);
         private readonly NetworkVariable<float> _pitch = new(writePerm: NetworkVariableWritePermission.Owner);
         private readonly NetworkVariable<byte> _plantState = new(writePerm: NetworkVariableWritePermission.Owner);
+        private readonly NetworkVariable<byte> _faceFlags = new(writePerm: NetworkVariableWritePermission.Owner);
 
         private PlayerInput _input;
         private PlayerCameraRig _rig;
@@ -21,6 +20,7 @@ namespace PeaHeads.Net
         private PlayerMovement _movement;
         private PlayerHealth _health;
         private SpawnPoint _lastSpawn;
+        private PlantFace _plantFace;
 
         private void Awake()
         {
@@ -29,6 +29,7 @@ namespace PeaHeads.Net
             _planting = GetComponent<PlantingController>();
             _movement = GetComponent<PlayerMovement>();
             _health = GetComponent<PlayerHealth>();
+            _plantFace = GetComponent<PlantFace>();
         }
 
         public override void OnNetworkSpawn()
@@ -36,7 +37,7 @@ namespace PeaHeads.Net
             _input.SetLocal(IsOwner);
             _rig.SetLocal(IsOwner);
 
-            Color color = OwnerClientId == NetworkManager.ServerClientId ? _hostColor : _clientColor;
+            Color color = TeamColors.Of(MatchManager.TeamOf(OwnerClientId));
             foreach (Renderer r in _tinted) r.material.color = color;
 
             _health.Revived += OnRevived;
@@ -54,6 +55,9 @@ namespace PeaHeads.Net
                 _headOffset.Value = _rig.HeadOffset;
                 _pitch.Value = _rig.Pitch;
                 _plantState.Value = (byte)_planting.State;
+                byte face = FaceFlags.Pack(_input.Current.MouthOpen, _input.Current.ZoomHeld);
+                _faceFlags.Value = face;
+                ApplyFace(face);
             }
             else ApplyRemoteState();
         }
@@ -62,6 +66,15 @@ namespace PeaHeads.Net
         {
             _rig.ApplyRemote(_headOffset.Value, _pitch.Value);
             _planting.ApplyRemote((PlantState)_plantState.Value);
+            ApplyFace(_faceFlags.Value);
+        }
+
+        // Dummies and prefabs built before PlantBodyBuilder have no PlantFace.
+        private void ApplyFace(byte flags)
+        {
+            if (!_plantFace) return;
+            (bool mouthOpen, bool wink) = FaceFlags.Unpack(flags);
+            _plantFace.SetFlags(mouthOpen, wink);
         }
 
         // Owner only: back to spawn, unplanted. Used on revive and on match restart.

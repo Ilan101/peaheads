@@ -7,8 +7,6 @@ namespace PeaHeads
     [RequireComponent(typeof(MatchManager))]
     public class ScoreHUD : MonoBehaviour
     {
-        [SerializeField] private Color _team0Color = new(0.55f, 0.85f, 0.25f);
-        [SerializeField] private Color _team1Color = new(0.95f, 0.6f, 0.2f);
         [SerializeField, Range(100f, 600f)] private float _barWidth = 320f;
 
         private MatchManager _match;
@@ -45,7 +43,7 @@ namespace PeaHeads
 
             GUI.color = new Color(0f, 0f, 0f, 0.5f);
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = team == 0 ? _team0Color : _team1Color;
+            GUI.color = TeamColors.Of(team);
             GUI.DrawTexture(new Rect(fillFromRight ? rect.xMax - width : rect.x, rect.y, width, rect.height),
                 Texture2D.whiteTexture);
             GUI.color = Color.white;
