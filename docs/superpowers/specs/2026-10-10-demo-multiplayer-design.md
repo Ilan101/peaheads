@@ -39,6 +39,8 @@ Make the first-person demo (`DemoArena`, `Player` prefab) playable by two player
 
 **`SpawnPoint`** (`Scripts/Net/`, MonoBehaviour): marker with `Index` (0/1). Static lookup `SpawnPoint.Get(int index)`.
 
+**`OverviewCamera`** (`Scripts/Net/`, MonoBehaviour): static `SetVisible(bool)`; `PlayerInput.OnEnable/OnDisable` call it.
+
 ### Changed
 
 **`PlantingController`**
@@ -68,7 +70,7 @@ Make the first-person demo (`DemoArena`, `Player` prefab) playable by two player
 - `TakeDamage(int)` server-only; ignored when dead.
 - `OnValueChanged` on all clients: decrease → flash red + hit SFX; 0 → hide renderers/colliders (not CharacterController); back to max → show. Initial value applied on spawn.
 - Server respawn timer: `_respawnDelay` (dummies 3 s; **players now 3 s**). On reset, the owner of a player teleports it to its spawn point and resets plant state to Unplanted (`PlantingController.ResetState()`).
-- Flash fix: original color cached once in `Awake` (no permanent red on overlapping hits).
+- Flash fix: the original color is captured when a flash starts, but only if no flash is already running (no permanent red on overlapping hits, and it respects the per-player tint applied in `OnNetworkSpawn`).
 
 **`PlayerHUD`**: unchanged logic, reads synced HP; only enabled for the local player (via `_localOnly`).
 
@@ -83,7 +85,7 @@ Make the first-person demo (`DemoArena`, `Player` prefab) playable by two player
   - add `NetworkManager` (`UnityTransport`, PlayerPrefab = Player, prefab list = DefaultNetworkPrefabs) + `ConnectionUI`;
   - add `SpawnPoint` 0 at (0, 0, −12) facing +Z and `SpawnPoint` 1 at (0, 0, 12) facing −Z;
   - move the dummies off the spawn line so spawn 1 is clear: (−9, 0, 3) stays, others to (−6, 0, 14) and (8, 0, 10);
-  - add `OverviewCamera` (Camera only, no AudioListener, depth −1, high angle over the arena). Player camera depth 0 draws over it.
+  - add `OverviewCamera` GameObject (Camera + AudioListener + `OverviewCamera` component, high angle over the arena). `OverviewCamera` hides itself while a local `PlayerInput` is enabled and shows again when it is disabled (disconnect), so there is always exactly one camera and one listener.
 - Applied by a **one-off editor script**, run headless, verified, then deleted.
 
 ## Data flow
