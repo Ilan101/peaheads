@@ -15,8 +15,19 @@ namespace PeaHeads
         private ulong _attacker;
         private float _despawnTime;
         private bool _done;
+        // Shooter's team; set by the host before Spawn so every copy has it on its first frame.
+        private readonly NetworkVariable<byte> _team = new();
 
         private void Awake() => transform.localScale = Vector3.one * (_radius * 2f);
+
+        // Server only, before NetworkObject.Spawn().
+        public void SetTeam(int team) => _team.Value = (byte)team;
+
+        // Same colour as the shooter's head.
+        public override void OnNetworkSpawn()
+        {
+            if (TryGetComponent(out Renderer peaRenderer)) peaRenderer.material.color = Faction.Color(_team.Value);
+        }
 
         // Server only, right after Spawn(). sweepFrom is a point inside the shooter (head centre): the gap from
         // there to the spawn point is checked first, so a mouth poking through a wall can't fire through it.
