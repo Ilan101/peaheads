@@ -265,7 +265,8 @@ namespace PeaHeads
             Vector2 corner = new(screen.width * 0.5f - 20f - VictimSize.x * CompactScale * 0.5f,
                 -screen.height * 0.5f + 20f + VictimSize.y * CompactScale * 0.5f);
             _victim.Root.localScale = Vector3.one * Mathf.Lerp(1f, CompactScale, k);
-            _victim.Root.anchoredPosition = Vector2.Lerp(new Vector2(0f, -10f), corner, k);
+            // Full-screen spot: just under the scoreboard; the death text sits below it (PlayerHUD).
+            _victim.Root.anchoredPosition = Vector2.Lerp(new Vector2(0f, 0f), corner, k);
 
             float t = _victim.ClipTime(now);
             _victimView.Show(t);

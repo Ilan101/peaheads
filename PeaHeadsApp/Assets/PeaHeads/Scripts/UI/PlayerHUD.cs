@@ -311,6 +311,11 @@ namespace PeaHeads
                 _deathBy.color = Faction.Color(rival);
                 float left = _health.RespawnDelay - (Time.time - _deadAt);
                 _deathCount.text = _health.RespawnDelay > 0f ? $"Respawning in {Mathf.CeilToInt(Mathf.Max(0f, left))}…" : "";
+                // Centred normally; below the victim's full-screen killcam while it plays, so nothing overlaps.
+                float y = KillcamView.FullscreenActive ? -215f : 40f;
+                _deathTitle.rectTransform.anchoredPosition = new Vector2(0f, y);
+                _deathBy.rectTransform.anchoredPosition = new Vector2(0f, y - 52f);
+                _deathCount.rectTransform.anchoredPosition = new Vector2(0f, y - 88f);
             }
 
             float toast = Time.time - _toastAt;
