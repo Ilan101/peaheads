@@ -8,6 +8,8 @@ namespace PeaHeads
     public class PlayerHUD : MonoBehaviour
     {
         private const float Margin = 20f;
+        private const float IconSize = 44f;
+        private const int PlantDots = 12;
 
         [SerializeField, Range(16f, 96f)] private float _heartSize = 40f;
         [Tooltip("Webcam view width; height follows the tracker's 16:9 rectangle.")]
@@ -28,6 +30,13 @@ namespace PeaHeads
         private static Texture2D _ring;
         private static Texture2D _cross;
         private static Texture2D _vignette;
+        private static Texture2D _camera;
+        private static Texture2D _slash;
+        private static Texture2D _flower;
+        private static Texture2D _thorn;
+        private static Texture2D _sprout;
+        private static Texture2D _dot;
+        private static Texture2D _disc;
 
         // Local player is scoped in: HUDs hide everything but the crosshair (read by ScoreHUD too).
         public static bool Scoped { get; private set; }
@@ -50,8 +59,6 @@ namespace PeaHeads
         private MatchManager _match;
 
         private int Team => _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;
-        private GUIStyle _style;
-        private GUIStyle _factionStyle;
 
         private void Awake()
         {
@@ -95,8 +102,6 @@ namespace PeaHeads
         private void OnGUI()
         {
             if (StoryIntro.IsPlaying) return;
-            _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
-            _factionStyle ??= new GUIStyle(_style);
             if (_health.IsDead)
             {
                 DrawDeathScreen();
@@ -108,18 +113,19 @@ namespace PeaHeads
             DrawCrosshair();
         }
 
+        // Webcam icon + tracker view, team badge, plant state, hearts. Hidden while scoped in.
         private void DrawStatus()
         {
-            GUI.Label(new Rect(Margin, Margin - 8f, 700f, 30f), TrackingLabel(), _style);
+            DrawWebcamIcon(new Rect(Margin, Margin, IconSize, IconSize));
             if (_tracking && _tracking.State == TrackingState.Tracking)
-                DrawTrackerView(new Rect(Margin, Margin + 24f, _trackerWidth, _trackerWidth * 9f / 16f), _tracking.Head);
+                DrawTrackerView(new Rect(Margin, Margin + IconSize + 6f, _trackerWidth, _trackerWidth * 9f / 16f),
+                    _tracking.Head);
 
             int team = Team;
             float heartsY = Screen.height - Margin - _heartSize;
-            _factionStyle.normal.textColor = Faction.Color(team);
-            GUI.Label(new Rect(Margin, heartsY - 64f, 600f, 30f), Faction.Name(team), _factionStyle);
-            string ready = _planting.CanShoot ? "  -  READY TO SPIT" : "";
-            GUI.Label(new Rect(Margin, heartsY - 32f, 600f, 30f), $"{_planting.State}{ready}", _style);
+            float iconsY = heartsY - IconSize - 10f;
+            DrawTeamBadge(new Rect(Margin, iconsY, IconSize, IconSize), team);
+            DrawPlantState(new Rect(Margin + IconSize + 12f, iconsY, IconSize, IconSize));
             DrawHearts(Margin, heartsY);
         }
 
@@ -209,12 +215,63 @@ namespace PeaHeads
             GUI.color = Color.white;
         }
 
-        private string TrackingLabel() => !_tracking ? "Webcam: off (keyboard)" : _tracking.State switch
+        // Green = tracking, yellow = no face (keyboard), grey + red slash = webcam off (keyboard).
+        private void DrawWebcamIcon(Rect rect)
         {
-            TrackingState.Tracking => "Webcam: tracking",
-            TrackingState.NoFace => "Webcam: no face (keyboard)",
-            _ => "Webcam: off (keyboard) - run head_tracker.py",
-        };
+            _camera ??= UiSprites.Camera().texture;
+            _slash ??= UiSprites.Slash().texture;
+            TrackingState state = _tracking ? _tracking.State : TrackingState.Off;
+            GUI.color = state switch
+            {
+                TrackingState.Tracking => new Color(0.3f, 0.85f, 0.3f),
+                TrackingState.NoFace => new Color(0.95f, 0.8f, 0.2f),
+                _ => new Color(0.55f, 0.55f, 0.55f),
+            };
+            GUI.DrawTexture(rect, _camera);
+            if (state == TrackingState.Off)
+            {
+                GUI.color = new Color(0.85f, 0.15f, 0.15f);
+                GUI.DrawTexture(rect, _slash);
+            }
+            GUI.color = Color.white;
+        }
+
+        // Bloom = flower, Blight = thorn, in the team colour.
+        private static void DrawTeamBadge(Rect rect, int team)
+        {
+            _flower ??= UiSprites.Flower().texture;
+            _thorn ??= UiSprites.Thorn().texture;
+            GUI.color = Faction.Color(team);
+            GUI.DrawTexture(rect, team == 0 ? _flower : _thorn);
+            GUI.color = Color.white;
+        }
+
+        // Sprout in a dark disc; a ring of dots fills while planting and empties while unplanting.
+        // Grey = can walk, green + full ring = planted, can fire.
+        private void DrawPlantState(Rect rect)
+        {
+            _sprout ??= UiSprites.Sprout().texture;
+            _dot ??= UiSprites.Circle(16).texture;
+            _disc ??= UiSprites.Circle().texture;
+            var green = new Color(0.5f, 0.9f, 0.35f);
+
+            GUI.color = new Color(0f, 0f, 0f, 0.4f);
+            GUI.DrawTexture(rect, _disc);
+            int lit = Mathf.RoundToInt(_planting.Progress * PlantDots);
+            float radius = rect.width * 0.5f, dot = rect.width * 0.14f;
+            for (int i = 0; i < PlantDots; i++)
+            {
+                float a = Mathf.PI * 0.5f - i * 2f * Mathf.PI / PlantDots;
+                Vector2 c = rect.center + new Vector2(Mathf.Cos(a), -Mathf.Sin(a)) * (radius - dot * 0.5f);
+                GUI.color = i < lit ? green : new Color(1f, 1f, 1f, 0.25f);
+                GUI.DrawTexture(new Rect(c.x - dot * 0.5f, c.y - dot * 0.5f, dot, dot), _dot);
+            }
+            GUI.color = _planting.CanShoot ? green : new Color(0.75f, 0.75f, 0.75f);
+            float inset = rect.width * 0.22f;
+            GUI.DrawTexture(new Rect(rect.x + inset, rect.y + inset, rect.width - inset * 2f, rect.height - inset * 2f),
+                _sprout);
+            GUI.color = Color.white;
+        }
 
         // Mirrors the tracker's active rectangle: centre = neutral, edges = full lean / rise / duck.
         private static void DrawTrackerView(Rect box, Vector2 head)

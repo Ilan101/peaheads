@@ -17,6 +17,7 @@ namespace PeaHeads
         private GUIStyle _banner;
         private GUIStyle _line;
         private bool _rivalShielded;
+        private static Texture2D _shield;
         private float _nextRivalCheck;
 
         private void Awake()
@@ -58,7 +59,7 @@ namespace PeaHeads
             GUI.Label(new Rect(0f, y + 106f, Screen.width, 30f), $"{result}Restarting...", _label);
         }
 
-        // Score bars, clock, mushroom progress, rival-shield note. Hidden while scoped in.
+        // Score bars, clock, mushroom progress, rival-shield icon. Hidden while scoped in.
         private void DrawMatchStatus(int localTeam, float mid)
         {
             DrawBar(new Rect(mid - _barWidth - 10f, 12f, _barWidth, 26f), 0, false, localTeam);
@@ -70,9 +71,16 @@ namespace PeaHeads
             float collect = _mushrooms ? _mushrooms.CollectProgress(localTeam) : 0f;
             if (collect > 0f) DrawCollectBar(collect);
 
+            // Rival still in the intro story (can't be hit yet): pulsing shield beside their bar.
             if (_rivalShielded && !_match.IsEnded)
-                GUI.Label(new Rect(0f, 72f, Screen.width, 24f),
-                    $"{Faction.Name(1 - localTeam)} is still hearing the story... (can't be hit yet)", _label);
+            {
+                _shield ??= UiSprites.Shield().texture;
+                const float size = 26f;
+                float x = 1 - localTeam == 0 ? mid - _barWidth - 16f - size : mid + _barWidth + 16f;
+                GUI.color = new Color(1f, 1f, 1f, 0.65f + 0.35f * Mathf.Sin(Time.unscaledTime * 5f));
+                GUI.DrawTexture(new Rect(x, 12f, size, size), _shield);
+                GUI.color = Color.white;
+            }
         }
 
         // Bottom-centre progress of the mushroom the local player is planted on.
