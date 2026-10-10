@@ -35,7 +35,7 @@ namespace PeaHeads
             _health = GetComponent<PlayerHealth>();
         }
 
-        // Remote copies get no input, so this only advances the squash animation for them.
+        // Remote copies get no input, so this only advances the plant progress for them.
         private void Update() => Tick(Time.deltaTime, _input.Current.PlantPressed && !_health.IsDead);
 
         public void Tick(float deltaTime, bool plantPressed)
@@ -49,7 +49,8 @@ namespace PeaHeads
             }
 
             float target = State is PlantState.Planting or PlantState.Planted ? 1f : 0f;
-            _progress = Mathf.MoveTowards(_progress, target, deltaTime / (target > 0f ? _plantTime : _unplantTime));        }
+            _progress = Mathf.MoveTowards(_progress, target, deltaTime / (target > 0f ? _plantTime : _unplantTime));
+        }
 
         // Reacts only to new network values, so a stale repeat can't undo a transition finished locally.
         public void ApplyRemote(PlantState state)
