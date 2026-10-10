@@ -32,8 +32,12 @@ namespace PeaHeads
 
         private void OnGUI()
         {
+<<<<<<< HEAD
             if (StoryIntro.IsPlaying) return;
             _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
+=======
+            _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
+>>>>>>> fddbf20c3d6b70f7abdb081a8659f6a1b4a5d97a
 
 <<<<<<< HEAD
             int team = _networkObject && _networkObject.IsSpawned ? MatchManager.TeamOf(_networkObject.OwnerClientId) : 0;

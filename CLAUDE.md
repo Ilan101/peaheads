@@ -68,7 +68,7 @@ Assets/PeaHeads/
 │   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused; during the
 │   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
-│   │               HeadTrackingInput (local Player: dead zone + lean/vertical gain → PlayerInput; C recenters)
+│   │               HeadTrackingInput (local Player: raw input × movement multiplier × per-axis gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
 │                   plant vars, random spawn teleport, Respawn(), faction tint); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
@@ -92,7 +92,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 {"face": true, "dx": 0.12, "dy": -0.05, "aim": false, "shoot": false}
 ```
 
-- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, in face widths, divided by the tracker's 16:9 active box (half-width `BOX_FRAC` = 0.30 of the frame width, frame-relative so camera mode can't shrink it) and **clamped to [-1, 1]** (box edge = 1). Tracker requests MJPG 30 fps (720p YUYV is only ~10 fps). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies the dead zone and optional extra gain (`HeadTrackingInput`), then metres (`PlayerCameraRig` max lean/rise/duck).
+- `dx`, `dy`: smoothed nose displacement from the calibrated neutral (pixels), divided by the tracker's 16:9 active box (half-width `BOX_FRAC` = 0.30 of the frame width, frame-relative so camera mode can't shrink it) and **clamped to [-1, 1]** (box edge = 1). Tracker requests MJPG 30 fps (720p YUYV is only ~10 fps). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies movement multiplier × per-axis gain (`HeadTrackingInput`, no dead zone), then metres (`PlayerCameraRig` max lean/rise/duck).
 - `shoot`: true **while** the mouth is open (≥ 2 frames). It's a level, not an event — Unity detects the false→true edge and applies the cooldown.
 - `aim`: true while exactly one eye is closed (≥ 3 frames). Unity treats it as zoom held.
 - `face: false` → everything zero/false. Unity eases the head back to neutral.
@@ -102,7 +102,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 
 Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
-Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (dead zone, lean/vertical gain, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
+Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
 
 ## Story (StoryIntro)
 

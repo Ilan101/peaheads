@@ -33,9 +33,14 @@ namespace PeaHeads
         {
             if (!_match.IsSpawned || StoryIntro.IsPlaying) return;
             _label ??= new GUIStyle(GUI.skin.label)
+<<<<<<< HEAD
                 { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _banner ??= new GUIStyle(_label) { fontSize = 52 };
             _line ??= new GUIStyle(_label) { fontSize = 24 };
+=======
+                { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.black } };
+            _banner ??= new GUIStyle(_label) { fontSize = 48 };
+>>>>>>> fddbf20c3d6b70f7abdb081a8659f6a1b4a5d97a
 
             int localTeam = MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId);
             float mid = Screen.width / 2f;

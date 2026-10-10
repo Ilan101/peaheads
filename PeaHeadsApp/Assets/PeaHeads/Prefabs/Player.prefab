@@ -782,11 +782,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.HeadTrackingInput
   _movementMultiplier: 4.2
+<<<<<<< HEAD
   _deadZone: 0.03
 <<<<<<< HEAD
   _leanGain: 3.5
   _verticalGain: 4
 =======
+=======
+>>>>>>> fddbf20c3d6b70f7abdb081a8659f6a1b4a5d97a
   _leanGain: 1
   _verticalGain: 1
 >>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
