@@ -66,6 +66,25 @@ namespace PeaHeads.Tests
         }
 
         [Test]
+        public void Dome_NormalsPointAwayFromCentre()
+        {
+            Mesh mesh = PlantMeshes.Dome(0.56f, 16, 8);
+            Vector3[] vertices = mesh.vertices, normals = mesh.normals;
+            AssertNormalsFiniteAndUnit(mesh);
+            for (int i = 0; i < vertices.Length; i++)
+                Assert.Greater(Vector3.Dot(normals[i], vertices[i].normalized), 0.9f, $"vertex {i}");
+        }
+
+        [Test]
+        public void Dome_CoversFrontHemisphere()
+        {
+            Bounds bounds = PlantMeshes.Dome(0.56f, 16, 8).bounds;
+            Assert.AreEqual(0f, bounds.min.z, 1e-4f);
+            Assert.AreEqual(0.56f, bounds.max.z, 1e-4f);
+            Assert.AreEqual(0.56f, bounds.extents.x, 1e-3f);
+        }
+
+        [Test]
         public void Disc_FacesPlusZ()
         {
             Mesh mesh = PlantMeshes.Disc(0.2f, 24);

@@ -5,21 +5,31 @@ namespace PeaHeads.Tests
 {
     public class PlantFaceTests
     {
-        private static Vector3 Targets(bool mouth, bool wink) => PlantFace.Targets(mouth, wink, 1.22f, 1.3f, 0.15f);
+        private static Vector3 Targets(bool mouth, bool wink) => PlantFace.Targets(mouth, wink, 1.22f, 1.3f);
 
         [Test]
-        public void Targets_Neutral_IsRest() => Assert.AreEqual(Vector3.one, Targets(false, false));
+        public void Targets_Neutral_IsRestWithLidOpen() => Assert.AreEqual(new Vector3(1f, 1f, 0f), Targets(false, false));
 
         [Test]
         public void Targets_MouthOpen_FlaresSnoutAndHole() =>
-            Assert.AreEqual(new Vector3(1.22f, 1.3f, 1f), Targets(true, false));
+            Assert.AreEqual(new Vector3(1.22f, 1.3f, 0f), Targets(true, false));
 
         [Test]
-        public void Targets_Wink_SquintsEyeOnly() =>
-            Assert.AreEqual(new Vector3(1f, 1f, 0.15f), Targets(false, true));
+        public void Targets_Wink_ClosesLidOnly() => Assert.AreEqual(new Vector3(1f, 1f, 1f), Targets(false, true));
 
         [Test]
-        public void Targets_Both() => Assert.AreEqual(new Vector3(1.22f, 1.3f, 0.15f), Targets(true, true));
+        public void Targets_Both() => Assert.AreEqual(new Vector3(1.22f, 1.3f, 1f), Targets(true, true));
+
+        [Test]
+        public void LidAngle_OpenTucksLidBackIntoHead() =>
+            Assert.AreEqual(PlantFace.OpenLidAngle, PlantFace.LidAngle(0f), 1e-4f);
+
+        [Test]
+        public void LidAngle_ClosedCoversEyeFront() => Assert.AreEqual(0f, PlantFace.LidAngle(1f), 1e-4f);
+
+        [Test]
+        public void LidAngle_HalfwayIsMidSwing() =>
+            Assert.AreEqual(PlantFace.OpenLidAngle * 0.5f, PlantFace.LidAngle(0.5f), 1e-4f);
 
         [TestCase(false, false, ExpectedResult = 0)]
         [TestCase(true, false, ExpectedResult = 1)]

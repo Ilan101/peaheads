@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PeaHeads.Net;
 using UnityEditor;
 using UnityEngine;
 
@@ -17,7 +18,7 @@ namespace PeaHeads.EditorTools
 
         private sealed class Parts
         {
-            public Mesh Snout, MouthHole, GroundLeaf, CollarLeaf, TuftLeaf, Sphere;
+            public Mesh Snout, MouthHole, GroundLeaf, CollarLeaf, TuftLeaf, EyeLid, Sphere;
             public Material PlantGreen, LeafGreen, EyeWhite, Pupil, MouthDark, Dirt;
         }
 
@@ -33,6 +34,8 @@ namespace PeaHeads.EditorTools
                 GroundLeaf = SaveMesh(PlantMeshes.Leaf(0.5f, 0.26f, 0.06f, 10), "Leaf"),
                 CollarLeaf = SaveMesh(PlantMeshes.Leaf(0.38f, 0.22f, 0.06f, 8), "CollarLeaf"),
                 TuftLeaf = SaveMesh(PlantMeshes.Leaf(0.42f, 0.16f, 0.22f, 10), "TuftLeaf"),
+                // Eye-local units (eye sphere radius 0.5): a little larger than the eye so it covers the pupil.
+                EyeLid = SaveMesh(PlantMeshes.Dome(0.56f, 24, 8), "EyeLid"),
                 // Same built-in sphere as the Head (3D Object > Sphere).
                 Sphere = Resources.GetBuiltinResource<Mesh>("New-Sphere.fbx"),
                 PlantGreen = SaveMaterial("PlantGreen", new Color(0.42f, 0.76f, 0.29f)),
@@ -121,7 +124,14 @@ namespace PeaHeads.EditorTools
                     if (!root.TryGetComponent(out PlantFace face)) face = root.AddComponent<PlantFace>();
                     SetObject(face, "_snout", snout);
                     SetObject(face, "_mouthHole", hole.transform);
-                    SetObject(face, "_winkEye", winkEye);
+                    // Right eye only; tinted with the head, swung back into the head while open.
+                    MeshRenderer lid = Part("Gen_LidR", winkEye, parts.EyeLid, headMaterial, Vector3.zero,
+                        Quaternion.Euler(PlantFace.OpenLidAngle, 0f, 0f), Vector3.one);
+                    hidden.Add(lid);
+                    if (root.TryGetComponent(out PlayerCameraRig playerRig)) SetRenderers(playerRig, "_hiddenInFirstPerson", hidden);
+                    if (root.TryGetComponent(out PlayerNetSync netSync))
+                        SetRenderers(netSync, "_tinted", new List<Renderer> { head.GetComponent<Renderer>(), snout.GetComponent<Renderer>(), lid });
+                    SetObject(face, "_winkLid", lid.transform);
                     SetFloat(face, "_openHole", PlantFace.DefaultOpenHole);
                 }
 
@@ -140,7 +150,7 @@ namespace PeaHeads.EditorTools
             MeshRenderer eye = Part(side < 0f ? "Gen_EyeL" : "Gen_EyeR", pivot, parts.Sphere, parts.EyeWhite,
                 direction * 0.50f, Quaternion.LookRotation(direction), Vector3.one * 0.22f);
             MeshRenderer pupil = Part("Gen_Pupil", eye.transform, parts.Sphere, parts.Pupil,
-                new Vector3(0f, 0f, 0.42f), Quaternion.identity, Vector3.one * 0.5f);
+                new Vector3(0f, 0f, 0.40f), Quaternion.identity, new Vector3(0.5f, 0.5f, 0.25f));
             hidden.Add(eye);
             hidden.Add(pupil);
             return eye.transform;

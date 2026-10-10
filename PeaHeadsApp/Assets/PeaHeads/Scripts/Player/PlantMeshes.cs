@@ -61,6 +61,26 @@ namespace PeaHeads
             return Build("Lathe", vertices, uvs, triangles);
         }
 
+        // Hemisphere cap facing +Z (rim in the XY plane, apex at z = radius). Used as the eyelid.
+        public static Mesh Dome(float radius, int segments, int rings)
+        {
+            var profile = new Vector2[rings + 1];
+            for (int i = 0; i <= rings; i++)
+            {
+                float angle = 0.5f * Mathf.PI * (1f - (float)i / rings);
+                profile[i] = new Vector2(Mathf.Sin(angle) * radius, Mathf.Cos(angle) * radius);
+            }
+            Mesh mesh = Lathe(profile, segments);
+            mesh.name = "Dome";
+
+            // The apex ring collapses to one point, so RecalculateNormals leaves the seam copy with only zero-area
+            // triangles (zero normal). The true apex normal is +Z.
+            Vector3[] normals = mesh.normals;
+            for (int j = rings * (segments + 1); j < normals.Length; j++) normals[j] = Vector3.forward;
+            mesh.normals = normals;
+            return mesh;
+        }
+
         // Flat disc in the XY plane facing +Z.
         public static Mesh Disc(float radius, int segments)
         {
