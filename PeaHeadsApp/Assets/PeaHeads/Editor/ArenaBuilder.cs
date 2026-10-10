@@ -11,8 +11,8 @@ using UnityEngine.SceneManagement;
 namespace PeaHeads.EditorTools
 {
     // Rebuilds DemoArena's Environment root: terrain, cover, mushroom spots, spawn points, tree ring, decoration,
-    // lighting. Re-running overwrites hand edits under Environment. The root Match object and the MushroomPickup
-    // prefab are created only if missing; nothing else outside Environment is touched.
+    // lighting. Re-running overwrites hand edits under Environment. The root Match and HeadTracking objects and the
+    // MushroomPickup prefab are created only if missing; nothing else outside Environment is touched.
     public static class ArenaBuilder
     {
         private const string ScenePath = "Assets/PeaHeads/Scenes/DemoArena.unity";
@@ -121,6 +121,7 @@ namespace PeaHeads.EditorTools
             ScatterDecoration(env, terrain, blocked, rng);
             ApplyRenderSettings();
             EnsureMatchObject(scene);
+            EnsureHeadTrackingObject(scene);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -302,6 +303,14 @@ namespace PeaHeads.EditorTools
             match.FindProperty("_endSfx").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<AudioClip>(SfxDir + "Notification_End.wav");
             match.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // One webcam receiver per machine, as a scene object: on the Player prefab, remote copies would fight over
+        // the UDP port. Created once, never deleted.
+        private static void EnsureHeadTrackingObject(Scene scene)
+        {
+            if (scene.GetRootGameObjects().Any(r => r.name == "HeadTracking")) return;
+            new GameObject("HeadTracking").AddComponent<HeadTrackingReceiver>();
         }
 
         // Invisible walls on the play-area edge; the tree ring is what players see.
