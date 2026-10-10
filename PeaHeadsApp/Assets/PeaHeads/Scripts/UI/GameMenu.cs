@@ -17,6 +17,20 @@ namespace PeaHeads
     public class GameMenu : MonoBehaviour
     {
         private const float PanelWidth = 440f;
+        private const float ControlsWidth = 320f;
+        private const float PanelGap = 16f;
+
+        private static readonly string[] ControlLines =
+        {
+            "WASD — move",
+            "E — plant / unplant",
+            "Lean head / arrows — peek",
+            "Open mouth / LMB — fire",
+            "Wink / RMB — zoom",
+            "C — recenter head",
+            "Mouse — look",
+            "Esc — this menu",
+        };
 
         [SerializeField] private Font _font;
         [SerializeField] private Color _backdropColor = new(0f, 0f, 0f, 0.55f);
@@ -34,6 +48,7 @@ namespace PeaHeads
         private GameObject _startPanel;
         private GameObject _connectingPanel;
         private GameObject _pausePanel;
+        private GameObject _controlsPanel;
         private GameObject _restartButton;
         private Text _startInfo;
         private Text _startStatus;
@@ -112,6 +127,7 @@ namespace PeaHeads
             _startPanel.SetActive(screen == MenuScreen.Start);
             _connectingPanel.SetActive(screen == MenuScreen.Connecting);
             _pausePanel.SetActive(screen == MenuScreen.Pause);
+            _controlsPanel.SetActive(screen == MenuScreen.Pause);
 
             if (screen == MenuScreen.Pause)
             {
@@ -197,8 +213,8 @@ namespace PeaHeads
             _startInfo = AddLabel(_startPanel, "", 16, _textColor);
             AddLabel(_startPanel, "Host IP", 18, _textColor);
             AddAddressField(_startPanel);
-            AddButton(_startPanel, "Host  (play as Bloom)", OnHost);
-            AddButton(_startPanel, "Join  (play as Blight)", OnJoin);
+            AddButton(_startPanel, "Host", OnHost);
+            AddButton(_startPanel, "Join", OnJoin);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
 
             _connectingPanel = AddPanel("Connecting");
@@ -213,6 +229,15 @@ namespace PeaHeads
             _restartButton = AddButton(_pausePanel, "Restart Match", OnRestart);
             AddButton(_pausePanel, "Leave", OnLeave);
             _pauseStatus = AddLabel(_pausePanel, "", 16, _textColor);
+
+            // Controls sit to the right of the pause panel; the pair is centred together.
+            _controlsPanel = AddPanel("Controls");
+            _controlsPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(ControlsWidth, 0f);
+            AddLabel(_controlsPanel, "Controls", 24, _accentColor, FontStyle.Bold);
+            foreach (string line in ControlLines)
+                AddLabel(_controlsPanel, line, 16, _textColor).alignment = TextAnchor.MiddleLeft;
+            _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(ControlsWidth + PanelGap) * 0.5f, 0f);
+            _controlsPanel.GetComponent<RectTransform>().anchoredPosition = new Vector2((PanelWidth + PanelGap) * 0.5f, 0f);
         }
 
         private GameObject AddPanel(string name)
