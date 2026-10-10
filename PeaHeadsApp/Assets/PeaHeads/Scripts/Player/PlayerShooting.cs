@@ -1,11 +1,16 @@
+using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace PeaHeads
 {
-    [RequireComponent(typeof(PlantingController), typeof(PlayerCameraRig))]
-    public class PlayerShooting : MonoBehaviour
+    [RequireComponent(typeof(PlantingController), typeof(PlayerCameraRig), typeof(PlayerInput))]
+    public class PlayerShooting : NetworkBehaviour
     {
+        // Host accepts shots slightly early so network jitter doesn't eat legit ones.
+        private const float HostCooldownTolerance = 0.8f;
+        // Reject fire origins further than this from the shooter (bad/forged RPC data).
+        private const float MaxOriginDistance = 3f;
+
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;
         [SerializeField] private float _cooldown = 0.6f;
@@ -14,38 +19,61 @@ namespace PeaHeads
 
         private PlantingController _planting;
         private PlayerCameraRig _rig;
+        private PlayerInput _input;
+        private PlayerHealth _health;
         private float _nextFireTime;
+        private float _hostNextFireTime;
 
         private void Awake()
         {
             _planting = GetComponent<PlantingController>();
             _rig = GetComponent<PlayerCameraRig>();
+            _input = GetComponent<PlayerInput>();
+            _health = GetComponent<PlayerHealth>();
         }
 
         private void Update()
         {
-            if (Mouse.current?.leftButton.wasPressedThisFrame == true && Cursor.lockState == CursorLockMode.Locked)
-                TryFire();
+            if (IsSpawned && IsOwner && _input.Current.FirePressed) TryFire();
         }
 
-        // Entry point for mouse-open gestures too.
+        // Owner only. Aim at whatever is under the crosshair, but launch from the mouth.
         public bool TryFire()
         {
-            if (!_planting.CanShoot || Time.time < _nextFireTime) return false;
+            if (!CanFire(_nextFireTime)) return false;
             _nextFireTime = Time.time + _cooldown;
 
-            // Aim at whatever is under the crosshair, but launch from the mouth.
             Transform cam = _rig.Camera.transform;
             Vector3 target = PhysicsUtil.CastIgnoring(transform, cam.position, 0f, cam.forward, _maxAimDistance,
                 out RaycastHit hit, QueryTriggerInteraction.Collide)
                 ? hit.point
                 : cam.position + cam.forward * _maxAimDistance;
-            Vector3 direction = (target - _mouth.position).normalized;
-
-            PeaProjectile pea = Instantiate(_peaPrefab, _mouth.position, Quaternion.LookRotation(direction));
-            pea.Launch(transform, cam.position);
-            if (_fireSfx) AudioSource.PlayClipAtPoint(_fireSfx, _mouth.position);
+            FireRpc(_mouth.position, (target - _mouth.position).normalized, cam.position);
             return true;
+        }
+
+        private bool CanFire(float nextFireTime) =>
+            _planting.CanShoot && !_health.IsDead && Time.time >= nextFireTime;
+
+        [Rpc(SendTo.Server)]
+        private void FireRpc(Vector3 origin, Vector3 direction, Vector3 sweepFrom)
+        {
+            if (!CanFire(_hostNextFireTime)) return;
+            if (direction.sqrMagnitude < 0.5f) return;
+            if ((origin - transform.position).sqrMagnitude > MaxOriginDistance * MaxOriginDistance) return;
+            if ((sweepFrom - transform.position).sqrMagnitude > MaxOriginDistance * MaxOriginDistance) return;
+            _hostNextFireTime = Time.time + _cooldown * HostCooldownTolerance;
+
+            PeaProjectile pea = Instantiate(_peaPrefab, origin, Quaternion.LookRotation(direction.normalized));
+            pea.NetworkObject.Spawn(destroyWithScene: true);
+            pea.Launch(transform, sweepFrom);
+            PlayFireSfxRpc(origin);
+        }
+
+        [Rpc(SendTo.ClientsAndHost)]
+        private void PlayFireSfxRpc(Vector3 position)
+        {
+            if (_fireSfx) AudioSource.PlayClipAtPoint(_fireSfx, position);
         }
     }
 }

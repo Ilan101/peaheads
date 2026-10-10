@@ -1,8 +1,10 @@
+using Unity.Netcode;
 using UnityEngine;
 
 namespace PeaHeads
 {
-    public class PeaProjectile : MonoBehaviour
+    // Host moves the pea and resolves hits; clients only see it through NetworkTransform.
+    public class PeaProjectile : NetworkBehaviour
     {
         [SerializeField] private float _speed = 10f;
         [SerializeField] private float _radius = 0.2f;
@@ -10,22 +12,30 @@ namespace PeaHeads
         [SerializeField] private int _damage = 1;
 
         private Transform _owner;
+        private float _despawnTime;
+        private bool _done;
 
-        // sweepFrom: a point inside the shooter (e.g. head centre). The gap from there to the spawn point is
-        // checked first, so a mouth poking through a wall or tree can't fire through it.
+        // Server only, right after Spawn(). sweepFrom is a point inside the shooter (head centre): the gap from
+        // there to the spawn point is checked first, so a mouth poking through a wall can't fire through it.
         public void Launch(Transform owner, Vector3 sweepFrom)
         {
             _owner = owner;
-            Destroy(gameObject, _lifetime);
+            _despawnTime = Time.time + _lifetime;
 
             Vector3 gap = transform.position - sweepFrom;
             float length = gap.magnitude;
             if (length > 0.001f && Sweep(sweepFrom, gap / length, length, out RaycastHit hit)) Impact(hit);
         }
 
-        // Sweep ahead each frame instead of using a Rigidbody: no tunnelling, and easy to run server-side later.
         private void Update()
         {
+            if (!IsServer || !IsSpawned || _done) return;
+            if (Time.time >= _despawnTime)
+            {
+                Finish();
+                return;
+            }
+
             float step = _speed * Time.deltaTime;
             if (Sweep(transform.position, transform.forward, step, out RaycastHit hit))
             {
@@ -43,8 +53,13 @@ namespace PeaHeads
         {
             PlayerHealth health = hit.collider.GetComponentInParent<PlayerHealth>();
             if (health) health.TakeDamage(_damage);
-            Destroy(gameObject);
-            enabled = false;
+            Finish();
+        }
+
+        private void Finish()
+        {
+            _done = true;
+            NetworkObject.Despawn();
         }
     }
 }
