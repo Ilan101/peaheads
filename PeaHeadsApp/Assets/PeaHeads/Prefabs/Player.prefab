@@ -1405,7 +1405,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerHealth
   ShowTopMostFoldoutHeaderGroup: 1
   _maxHealth: 3
-  _respawnDelay: 2
+  _respawnDelay: 5
   _flashRenderer: {fileID: 1857080282461240938}
   _hitSfx: {fileID: 8300000, guid: 25e8bbe95ad4f344abd4dd8d7c8636ab, type: 3}
 --- !u!114 &1385081697139971756
