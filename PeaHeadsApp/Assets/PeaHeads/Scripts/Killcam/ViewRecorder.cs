@@ -1,33 +1,54 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace PeaHeads
 {
-    // Rolling few seconds of the local screen, downscaled into a ring of small RenderTextures, so a kill can be
-    // replayed. Records only while the local plant exists and the story isn't playing. Freeze() reads the frames
-    // around a kill back from the GPU and JPEG-encodes them. Added by GameMenu.
+    // Rolling few seconds of the local player's view for the killcam. A small capture camera rides on the player's
+    // camera (no HUD, no shadows) and renders into a ring of RenderTextures a few times per second. Collect() gathers
+    // the frames around a kill, including the ones still to come, reads them back asynchronously and JPEG-encodes a
+    // few per frame so nothing hitches. Added by GameMenu.
     public class ViewRecorder : MonoBehaviour
     {
-        [SerializeField, Range(4, 30)] private int _fps = 10;
-        [SerializeField, Range(1f, 6f)] private float _keepSeconds = 3.5f;
-        [SerializeField] private Vector2Int _size = new(256, 144);
-        [SerializeField, Range(10, 100)] private int _jpegQuality = 45;
+        [SerializeField, Range(5, 30)] private int _fps = 20;
+        [SerializeField, Range(2f, 6f)] private float _keepSeconds = 3.5f;
+        [SerializeField] private Vector2Int _size = new(480, 270);
+        [SerializeField, Range(10, 100)] private int _jpegQuality = 70;
+        [SerializeField, Range(1, 8)] private int _encodesPerFrame = 3;
+        [Tooltip("Flip captured frames if the replay shows upside down on this graphics API.")]
+        [SerializeField] private bool _flipVertical;
 
         public static ViewRecorder Instance { get; private set; }
 
+        private sealed class Job
+        {
+            public double Kill, From, Until;
+            public Action<List<ClipFrame>> Done;
+            public readonly List<ClipFrame> Frames = new();
+            public int Pending;
+        }
+
+        private readonly List<Job> _jobs = new();
+        private readonly Queue<(Job job, float time, byte[] raw, int length)> _toEncode = new();
         private RenderTexture[] _ring;
         private double[] _times;
         private int _next;
-        private RenderTexture _screen;
+        private RenderTexture _target;
+        private Camera _capture;
+        private Camera _source;
+        private Texture2D _encoder;
         private double _nextCapture;
+        private bool _rendering;
 
         private void Awake() => Instance = this;
 
-        private void OnEnable() => StartCoroutine(Record());
+        private void OnEnable() => StartCoroutine(AfterRender());
 
         private void OnDestroy()
         {
@@ -35,87 +56,140 @@ namespace PeaHeads
             if (_ring != null)
                 foreach (RenderTexture rt in _ring)
                     if (rt) rt.Release();
-            if (_screen) _screen.Release();
+            if (_target) _target.Release();
+            if (_capture) Destroy(_capture.gameObject);
+            if (_encoder) Destroy(_encoder);
         }
 
-        private IEnumerator Record()
+        // Frames in [kill - before, kill + after], times relative to the kill. Calls done on the main thread once the
+        // last post-kill frame is captured and everything is encoded.
+        public void Collect(double kill, double before, double after, Action<List<ClipFrame>> done)
+        {
+            var job = new Job { Kill = kill, From = kill - before, Until = kill + after, Done = done };
+            _jobs.Add(job);
+            if (_ring == null) return;
+            foreach (int index in KillClip.Window(_times, kill, before, after)) Request(job, index);
+        }
+
+        private void Update()
+        {
+            Camera source = LocalCamera();
+            if (source != _source) Attach(source);
+
+            if (_capture && KillClip.Now >= _nextCapture && !StoryIntro.IsPlaying)
+            {
+                _nextCapture = KillClip.Now + 1.0 / _fps;
+                _capture.fieldOfView = _source.fieldOfView;
+                _capture.enabled = true; // renders once this frame; AfterRender stores it and switches it off
+                _rendering = true;
+            }
+
+            for (int i = 0; i < _encodesPerFrame && _toEncode.Count > 0; i++) Encode(_toEncode.Dequeue());
+            for (int i = _jobs.Count - 1; i >= 0; i--)
+            {
+                Job job = _jobs[i];
+                if (KillClip.Now < job.Until || job.Pending > 0) continue;
+                _jobs.RemoveAt(i);
+                job.Frames.Sort((a, b) => a.Time.CompareTo(b.Time));
+                job.Done(job.Frames);
+            }
+        }
+
+        private IEnumerator AfterRender()
         {
             var endOfFrame = new WaitForEndOfFrame();
             while (true)
             {
                 yield return endOfFrame;
-                if (KillClip.Now < _nextCapture || !ShouldRecord()) continue;
-                _nextCapture = KillClip.Now + 1.0 / _fps;
-                Capture();
+                if (!_rendering) continue;
+                _rendering = false;
+                if (!_capture) continue;
+                _capture.enabled = false;
+                Store();
             }
         }
 
-        private static bool ShouldRecord()
+        private void Store()
         {
-            NetworkManager nm = NetworkManager.Singleton;
-            return nm && nm.LocalClient?.PlayerObject && !StoryIntro.IsPlaying;
-        }
-
-        private void Capture()
-        {
-            if (_ring == null)
-            {
-                int count = Mathf.CeilToInt(_keepSeconds * _fps);
-                _ring = new RenderTexture[count];
-                _times = new double[count];
-                for (int i = 0; i < count; i++)
-                {
-                    _ring[i] = new RenderTexture(_size.x, _size.y, 0, RenderTextureFormat.ARGB32);
-                    _times[i] = double.NegativeInfinity;
-                }
-            }
-            if (!_screen || _screen.width != Screen.width || _screen.height != Screen.height)
-            {
-                if (_screen) _screen.Release();
-                _screen = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
-            }
-            ScreenCapture.CaptureScreenshotIntoRenderTexture(_screen);
-            // The capture is upside down where UVs start at the top (D3D, Metal, Vulkan).
-            if (SystemInfo.graphicsUVStartsAtTop) Graphics.Blit(_screen, _ring[_next], new Vector2(1f, -1f), new Vector2(0f, 1f));
-            else Graphics.Blit(_screen, _ring[_next]);
-            _times[_next] = KillClip.Now;
+            EnsureRing();
+            if (_flipVertical) Graphics.Blit(_target, _ring[_next], new Vector2(1f, -1f), new Vector2(0f, 1f));
+            else Graphics.Blit(_target, _ring[_next]);
+            double now = KillClip.Now;
+            _times[_next] = now;
+            foreach (Job job in _jobs)
+                if (now >= job.From && now <= job.Until) Request(job, _next);
             _next = (_next + 1) % _ring.Length;
         }
 
-        // JPEG frames in [kill - before, kill + after] (times relative to the kill), delivered on the main thread.
-        public void Freeze(double kill, double before, double after, Action<List<ClipFrame>> done)
+        private void Request(Job job, int index)
         {
-            if (_ring == null)
+            job.Pending++;
+            float time = (float)(_times[index] - job.Kill);
+            AsyncGPUReadback.Request(_ring[index], 0, TextureFormat.RGBA32, request =>
             {
-                done(new List<ClipFrame>());
-                return;
-            }
-            List<int> picked = KillClip.Window(_times, kill, before, after);
-            var frames = new ClipFrame[picked.Count];
-            int pending = picked.Count;
-            if (pending == 0)
-            {
-                done(new List<ClipFrame>());
-                return;
-            }
-            for (int k = 0; k < picked.Count; k++)
-            {
-                int slot = k;
-                float time = (float)(_times[picked[k]] - kill);
-                AsyncGPUReadback.Request(_ring[picked[k]], 0, TextureFormat.RGBA32, request =>
+                if (request.hasError)
                 {
-                    byte[] jpeg = Array.Empty<byte>();
-                    if (!request.hasError)
-                    {
-                        var texture = new Texture2D(_size.x, _size.y, TextureFormat.RGBA32, false);
-                        texture.LoadRawTextureData(request.GetData<byte>());
-                        texture.Apply();
-                        jpeg = texture.EncodeToJPG(_jpegQuality);
-                        Destroy(texture);
-                    }
-                    frames[slot] = new ClipFrame(time, jpeg);
-                    if (--pending == 0) done(new List<ClipFrame>(frames));
-                });
+                    job.Pending--;
+                    return;
+                }
+                NativeArray<byte> data = request.GetData<byte>();
+                byte[] raw = ArrayPool<byte>.Shared.Rent(data.Length);
+                NativeArray<byte>.Copy(data, raw, data.Length);
+                _toEncode.Enqueue((job, time, raw, data.Length));
+            });
+        }
+
+        private void Encode((Job job, float time, byte[] raw, int length) item)
+        {
+            if (!_encoder) _encoder = new Texture2D(_size.x, _size.y, TextureFormat.RGBA32, false);
+            NativeArray<byte> pixels = _encoder.GetRawTextureData<byte>();
+            NativeArray<byte>.Copy(item.raw, pixels, Mathf.Min(item.length, pixels.Length));
+            item.job.Frames.Add(new ClipFrame(item.time, _encoder.EncodeToJPG(_jpegQuality)));
+            ArrayPool<byte>.Shared.Return(item.raw);
+            item.job.Pending--;
+        }
+
+        private static Camera LocalCamera()
+        {
+            NetworkManager nm = NetworkManager.Singleton;
+            NetworkObject local = nm ? nm.LocalClient?.PlayerObject : null;
+            return local && local.TryGetComponent(out PlayerCameraRig rig) ? rig.Camera : null;
+        }
+
+        // Capture camera as a child of the player's camera: same view, own small target, no shadows.
+        private void Attach(Camera source)
+        {
+            _source = source;
+            if (_capture) Destroy(_capture.gameObject);
+            _capture = null;
+            if (!source) return;
+            if (!_target)
+            {
+                _target = new RenderTexture(_size.x, _size.y, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
+                _target.Create();
+            }
+            var go = new GameObject("KillcamCapture");
+            go.transform.SetParent(source.transform, false);
+            _capture = go.AddComponent<Camera>();
+            _capture.CopyFrom(source);
+            _capture.targetTexture = _target;
+            _capture.depth = source.depth - 1f;
+            _capture.enabled = false;
+            UniversalAdditionalCameraData data = _capture.GetUniversalAdditionalCameraData();
+            data.renderShadows = false;
+            data.renderPostProcessing = false;
+        }
+
+        private void EnsureRing()
+        {
+            if (_ring != null) return;
+            int count = Mathf.CeilToInt(_keepSeconds * _fps);
+            _ring = new RenderTexture[count];
+            _times = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                _ring[i] = new RenderTexture(_size.x, _size.y, 0, RenderTextureFormat.ARGB32);
+                _times[i] = double.NegativeInfinity;
             }
         }
     }

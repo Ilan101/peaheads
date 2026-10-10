@@ -2,10 +2,12 @@ import cv2, socket, json, math, sys
 import mediapipe as mp
 
 UDP_ADDR = ("127.0.0.1", 5052)
-# Killcam face feed: small mirrored JPEGs (no overlay) to Unity, which keeps the last few seconds for the replay.
+# Killcam face feed: mirrored JPEGs (no overlay), framed on the face, to Unity, which keeps the last few seconds.
 FACE_ADDR = ("127.0.0.1", 5053)
-FACE_SIZE = (256, 144)
-FACE_EVERY = 2  # every 2nd camera frame, ~15 fps
+FACE_SIZE = (384, 216)
+FACE_QUALITY = 78
+FACE_ZOOM = 1.25    # crop half-height = face height x this (head and a bit of shoulders)
+FACE_SMOOTH = 0.15  # crop follow speed per frame (lower = steadier framing)
 SMOOTH = 0.35            # head smoothing: higher = more responsive, lower = smoother
 
 # ---- tuning knobs ----
@@ -60,18 +62,15 @@ def mouth_ratio(lm, w, h):
     return gap / width if width > 0 else 0.0
 
 
-frame_index = 0
+crop = None
 while True:
     ok, frame = cap.read()
     if not ok:
         break
     frame = cv2.flip(frame, 1)
     h, w = frame.shape[:2]
-    frame_index += 1
-    if frame_index % FACE_EVERY == 0:
-        ok_jpg, jpg = cv2.imencode(".jpg", cv2.resize(frame, FACE_SIZE), [cv2.IMWRITE_JPEG_QUALITY, 60])
-        if ok_jpg:
-            sock.sendto(jpg.tobytes(), FACE_ADDR)
+    clean = frame.copy()
+    crop_target = (w / 2, h / 2, h / 2)  # (centre x, centre y, half height); whole frame without a face
     result = face_mesh.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     packet = {"face": False, "dx": 0.0, "dy": 0.0, "aim": False, "shoot": False}
@@ -119,6 +118,11 @@ while True:
             "shoot": shoot_count >= SHOOT_FRAMES,
         }
 
+        xs = [p.x for p in lm]
+        ys = [p.y for p in lm]
+        face_h = (max(ys) - min(ys)) * h
+        crop_target = ((min(xs) + max(xs)) / 2 * w, (min(ys) + max(ys)) / 2 * h, max(face_h * FACE_ZOOM, h * 0.22))
+
         # --- debug overlay ---
         # active rectangle: your nose reaching its edge = full deflection (+-1)
         cx, cy = int(nx * w), int(ny * h)
@@ -142,6 +146,19 @@ while True:
         cv2.putText(frame, "NO FACE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
     sock.sendto(json.dumps(packet).encode(), UDP_ADDR)
+
+    # --- killcam face frame: smoothed 16:9 crop around the face ---
+    crop = crop_target if crop is None else tuple(c + FACE_SMOOTH * (t - c) for c, t in zip(crop, crop_target))
+    half_h = min(crop[2], h / 2, w * 9 / 32)
+    half_w = half_h * 16 / 9
+    cx = min(max(crop[0], half_w), w - half_w)
+    cy = min(max(crop[1], half_h), h - half_h)
+    roi = clean[int(cy - half_h):int(cy + half_h), int(cx - half_w):int(cx + half_w)]
+    if roi.size:
+        ok_jpg, jpg = cv2.imencode(".jpg", cv2.resize(roi, FACE_SIZE, interpolation=cv2.INTER_AREA),
+                                   [cv2.IMWRITE_JPEG_QUALITY, FACE_QUALITY])
+        if ok_jpg and len(jpg) < 60000:
+            sock.sendto(jpg.tobytes(), FACE_ADDR)
 
     cv2.putText(frame, "C = calibrate (eyes open, mouth closed)   Q = quit",
                 (10, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)

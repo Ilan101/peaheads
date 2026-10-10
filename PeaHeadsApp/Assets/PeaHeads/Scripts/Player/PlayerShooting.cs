@@ -13,7 +13,7 @@ namespace PeaHeads
         // Reject fire origins further than this from the shooter (bad/forged RPC data).
         private const float MaxOriginDistance = 3f;
         private const int KillcamChunkSize = 4000;
-        private const int KillcamChunksPerFrame = 6;
+        private const int KillcamChunksPerFrame = 12;
 
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;

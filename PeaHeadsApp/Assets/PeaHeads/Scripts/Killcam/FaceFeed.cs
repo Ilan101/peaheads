@@ -12,7 +12,7 @@ namespace PeaHeads
     public class FaceFeed : MonoBehaviour
     {
         [SerializeField] private int _port = 5053;
-        [SerializeField, Range(1f, 10f)] private float _keepSeconds = 4f;
+        [SerializeField, Range(1f, 10f)] private float _keepSeconds = 5f;
 
         public static FaceFeed Instance { get; private set; }
 
