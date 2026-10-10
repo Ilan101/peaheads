@@ -454,9 +454,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 37eeef433ed7a1d5384c84640b8977e3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlantingController
-  _plantTime: 0.5
-  _unplantTime: 0.5
-  _plantedHeight: 0.8
+  _plantTime: 0.75
+  _unplantTime: 3
+  _plantedHeight: 0.85
 --- !u!114 &6822468299848805421
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -469,7 +469,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 65fb071e39308712a86b335d66c826c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerMovement
-  _speed: 4
+  _speed: 4.5
 --- !u!114 &6425983241601873529
 MonoBehaviour:
   m_ObjectHideFlags: 0
