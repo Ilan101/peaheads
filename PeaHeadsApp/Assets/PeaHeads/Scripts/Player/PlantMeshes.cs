@@ -13,6 +13,27 @@ namespace PeaHeads
             new(0.29f, 0.74f), new(0.25f, 0.76f), new(0.20f, 0.70f),
         };
 
+        // Dark disc inside the snout: reaches the inner wall so no green ring shows around it.
+        public const float MouthHoleZ = 0.73f;
+        public const float MouthHoleRadius = 0.23f;
+
+        // SnoutProfile index of the rim (largest z): before it is the outer wall, after it the inner wall.
+        private const int RimIndex = 5;
+
+        public static float OuterRadiusAt(float z) => RadiusAt(0, RimIndex, z);
+
+        public static float InnerRadiusAt(float z) => RadiusAt(RimIndex, SnoutProfile.Length - 1, z);
+
+        private static float RadiusAt(int from, int to, float z)
+        {
+            for (int i = from; i < to; i++)
+            {
+                Vector2 a = SnoutProfile[i], b = SnoutProfile[i + 1];
+                if ((z - a.y) * (z - b.y) <= 0f) return Mathf.Lerp(a.x, b.x, Mathf.InverseLerp(a.y, b.y, z));
+            }
+            throw new System.ArgumentOutOfRangeException(nameof(z), z, "outside this snout wall");
+        }
+
         // Spins the (radius, z) profile around +Z. Ends stay open.
         public static Mesh Lathe(Vector2[] profile, int segments)
         {

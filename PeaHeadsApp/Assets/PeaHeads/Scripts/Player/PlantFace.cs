@@ -13,12 +13,15 @@ namespace PeaHeads
     // What the opponent sees: the snout flares while the mouth is open, one eye squints on a wink.
     public class PlantFace : MonoBehaviour
     {
+        // Largest hole scale that keeps the disc inside the snout's outer wall (see PlantMeshesTests).
+        public const float DefaultOpenHole = 1.15f;
+
         [SerializeField] private Transform _snout;
         [SerializeField] private Transform _mouthHole;
         [SerializeField] private Transform _winkEye;
         [SerializeField, Range(1f, 2f)] private float _openFlare = 1.22f;
         [Tooltip("Mouth hole scale on top of the flare; keep hole radius below the rim.")]
-        [SerializeField, Range(1f, 2f)] private float _openHole = 1.3f;
+        [SerializeField, Range(1f, 2f)] private float _openHole = DefaultOpenHole;
         [SerializeField, Range(0.05f, 1f)] private float _winkSquint = 0.15f;
         [SerializeField, Range(1f, 40f)] private float _smoothing = 14f;
 

@@ -50,6 +50,22 @@ namespace PeaHeads.Tests
         }
 
         [Test]
+        public void MouthHole_FillsSnoutOpening() =>
+            Assert.GreaterOrEqual(PlantMeshes.MouthHoleRadius, PlantMeshes.InnerRadiusAt(PlantMeshes.MouthHoleZ));
+
+        [Test]
+        public void MouthHole_OpenStaysInsideOuterWall() =>
+            Assert.Less(PlantMeshes.MouthHoleRadius * PlantFace.DefaultOpenHole,
+                PlantMeshes.OuterRadiusAt(PlantMeshes.MouthHoleZ));
+
+        [Test]
+        public void SnoutWallRadius_InterpolatesProfile()
+        {
+            Assert.AreEqual(0.285f, PlantMeshes.OuterRadiusAt(0.73f), 1e-4f);
+            Assert.AreEqual(0.225f, PlantMeshes.InnerRadiusAt(0.73f), 1e-4f);
+        }
+
+        [Test]
         public void Disc_FacesPlusZ()
         {
             Mesh mesh = PlantMeshes.Disc(0.2f, 24);

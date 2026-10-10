@@ -21,14 +21,6 @@ namespace PeaHeads.Tests
         [Test]
         public void Targets_Both() => Assert.AreEqual(new Vector3(1.22f, 1.3f, 0.15f), Targets(true, true));
 
-        [Test]
-        public void Targets_MouthOpen_HoleStaysInsideRim()
-        {
-            Vector3 open = Targets(true, false);
-            const float holeRadius = 0.19f, rimRadius = 0.29f;
-            Assert.Less(holeRadius * open.x * open.y, rimRadius * open.x);
-        }
-
         [TestCase(false, false, ExpectedResult = 0)]
         [TestCase(true, false, ExpectedResult = 1)]
         [TestCase(false, true, ExpectedResult = 2)]

@@ -28,7 +28,7 @@ namespace PeaHeads.EditorTools
             var parts = new Parts
             {
                 Snout = SaveMesh(PlantMeshes.Lathe(PlantMeshes.SnoutProfile, 32), "Snout"),
-                MouthHole = SaveMesh(PlantMeshes.Disc(0.19f, 32), "MouthHole"),
+                MouthHole = SaveMesh(PlantMeshes.Disc(PlantMeshes.MouthHoleRadius, 32), "MouthHole"),
                 // Short enough not to poke far past cover (tip ~0.62 m from the root, ~0.85 m planted).
                 GroundLeaf = SaveMesh(PlantMeshes.Leaf(0.5f, 0.26f, 0.06f, 10), "Leaf"),
                 CollarLeaf = SaveMesh(PlantMeshes.Leaf(0.38f, 0.22f, 0.06f, 8), "CollarLeaf"),
@@ -78,7 +78,7 @@ namespace PeaHeads.EditorTools
 
                 var hidden = new List<Renderer> { head.GetComponent<Renderer>(), snout.GetComponent<Renderer>() };
                 MeshRenderer hole = Part("Gen_MouthHole", snout, parts.MouthHole, parts.MouthDark,
-                    new Vector3(0f, 0f, 0.70f), Quaternion.identity, Vector3.one);
+                    new Vector3(0f, 0f, PlantMeshes.MouthHoleZ), Quaternion.identity, Vector3.one);
                 hidden.Add(hole);
 
                 Eye(pivot, parts, -1f, hidden);
@@ -122,6 +122,7 @@ namespace PeaHeads.EditorTools
                     SetObject(face, "_snout", snout);
                     SetObject(face, "_mouthHole", hole.transform);
                     SetObject(face, "_winkEye", winkEye);
+                    SetFloat(face, "_openHole", PlantFace.DefaultOpenHole);
                 }
 
                 PrefabUtility.SaveAsPrefabAsset(root, path);
