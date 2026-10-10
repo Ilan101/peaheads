@@ -6,7 +6,9 @@
         "Unity.Netcode.Runtime",
         "Unity.Networking.Transport",
         "Unity.Collections",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
