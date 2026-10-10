@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace PeaHeads
 {
-    public enum PlantState { Unplanted, Planting, Planted, Unplanting }
+    public enum PlantState : byte { Unplanted, Planting, Planted, Unplanting }
 
     public class PlantingController : MonoBehaviour
     {
@@ -17,26 +16,52 @@ namespace PeaHeads
         // Current vertical squash of the body (1 = standing). The head rides down with it.
         public float HeightScale => Mathf.Lerp(1f, _plantedSquash, _progress);
 
+        private PlayerInput _input;
+        private PlayerHealth _health;
         private float _timer;
         private float _progress;
 
-        private void Update()
+        private void Awake()
         {
-            if (Keyboard.current?.eKey.wasPressedThisFrame == true) Toggle();
+            _input = GetComponent<PlayerInput>();
+            _health = GetComponent<PlayerHealth>();
+        }
+
+        // Remote copies get no input, so this only advances the squash animation for them.
+        private void Update() => Tick(Time.deltaTime, _input.Current.PlantPressed && !_health.IsDead);
+
+        public void Tick(float deltaTime, bool plantPressed)
+        {
+            if (plantPressed) Toggle();
 
             if (State is PlantState.Planting or PlantState.Unplanting)
             {
-                _timer -= Time.deltaTime;
+                _timer -= deltaTime;
                 if (_timer <= 0f) State = State == PlantState.Planting ? PlantState.Planted : PlantState.Unplanted;
             }
 
             float target = State is PlantState.Planting or PlantState.Planted ? 1f : 0f;
-            _progress = Mathf.MoveTowards(_progress, target, Time.deltaTime / _transitionTime);
+            _progress = Mathf.MoveTowards(_progress, target, deltaTime / _transitionTime);
             if (_visual) _visual.localScale = new Vector3(1f, HeightScale, 1f);
         }
 
+        public void ApplyRemote(PlantState state)
+        {
+            if (state == State) return;
+            State = state;
+            _timer = _transitionTime;
+        }
+
+        public void ResetState()
+        {
+            State = PlantState.Unplanted;
+            _timer = 0f;
+            _progress = 0f;
+            if (_visual) _visual.localScale = Vector3.one;
+        }
+
         // Presses during a transition are ignored so planting is a real commitment.
-        public void Toggle()
+        private void Toggle()
         {
             if (State == PlantState.Unplanted) Begin(PlantState.Planting);
             else if (State == PlantState.Planted) Begin(PlantState.Unplanting);
