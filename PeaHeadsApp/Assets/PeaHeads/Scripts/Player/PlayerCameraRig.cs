@@ -1,20 +1,17 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.Controls;
 using UnityEngine.Rendering;
 
 namespace PeaHeads
 {
-    // First person. Mouse = yaw (whole plant) + pitch (head). Head input = bounded positional offset of the
+    // First person. Look = yaw (whole plant) + pitch (head). Head input = bounded positional offset of the
     // head (and the camera inside it), which is what lets you peek around cover without moving the base.
-    [RequireComponent(typeof(PlantingController))]
+    [RequireComponent(typeof(PlantingController), typeof(PlayerInput))]
     public class PlayerCameraRig : MonoBehaviour
     {
         [SerializeField] private Transform _headPivot;
         [SerializeField] private Camera _camera;
         [Tooltip("Own head meshes: hidden from the local camera but still cast shadows.")]
         [SerializeField] private Renderer[] _hiddenInFirstPerson;
-        [SerializeField] private float _mouseSensitivity = 0.1f;
         [SerializeField] private Vector2 _pitchLimits = new(-70f, 70f);
 
         [Header("Head offset")]
@@ -29,49 +26,62 @@ namespace PeaHeads
 
         public Camera Camera => _camera;
         public bool IsZoomed { get; private set; }
+        public Vector2 HeadInput => _head;
+        public float Pitch => _pitch;
 
         private PlantingController _planting;
+        private PlayerInput _input;
         private Vector3 _pivotBase;
         private Vector2 _head;
+        private Vector2 _headTarget;
         private float _pitch;
+        private float _pitchTarget;
         private float _baseFov;
+        private bool _isLocal;
 
         private void Awake()
         {
             _planting = GetComponent<PlantingController>();
+            _input = GetComponent<PlayerInput>();
             _pivotBase = _headPivot.localPosition;
             _baseFov = _camera.fieldOfView;
-            foreach (Renderer r in _hiddenInFirstPerson) r.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
         }
 
-        private void Start() => SetCursorLocked(true);
+        public void SetLocal(bool isLocal)
+        {
+            _isLocal = isLocal;
+            ShadowCastingMode mode = isLocal ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
+            foreach (Renderer r in _hiddenInFirstPerson) r.shadowCastingMode = mode;
+        }
+
+        // Remote copies: targets come from the network instead of local input.
+        public void ApplyRemote(Vector2 head, float pitch)
+        {
+            _headTarget = head;
+            _pitchTarget = pitch;
+        }
 
         private void Update()
         {
-            Keyboard kb = Keyboard.current;
-            Mouse mouse = Mouse.current;
-            if (kb == null || mouse == null) return;
-
-            if (kb.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
-            else if (mouse.leftButton.wasPressedThisFrame) SetCursorLocked(true);
-            bool locked = Cursor.lockState == CursorLockMode.Locked;
-
-            if (locked)
+            float blend = 1f - Mathf.Exp(-_headSmoothing * Time.deltaTime);
+            if (_isLocal)
             {
-                Vector2 delta = mouse.delta.ReadValue() * _mouseSensitivity;
-                transform.Rotate(0f, delta.x, 0f);
-                _pitch = Mathf.Clamp(_pitch - delta.y, _pitchLimits.x, _pitchLimits.y);
+                PlayerInputFrame input = _input.Current;
+                transform.Rotate(0f, input.Look.x, 0f);
+                _pitch = Mathf.Clamp(_pitch - input.Look.y, _pitchLimits.x, _pitchLimits.y);
+                _headTarget = input.Head;
+                IsZoomed = input.ZoomHeld;
+                float fov = IsZoomed ? _baseFov / _zoomFactor : _baseFov;
+                _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_zoomSpeed * Time.deltaTime));
+            }
+            else
+            {
+                _pitch = Mathf.Lerp(_pitch, _pitchTarget, blend);
             }
 
-            // ponytail: arrow keys stand in for webcam head offset; tracker input replaces this target.
-            Vector2 target = new(Axis(kb.leftArrowKey, kb.rightArrowKey), Axis(kb.downArrowKey, kb.upArrowKey));
-            _head = Vector2.Lerp(_head, target, 1f - Mathf.Exp(-_headSmoothing * Time.deltaTime));
+            _head = Vector2.Lerp(_head, _headTarget, blend);
             _headPivot.localPosition = ClampedHeadPosition();
             _headPivot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
-
-            IsZoomed = locked && mouse.rightButton.isPressed;
-            float fov = IsZoomed ? _baseFov / _zoomFactor : _baseFov;
-            _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_zoomSpeed * Time.deltaTime));
         }
 
         // Rest position sinks with the planted body; the lean is swept from there and stops at walls.
@@ -88,15 +98,6 @@ namespace PeaHeads
                     out RaycastHit hit))
                 distance = hit.distance;
             return rest + offset.normalized * distance;
-        }
-
-        private static float Axis(KeyControl negative, KeyControl positive) =>
-            (positive.isPressed ? 1f : 0f) - (negative.isPressed ? 1f : 0f);
-
-        private static void SetCursorLocked(bool locked)
-        {
-            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !locked;
         }
     }
 }

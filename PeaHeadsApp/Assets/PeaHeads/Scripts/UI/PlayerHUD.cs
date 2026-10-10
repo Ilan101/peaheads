@@ -22,7 +22,7 @@ namespace PeaHeads
             _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
 
             string ready = _planting.CanShoot ? "  -  READY TO FIRE" : "";
-            GUI.Label(new Rect(20, 20, 600, 30), $"HP {_health.Current}    {_planting.State}{ready}", _style);
+            GUI.Label(new Rect(20, 270, 600, 30), $"HP {_health.Current}    {_planting.State}{ready}", _style);
             GUI.Label(new Rect(20, Screen.height - 40, 1200, 30),
                 "WASD move   E plant/unplant   LMB fire (planted)   RMB zoom   Arrows lean head   Esc free cursor", _style);
 
