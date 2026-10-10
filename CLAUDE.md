@@ -1,6 +1,6 @@
 # PeaHeads — Claude working notes
 
-36h hackathon, 3 people, Unity 6. Two-player LAN PvP. Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
+36h hackathon (KnightHacks 2026, theme Bloom vs Blight), 3 people, Unity 6. Two-player LAN PvP: host = **BLOOM** (team 0, green), client = **BLIGHT** (team 1, purple). Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
 
 **I mostly work with Person 2 (player controller + combat).** Person 2 also built `MatchManager` (2026-10-10, with mushroom scoring); Person 3 must be told. Others: Person 1 = CV (Python tracker), Person 3 = networking + arena + match loop.
 
@@ -56,18 +56,21 @@ Assets/PeaHeads/
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
 │   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
-│   │               PlayerHealth (NetworkBehaviour: server HP var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
+│   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
-│   │               auto-restart; TeamOf), MushroomSpawner (active-spot bitmask var, server collect check),
+│   │               auto-restart, fresh match when a client connects; TeamOf), Faction (static: team names, colours, story lines), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
-│   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner),
+│   ├── UI/         PlayerHUD (IMGUI placeholder: faction, state, HP, crosshair), ScoreHUD (IMGUI faction score bars + win banner),
+│   │               StoryIntro (uGUI built in code: 7-slide typewriter cutscene with animated UI drawings, played by
+│   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
-│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused)
+│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused; during the
+│   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
 │   │               HeadTrackingInput (local Player: dead zone + lean/vertical gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
-│                   plant vars, random spawn teleport, Respawn(), host/client tint); SpawnPoint (_team 0/1,
+│                   plant vars, random spawn teleport, Respawn(), faction tint); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
 ├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
@@ -101,11 +104,15 @@ Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now onl
 
 Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (dead zone, lean/vertical gain, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
 
+## Story (StoryIntro)
+
+The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot is killing them. One pod drops two PeaHeads: BLOOM drank the light, BLIGHT drank the Rot. Planting = rooting to draw power (why you can only spit while planted); the free neck = head-tracking dodge. Sporelight +1, knockout +3, first to 20 decides the Grove. Text lives in `StoryIntro.BuildSlides` and `Faction`.
+
 ## Gameplay rules to enforce in code
 
 - States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
-- Head tracking never moves the base/root. It moves head bone + camera pivot offset (max ~0.6 m lateral, ~0.3 m vertical, tune).
+- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.1 m lateral, 0.35 m up / 0.6 m down, 10° roll at full lean, lean gain 3.5 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
