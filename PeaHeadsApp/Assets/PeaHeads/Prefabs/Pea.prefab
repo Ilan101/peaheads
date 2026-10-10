@@ -133,8 +133,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PeaProjectile
   ShowTopMostFoldoutHeaderGroup: 1
-  _speed: 10
-  _radius: 0.2
+  _speed: 20
+  _radius: 0.1
   _lifetime: 4
   _damage: 1
 --- !u!114 &2689078331182434659

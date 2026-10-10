@@ -450,8 +450,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 37eeef433ed7a1d5384c84640b8977e3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlantingController
-  _plantTime: 1
-  _unplantTime: 1
+  _plantTime: 0.5
+  _unplantTime: 0.5
   _visual: {fileID: 4201618126745001407}
   _plantedSquash: 0.8
 --- !u!114 &6822468299848805421
@@ -466,7 +466,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 65fb071e39308712a86b335d66c826c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerMovement
-  _speed: 5
+  _speed: 4
 --- !u!114 &6425983241601873529
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -533,7 +533,7 @@ MonoBehaviour:
   _peaPrefab: {fileID: 8910985278274626123, guid: d8086ce5b995f6e2c926eddecccb42e9,
     type: 3}
   _mouth: {fileID: 2771974750140794050}
-  _cooldown: 0.6
+  _cooldown: 0.4
   _maxAimDistance: 100
   _fireSfx: {fileID: 8300000, guid: 53d2238f4c4b2aa4f8e559c7af9e0126, type: 3}
 --- !u!114 &1797606706706691487
