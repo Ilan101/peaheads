@@ -7,10 +7,13 @@ namespace PeaHeads
 {
     public enum MatchState : byte { Playing, Ended }
 
-    // Host keeps score (kills + mushrooms), ends the match at the target score and restarts it after a delay.
+    // Host keeps score (kills + mushrooms). The match ends at the target score or when the clock runs out (most
+    // points wins, a tie is a draw), then restarts after a delay.
     public class MatchManager : NetworkBehaviour
     {
         [SerializeField, Range(1, 100)] private int _targetScore = 20;
+        [Tooltip("Match length in seconds.")]
+        [SerializeField, Range(30f, 600f)] private float _matchDuration = 120f;
         [SerializeField, Range(0, 10)] private int _killPoints = 3;
         [SerializeField, Range(0, 10)] private int _mushroomPoints = 1;
         [SerializeField, Range(1f, 30f)] private float _restartDelay = 5f;
@@ -19,6 +22,8 @@ namespace PeaHeads
 
         private readonly NetworkVariable<int> _score0 = new();
         private readonly NetworkVariable<int> _score1 = new();
+        // Server-time timestamp, so every machine counts down to the same moment.
+        private readonly NetworkVariable<double> _endTime = new();
         // Declared before _state so clients already have the winner when the state callback runs.
         private readonly NetworkVariable<sbyte> _winner = new(-1);
         private readonly NetworkVariable<byte> _state = new();
@@ -28,8 +33,13 @@ namespace PeaHeads
 
         public int TargetScore => _targetScore;
         public int MushroomPoints => _mushroomPoints;
+        public int KillPoints => _killPoints;
+        public float MatchDuration => _matchDuration;
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
+        // -1 with IsEnded = draw.
         public int Winner => _winner.Value;
+        public float TimeRemaining =>
+            IsSpawned && !IsEnded ? Mathf.Max(0f, (float)(_endTime.Value - NetworkManager.ServerTime.Time)) : 0f;
         public int Score(int team) => team == 0 ? _score0.Value : _score1.Value;
 
         public static int TeamOf(ulong clientId) => clientId == NetworkManager.ServerClientId ? 0 : 1;
@@ -43,13 +53,16 @@ namespace PeaHeads
             _score1.Value = 0;
             _winner.Value = -1;
             _state.Value = (byte)MatchState.Playing;
+            StartClock();
             PlayerHealth.Killed += OnKilled;
+            NetworkManager.OnClientConnectedCallback += OnClientConnected;
         }
 
         public override void OnNetworkDespawn()
         {
             _state.OnValueChanged -= OnStateChanged;
             PlayerHealth.Killed -= OnKilled;
+            if (NetworkManager) NetworkManager.OnClientConnectedCallback -= OnClientConnected;
             CancelInvoke();
         }
 
@@ -58,18 +71,36 @@ namespace PeaHeads
             if (!IsServer || IsEnded || points <= 0) return;
             NetworkVariable<int> score = team == 0 ? _score0 : _score1;
             score.Value = Mathf.Min(_targetScore, score.Value + points);
-            if (score.Value < _targetScore) return;
+            if (score.Value >= _targetScore) EndMatch(team);
+        }
 
-            _winner.Value = (sbyte)team;
+        private void Update()
+        {
+            if (!IsServer || !IsSpawned || IsEnded || NetworkManager.ServerTime.Time < _endTime.Value) return;
+            int winner = _score0.Value == _score1.Value ? -1 : _score0.Value > _score1.Value ? 0 : 1;
+            EndMatch(winner);
+        }
+
+        private void EndMatch(int winner)
+        {
+            _winner.Value = (sbyte)winner;
             _state.Value = (byte)MatchState.Ended;
             Invoke(nameof(Restart), _restartDelay);
         }
+
+        private void StartClock() => _endTime.Value = NetworkManager.ServerTime.Time + _matchDuration;
 
         private void OnKilled(PlayerHealth victim, ulong attacker)
         {
             if (!victim.TryGetComponent(out PlayerNetSync _)) return; // dummies don't score
             int team = TeamOf(attacker);
             if (team != TeamOf(victim.OwnerClientId)) AddPoints(team, _killPoints);
+        }
+
+        // A rival arriving starts a fresh match, so points the host scored alone don't count.
+        private void OnClientConnected(ulong clientId)
+        {
+            if (clientId != NetworkManager.ServerClientId) RestartNow();
         }
 
         // Host's menu button. Also cancels the automatic restart if the match had already ended.
@@ -91,6 +122,7 @@ namespace PeaHeads
                     health.ResetHealth();
             RoundStarted?.Invoke();
             RoundStartedRpc();
+            StartClock();
             _state.Value = (byte)MatchState.Playing;
         }
 

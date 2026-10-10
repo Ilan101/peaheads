@@ -9,9 +9,10 @@ using UnityEngine.UI;
 
 namespace PeaHeads
 {
-    public enum MenuScreen { None, Start, Connecting, Pause }
+    public enum MenuScreen { None, Start, Connecting, Pause, Story }
 
-    // Mouse-driven start / connecting / pause menu, built in code so the scene only needs this component.
+    // Mouse-driven start / connecting / pause menu, built in code so the scene only needs this component. Plays the
+    // StoryIntro once a session connects; the local plant is paused and can't be hit until it ends.
     [RequireComponent(typeof(SessionController))]
     public class GameMenu : MonoBehaviour
     {
@@ -26,6 +27,8 @@ namespace PeaHeads
         [SerializeField] private Color _accentColor = new(0.65f, 0.95f, 0.35f, 1f);
 
         private SessionController _session;
+        private StoryIntro _story;
+        private bool _storyStarted;
         private MatchManager _match;
         private GameObject _backdrop;
         private GameObject _startPanel;
@@ -60,6 +63,7 @@ namespace PeaHeads
         private void Start()
         {
             if (!_font) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (!TryGetComponent(out _story)) _story = gameObject.AddComponent<StoryIntro>();
             EnsureEventSystem();
             BuildCanvas();
         }
@@ -71,23 +75,37 @@ namespace PeaHeads
 
             bool active = SessionActive(nm.IsClient, nm.IsServer, nm.ShutdownInProgress);
             bool connected = nm.IsHost || nm.IsConnectedClient;
-            if (!active) _pauseOpen = false;
-            Keyboard kb = Keyboard.current;
-            if (connected && kb != null && kb.escapeKey.wasPressedThisFrame) _pauseOpen = !_pauseOpen;
+            if (!active)
+            {
+                _pauseOpen = false;
+                _storyStarted = false;
+                _story.Stop();
+            }
+            else if (connected && !_storyStarted)
+            {
+                _storyStarted = true;
+                _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(), null);
+            }
 
-            MenuScreen screen = ScreenFor(active, connected, _pauseOpen);
+            bool story = StoryIntro.IsPlaying;
+            Keyboard kb = Keyboard.current;
+            if (connected && !story && kb != null && kb.escapeKey.wasPressedThisFrame) _pauseOpen = !_pauseOpen;
+
+            MenuScreen screen = story ? MenuScreen.Story : ScreenFor(active, connected, _pauseOpen);
             if (screen != _shown) Show(screen, nm);
 
-            PlayerInput input = LocalInput(nm);
-            if (input) input.Paused = screen == MenuScreen.Pause;
+            NetworkObject player = nm.LocalClient?.PlayerObject;
+            if (player && player.TryGetComponent(out PlayerInput input))
+                input.Paused = screen is MenuScreen.Pause or MenuScreen.Story;
+            if (player && player.TryGetComponent(out PlayerHealth health)) health.SetShielded(story);
             RefreshText(screen, nm);
         }
 
         private void Show(MenuScreen screen, NetworkManager nm)
         {
-            bool wasPause = _shown == MenuScreen.Pause;
+            bool wasOverlay = _shown is MenuScreen.Pause or MenuScreen.Story;
             _shown = screen;
-            _backdrop.SetActive(screen != MenuScreen.None);
+            _backdrop.SetActive(screen is not (MenuScreen.None or MenuScreen.Story));
             _startPanel.SetActive(screen == MenuScreen.Start);
             _connectingPanel.SetActive(screen == MenuScreen.Connecting);
             _pausePanel.SetActive(screen == MenuScreen.Pause);
@@ -99,7 +117,7 @@ namespace PeaHeads
             }
 
             if (screen != MenuScreen.None) SetCursorLocked(false);
-            else if (wasPause) SetCursorLocked(true);
+            else if (wasOverlay) SetCursorLocked(true);
         }
 
         private void RefreshText(MenuScreen screen, NetworkManager nm)
@@ -121,12 +139,6 @@ namespace PeaHeads
                     _pauseStatus.text = _session.Status;
                     break;
             }
-        }
-
-        private static PlayerInput LocalInput(NetworkManager nm)
-        {
-            NetworkObject player = nm.LocalClient?.PlayerObject;
-            return player && player.TryGetComponent(out PlayerInput input) ? input : null;
         }
 
         private static void SetCursorLocked(bool locked)
@@ -178,11 +190,12 @@ namespace PeaHeads
 
             _startPanel = AddPanel("Start");
             AddLabel(_startPanel, "PeaHeads", 44, _accentColor, FontStyle.Bold);
+            AddLabel(_startPanel, "Bloom vs Blight", 22, _textColor, FontStyle.Italic);
             _startInfo = AddLabel(_startPanel, "", 16, _textColor);
             AddLabel(_startPanel, "Host IP", 18, _textColor);
             AddAddressField(_startPanel);
-            AddButton(_startPanel, "Host", OnHost);
-            AddButton(_startPanel, "Join", OnJoin);
+            AddButton(_startPanel, "Host  (play as Bloom)", OnHost);
+            AddButton(_startPanel, "Join  (play as Blight)", OnJoin);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
 
             _connectingPanel = AddPanel("Connecting");

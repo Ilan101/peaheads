@@ -10,11 +10,13 @@ namespace PeaHeads
     [RequireComponent(typeof(PlayerInput))]
     public class HeadTrackingInput : MonoBehaviour
     {
-        [Tooltip("Real head movement (in face widths) ignored around neutral.")]
-        [SerializeField, Range(0f, 0.2f)] private float _deadZone = 0.03f;
-        [Tooltip("Exaggeration. Full in-game lean is reached at deadZone + 1/gain face widths of real lean.")]
-        [SerializeField, Range(0.5f, 10f)] private float _leanGain = 2.5f;
-        [SerializeField, Range(0.5f, 10f)] private float _verticalGain = 3f;
+        // The tracker sends -1..1: its on-screen box edge = 1 (head_tracker.py BOX_FRAC).
+        [Tooltip("Real → in-game movement multiplier for both axes. 2 = lean twice as far as you actually move "
+                 + "(capped by PlayerCameraRig max lean / rise / duck).")]
+        [SerializeField, Range(0.5f, 6f)] private float _movementMultiplier = 2f;
+        [Tooltip("Per-axis balance on top of the multiplier. 1 = full lean at the tracker box edge.")]
+        [SerializeField, Range(0.5f, 5f)] private float _leanGain = 1f;
+        [SerializeField, Range(0.5f, 5f)] private float _verticalGain = 1f;
         [SerializeField] private bool _useMouthFire = true;
         [SerializeField] private bool _useWinkZoom = true;
 
@@ -47,8 +49,8 @@ namespace PeaHeads
             var raw = new Vector2(tracker.Dx, tracker.Dy);
             if (_input.Current.RecenterPressed) _neutral = raw;
             Head = new Vector2(
-                Mathf.Clamp(Shape(raw.x - _neutral.x, _deadZone, _leanGain), -1f, 1f),
-                Mathf.Clamp(Shape(raw.y - _neutral.y, _deadZone, _verticalGain), -1f, 1f));
+                Mathf.Clamp(Recenter(raw.x, _neutral.x) * _leanGain * _movementMultiplier, -1f, 1f),
+                Mathf.Clamp(Recenter(raw.y, _neutral.y) * _verticalGain * _movementMultiplier, -1f, 1f));
             _input.SetTrackerInput(Head, _useMouthFire && tracker.Shoot, _useWinkZoom && tracker.Aim);
         }
 
@@ -58,8 +60,12 @@ namespace PeaHeads
             Head = Vector2.zero;
         }
 
-        // Proportional past the dead zone, sign kept, not clamped.
-        public static float Shape(float value, float deadZone, float gain) =>
-            Mathf.Sign(value) * Mathf.Max(0f, Mathf.Abs(value) - deadZone) * gain;
+        // Re-zeroes a -1..1 tracker value around neutral, stretching each side back to full range: the tracker
+        // clamps at ±1, so a plain subtraction would leave one side unable to reach full lean.
+        public static float Recenter(float value, float neutral)
+        {
+            float span = value >= neutral ? 1f - neutral : 1f + neutral;
+            return span > 0.01f ? (value - neutral) / span : 0f;
+        }
     }
 }

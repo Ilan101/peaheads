@@ -7,6 +7,7 @@ namespace PeaHeads.Net
     [RequireComponent(typeof(PlayerInput), typeof(PlayerCameraRig), typeof(PlantingController))]
     public class PlayerNetSync : NetworkBehaviour
     {
+        [Tooltip("Tinted with the owner's faction colour (Bloom / Blight).")]
         [SerializeField] private Renderer[] _tinted;
 
         private readonly NetworkVariable<Vector3> _headOffset = new(writePerm: NetworkVariableWritePermission.Owner);
@@ -37,7 +38,7 @@ namespace PeaHeads.Net
             _input.SetLocal(IsOwner);
             _rig.SetLocal(IsOwner);
 
-            Color color = TeamColors.Of(MatchManager.TeamOf(OwnerClientId));
+            Color color = Faction.Color(MatchManager.TeamOf(OwnerClientId));
             foreach (Renderer r in _tinted) r.material.color = color;
 
             _health.Revived += OnRevived;

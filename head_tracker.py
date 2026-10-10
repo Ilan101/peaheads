@@ -9,13 +9,16 @@ EYE_CLOSED_RATIO = 0.50  # eye counts as closed below 50% of your open-eye value
 MOUTH_OPEN = 0.30        # mouth-open ratio threshold (try 0.2 - 0.45)
 AIM_FRAMES = 3           # frames a wink must hold before aim = True
 SHOOT_FRAMES = 2         # frames mouth must stay open before shoot = True
-RANGE_X = 0.60           # face-widths of sideways lean = full deflection (+-1)
-RANGE_Y = RANGE_X * 9 / 16   # vertical range, same 16:9 shape as the game screen
+BOX_FRAC = 0.30          # active box half-width as a fraction of the frame width (box edge = full deflection +-1)
+                         # frame-relative, so camera mode / zoom can't shrink it; height follows 16:9
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(0)  # DSHOW is Windows-only
+# MJPG first: most webcams only manage ~10 fps at 720p uncompressed (YUYV), 30 fps compressed.
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+cap.set(cv2.CAP_PROP_FPS, 30)
 
 face_mesh = mp.solutions.face_mesh.FaceMesh(
     max_num_faces=1,
@@ -92,24 +95,25 @@ while True:
         aim_count = aim_count + 1 if wink else 0
         shoot_count = shoot_count + 1 if mouth_open else 0
 
-        # offsets in face-width units (aspect-correct: both axes use the same unit)
-        off_x = (sx - nx) / nfw
-        off_y = (ny - sy) * h / (nfw * w)
+        # active box in pixels, centred on the calibrated nose; offsets are in pixels too (aspect-correct)
+        half_w = BOX_FRAC * w
+        half_h = half_w * 9 / 16
+        off_x = (sx - nx) * w
+        off_y = (ny - sy) * h
 
         packet = {
             "face": True,
-            "dx": max(-1.0, min(1.0, off_x / RANGE_X)),
-            "dy": max(-1.0, min(1.0, off_y / RANGE_Y)),
+            "dx": max(-1.0, min(1.0, off_x / half_w)),
+            "dy": max(-1.0, min(1.0, off_y / half_h)),
             "aim": aim_count >= AIM_FRAMES,
             "shoot": shoot_count >= SHOOT_FRAMES,
         }
 
         # --- debug overlay ---
         # active rectangle: your nose reaching its edge = full deflection (+-1)
-        half_w = int(RANGE_X * nfw * w)
-        half_h = int(RANGE_Y * nfw * w)
         cx, cy = int(nx * w), int(ny * h)
-        cv2.rectangle(frame, (cx - half_w, cy - half_h), (cx + half_w, cy + half_h), (255, 200, 0), 2)
+        bw, bh = int(half_w), int(half_h)
+        cv2.rectangle(frame, (cx - bw, cy - bh), (cx + bw, cy + bh), (255, 200, 0), 2)
 
         cv2.circle(frame, (int(sx * w), int(sy * h)), 6, (0, 255, 0), -1)
         cv2.circle(frame, (cx, cy), 6, (0, 0, 255), 2)

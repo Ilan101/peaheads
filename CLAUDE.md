@@ -1,6 +1,6 @@
 # PeaHeads — Claude working notes
 
-36h hackathon, 3 people, Unity 6. Two-player LAN PvP. Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
+36h hackathon (KnightHacks 2026, theme Bloom vs Blight), 3 people, Unity 6. Two-player LAN PvP: host = **BLOOM** (team 0, green), client = **BLIGHT** (team 1, purple). Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
 
 **I mostly work with Person 2 (player controller + combat).** Person 2 also built `MatchManager` (2026-10-10, with mushroom scoring); Person 3 must be told. Others: Person 1 = CV (Python tracker), Person 3 = networking + arena + match loop.
 
@@ -39,7 +39,9 @@ Unity editor: `~/Unity/Hub/Editor/6000.3.9f1/Editor/Unity`. Batchmode compile/te
 ```
 Assets/PeaHeads/
 ├── PeaHeads.asmdef             all runtime scripts. Refs: InputSystem, Netcode.Runtime, Networking.Transport, Collections, UnityEngine.UI
-├── Editor/         PeaHeads.Editor.asmdef; NetTestSceneBuilder (menu PeaHeads > Build Net Test Scene —
+├── Editor/         PeaHeads.Editor.asmdef; PlantBodyBuilder (menu PeaHeads > Build Plant Body — Art/Plant meshes/materials +
+│                   Gen_* parts in Player/TargetDummy; never hand-edit Gen_*, change constants and rebuild);
+│                   NetTestSceneBuilder (menu PeaHeads > Build Net Test Scene —
 │                   regenerates NetTest scene + Prefabs/NetTest/*, overwriting hand edits)
 │                   ArenaBuilder (menu PeaHeads > Build Arena — rebuilds DemoArena's Environment root: terrain,
 │                   mirrored Cover + SingleCover tables, 10 MushroomSpots, 3 extra SpawnPoints per side, tree ring,
@@ -51,32 +53,37 @@ Assets/PeaHeads/
 │   │               PlantingController (Tick(dt, pressed) state machine, ApplyRemote, ResetState, Progress,
 │   │                 eased HeightScale = head/camera sink),
 │   │               StemBender (visual: capsule chain on a Bezier leaf base → head; replaces Visual/Stem at runtime),
-│   │               PlantVisuals (visual: leaf base root-in/pop-out curves, stays grounded; optional plant puff),
+│   │               PlantVisuals (visual: leaf base root-in/pop-out curves, stays grounded; ground leaves spread; optional plant puff),
+│   │               PlantMeshes (static lathe/dome/disc/leaf generators, snout + mouth-hole constants),
+│   │               PlantFace (+FaceFlags: snout flare + wink eyelid from 2 synced flags; opponent-visible),
 │   │               PlayerMovement (CharacterController, owner only, Teleport),
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
 │   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
-│   │               PlayerHealth (NetworkBehaviour: server HP var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
+│   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
-│   │               auto-restart; TeamOf), MushroomSpawner (active-spot bitmask var, server collect check),
+│   │               auto-restart, fresh match when a client connects; TeamOf), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
-│   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner),
+│   ├── UI/         PlayerHUD (IMGUI placeholder: faction, state, HP, crosshair), ScoreHUD (IMGUI faction score bars + win banner),
+│   │               StoryIntro (uGUI built in code: 7-slide typewriter cutscene with animated UI drawings, played by
+│   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
-│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused)
+│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused; during the
+│   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
-│   │               HeadTrackingInput (local Player: dead zone + lean/vertical gain → PlayerInput; C recenters)
+│   │               HeadTrackingInput (local Player: raw input × movement multiplier × per-axis gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
-│                   plant vars, random spawn teleport, Respawn(), host/client tint); SpawnPoint (_team 0/1,
+│                   plant/face-flag vars, random spawn teleport, Respawn(), faction tint of Head+Snout+eyelid); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
 └── Scenes/         DemoArena (networked: Host alone = solo + dummies, Host/Join = 2P), NetTest (LAN test), ForestArena (todo)
 ```
 
-Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
+Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase = dirt mound, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments; Gen_GroundLeaves) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable, r 0.54), `Snout` (lathe trumpet + Gen_MouthHole), `Mouth` (pea spawn), `PlayerCamera`, Gen_EyeL/EyeR (+Gen_Pupil, Gen_LidR on the right eye), Gen_Collar, Gen_Tuft.
 Head input = arrow keys in `PlayerInput`; `HeadTrackingInput` calls `PlayerInput.SetTrackerInput(head, shoot, aim)` each frame while a face is tracked. Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
 Only make files when needed. One scene, no MainMenu scene (GameMenu start screen overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
@@ -89,7 +96,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 {"face": true, "dx": 0.12, "dy": -0.05, "aim": false, "shoot": false}
 ```
 
-- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, divided by face width. `+dx` = player's right (image is mirrored), `+dy` = up. **Not clamped, no dead zone** — Unity applies dead zone, scale and clamp to [-1, 1].
+- `dx`, `dy`: smoothed nose displacement from the calibrated neutral (pixels), divided by the tracker's 16:9 active box (half-width `BOX_FRAC` = 0.30 of the frame width, frame-relative so camera mode can't shrink it) and **clamped to [-1, 1]** (box edge = 1). Tracker requests MJPG 30 fps (720p YUYV is only ~10 fps). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies movement multiplier × per-axis gain (`HeadTrackingInput`, no dead zone), then metres (`PlayerCameraRig` max lean/rise/duck).
 - `shoot`: true **while** the mouth is open (≥ 2 frames). It's a level, not an event — Unity detects the false→true edge and applies the cooldown.
 - `aim`: true while exactly one eye is closed (≥ 3 frames). Unity treats it as zoom held.
 - `face: false` → everything zero/false. Unity eases the head back to neutral.
@@ -99,17 +106,21 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 
 Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
-Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (dead zone, lean/vertical gain, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
+Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
+
+## Story (StoryIntro)
+
+The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot is killing them. One pod drops two PeaHeads: BLOOM drank the light, BLIGHT drank the Rot. Planting = rooting to draw power (why you can only spit while planted); the free neck = head-tracking dodge. Sporelight +1, knockout +3, first to 20 (or most points when the clock runs out) decides the Grove; a draw leaves it in the balance. Text lives in `StoryIntro.BuildSlides` and `Faction`.
 
 ## Gameplay rules to enforce in code
 
 - States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
-- Head tracking never moves the base/root. It moves head bone + camera pivot offset (max ~0.6 m lateral, ~0.3 m vertical, tune).
+- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.0 m lateral, 0.5 m up / 0.75 m down, 10° roll at full lean, movement multiplier 4.2, smoothing 5 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
-- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
+- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw) → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
 - Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 
