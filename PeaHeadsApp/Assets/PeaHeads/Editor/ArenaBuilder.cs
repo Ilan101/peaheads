@@ -358,10 +358,16 @@ namespace PeaHeads.EditorTools
         // Hand-moved in the editor (2026-10-10): the scattered piece whose transform x/z is `from` moves to `to`.
         private static readonly (Vector2 from, Vector2 to)[] MovedDecoration =
         {
-            (new(-6.73f, 11.26f), new(8.1f, -2f)),
+            (new(-6.73f, 11.26f), new(8.91f, -3.45f)),
             (new(10.33f, 14.91f), new(19.7f, 13.9f)),
             (new(11.35f, 16.84f), new(-17.9f, -11f)),
             (new(-3.41f, -8.59f), new(20f, -3.8f)),
+            (new(10.94f, 12.28f), new(12.11f, 11.21f)),
+            (new(14.83f, -10.98f), new(13.68f, -12.96f)),
+            (new(-4.94f, 15.83f), new(18.48f, 18.31f)),
+            (new(5.14f, 16.05f), new(4.05f, 17.26f)),
+            (new(-11.25f, -5.49f), new(-9.73f, -5.15f)),
+            (new(-4.63f, 10.9f), new(-10.2f, 13.6f)),
         };
 
         private static void ScatterDecoration(Transform env, Terrain terrain, List<Vector2> cover, System.Random rng)

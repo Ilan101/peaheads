@@ -14,7 +14,6 @@ namespace PeaHeads
     {
         private const int TextureSize = 160;
         private const float Padding = 8f;
-        private const float LegendHeight = 26f;
         private const float RayTop = 60f;
         private static readonly Color MushroomCap = new(1f, 0.3f, 0.22f);
         private static readonly Color DummyColor = new(0.75f, 0.75f, 0.75f);
@@ -25,7 +24,6 @@ namespace PeaHeads
         private static readonly Color Outline = new(0.14f, 0.12f, 0.09f);
         private static readonly Color Void = new(0.09f, 0.11f, 0.09f);
 
-        [SerializeField] private Font _font;
         [Tooltip("Half the play area's side in metres (ArenaBuilder PlayHalf + wall).")]
         [SerializeField] private float _worldHalfSize = 20.5f;
         [SerializeField] private Vector2 _worldCentre = Vector2.zero;
@@ -75,9 +73,6 @@ namespace PeaHeads
         private RawImage _terrain;
         private Texture2D _texture;
         private UnityEngine.UI.Outline _frameOutline;
-        private Image _legendYou;
-        private Image _legendRival;
-        private Text _distance;
         private Sprite _circle, _ring, _glow, _arrow, _cone, _mushroom, _rounded;
 
         private void Update()
@@ -94,7 +89,7 @@ namespace PeaHeads
             int team = MatchManager.TeamOf(nm.LocalClientId);
             if (team != _bakedTeam) Bake(team);
 
-            bool show = !StoryIntro.IsPlaying;
+            bool show = !StoryIntro.IsPlaying && !PlayerHUD.Scoped;
             if (_canvas.activeSelf != show) _canvas.SetActive(show);
             if (!show) return;
 
@@ -207,7 +202,6 @@ namespace PeaHeads
             }
 
             if (nearestIcon != null) nearestIcon.Glow.rectTransform.localScale = Vector3.one * 1.35f;
-            _distance.text = nearestIcon != null ? $"Sporelight {nearest:0} m" : "No Sporelights";
         }
 
         private PlayerIcon CreatePlayerIcon()
@@ -260,8 +254,6 @@ namespace PeaHeads
             _map.localRotation = Quaternion.Euler(0f, 0f, _rotation);
 
             _frameOutline.effectColor = WithAlpha(Faction.Color(team), 0.55f);
-            _legendYou.color = Faction.Color(team);
-            _legendRival.color = Faction.Color(1 - team);
 
             foreach (MushroomIcon m in _mushrooms) Destroy(m.Root.gameObject);
             _mushrooms.Clear();
@@ -356,7 +348,6 @@ namespace PeaHeads
 
         private void Build()
         {
-            if (!_font) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             _circle = UiSprites.Circle();
             _ring = UiSprites.Ring();
             _glow = UiSprites.Glow();
@@ -376,7 +367,7 @@ namespace PeaHeads
             scaler.matchWidthOrHeight = 0.5f;
 
             float width = _mapSize + Padding * 2f;
-            float panelHeight = width + LegendHeight;
+            float panelHeight = width;
             _root = Node(_canvas.transform, "Minimap", new Vector2(-16f, -16f), new Vector2(width, panelHeight));
             _root.anchorMin = _root.anchorMax = _root.pivot = Vector2.one;
 
@@ -399,31 +390,7 @@ namespace PeaHeads
             _mushroomLayer = Node(_map, "Sporelights", Vector2.zero, Vector2.zero);
             _playerLayer = Node(_map, "Players", Vector2.zero, Vector2.zero);
 
-            float legendY = -panelHeight * 0.5f + LegendHeight * 0.5f + 2f;
-            float left = -width * 0.5f + Padding + 6f;
-            _legendYou = AddImage(_root, _arrow, new Vector2(left, legendY), new Vector2(12f, 12f), Color.white);
-            AddLabel(_root, "You", new Vector2(left + 8f, legendY));
-            _legendRival = AddImage(_root, _circle, new Vector2(left + 44f, legendY), new Vector2(10f, 10f), Color.white);
-            AddLabel(_root, "Rival", new Vector2(left + 52f, legendY));
-            AddImage(_root, _mushroom, new Vector2(left + 96f, legendY), new Vector2(13f, 13f), MushroomCap);
-            _distance = AddLabel(_root, "", new Vector2(left + 105f, legendY));
-
             _canvas.SetActive(false);
-        }
-
-        private Text AddLabel(RectTransform parent, string value, Vector2 leftEdge)
-        {
-            RectTransform rect = Node(parent, "Label", leftEdge, new Vector2(140f, 20f));
-            rect.pivot = new Vector2(0f, 0.5f);
-            Text text = rect.gameObject.AddComponent<Text>();
-            text.font = _font;
-            text.text = value;
-            text.fontSize = 13;
-            text.fontStyle = FontStyle.Bold;
-            text.color = new Color(1f, 1f, 1f, 0.9f);
-            text.alignment = TextAnchor.MiddleLeft;
-            text.raycastTarget = false;
-            return text;
         }
 
         private static Image AddImage(RectTransform parent, Sprite sprite, Vector2 pos, Vector2 size, Color color)

@@ -69,6 +69,60 @@ namespace PeaHeads
             return Mathf.Clamp01(r * r * 1.8f);
         }, 1);
 
+        // Bloom badge: five round petals around a centre.
+        public static Sprite Flower(int size = 64) => Make(size, p =>
+        {
+            if (p.magnitude <= 0.32f) return 1f;
+            for (int k = 0; k < 5; k++)
+            {
+                float a = (90f + 72f * k) * Mathf.Deg2Rad;
+                if ((p - new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 0.55f).magnitude <= 0.36f) return 1f;
+            }
+            return 0f;
+        });
+
+        // Blight badge: eight sharp spikes around a core.
+        public static Sprite Thorn(int size = 64) => Make(size, p =>
+        {
+            float spike = Mathf.Pow(Mathf.Max(0f, Mathf.Cos(4f * Mathf.Atan2(p.y, p.x))), 4f);
+            return p.magnitude <= 0.35f + 0.6f * spike ? 1f : 0f;
+        });
+
+        // Plant-state icon: stem with two leaves opening upwards.
+        public static Sprite Sprout(int size = 64) => Make(size, p =>
+        {
+            bool stem = Mathf.Abs(p.x) <= 0.09f && p.y >= -0.85f && p.y <= 0.15f;
+            return stem || InLeaf(p, new Vector2(-0.38f, 0.32f), new Vector2(-0.866f, 0.5f)) ||
+                   InLeaf(p, new Vector2(0.38f, 0.32f), new Vector2(0.866f, 0.5f)) ? 1f : 0f;
+        });
+
+        // Webcam-status icon: camera body with a lens hole and a viewfinder cone on the right.
+        public static Sprite Camera(int size = 64)
+        {
+            Vector2 apex = new(0.38f, 0f), top = new(0.95f, 0.45f), bottom = new(0.95f, -0.45f), lens = new(-0.27f, 0f);
+            return Make(size, p =>
+            {
+                bool body = p.x >= -0.92f && p.x <= 0.38f && Mathf.Abs(p.y) <= 0.48f && (p - lens).magnitude > 0.24f;
+                return body || InTriangle(p, apex, top, bottom) ? 1f : 0f;
+            });
+        }
+
+        // "Can't be hit" icon: flat-topped shield tapering to a point.
+        public static Sprite Shield(int size = 64) => Make(size, p =>
+        {
+            if (p.y > 0.85f || p.y < -0.95f) return 0f;
+            float halfWidth = p.y >= 0f ? 0.75f : 0.75f * (p.y + 0.95f) / 0.95f;
+            return Mathf.Abs(p.x) <= halfWidth ? 1f : 0f;
+        });
+
+        // Diagonal strike-through from top-left to bottom-right (overlay for "off").
+        public static Sprite Slash(int size = 64) =>
+            Make(size, p => Mathf.Abs(p.x + p.y) <= 0.22f && p.magnitude <= 0.95f ? 1f : 0f);
+
+        // Round scope view: clear inside ~55% of the radius, solid at the edge and beyond (stretch to a square).
+        public static Sprite Scope(int size = 128) =>
+            Make(size, p => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, p.magnitude)), 1);
+
         // 9-sliced rounded rectangle; radius in pixels of the source texture.
         public static Sprite RoundedRect(int size = 64, int radius = 16)
         {
@@ -105,6 +159,15 @@ namespace PeaHeads
             texture.Apply();
             return Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
                 SpriteMeshType.FullRect, border);
+        }
+
+        // Ellipse leaf centred at c, long axis along unit vector axis.
+        private static bool InLeaf(Vector2 p, Vector2 c, Vector2 axis)
+        {
+            Vector2 d = p - c;
+            float along = Vector2.Dot(d, axis) / 0.36f;
+            float across = (d.x * -axis.y + d.y * axis.x) / 0.17f;
+            return along * along + across * across <= 1f;
         }
 
         private static bool InTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)

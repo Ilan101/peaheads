@@ -22,6 +22,8 @@ namespace PeaHeads.Net
         private PlayerHealth _health;
         private SpawnPoint _lastSpawn;
         private PlantFace _plantFace;
+        // Owner: the side to respawn on after a death. Set by the host's round-start call, refreshed on team change.
+        private int _side;
 
         private void Awake()
         {
@@ -38,12 +40,13 @@ namespace PeaHeads.Net
             _input.SetLocal(IsOwner);
             _rig.SetLocal(IsOwner);
 
-            Color color = Faction.Color(MatchManager.TeamOf(OwnerClientId));
-            foreach (Renderer r in _tinted) r.material.color = color;
+            _side = MatchManager.TeamOf(OwnerClientId);
+            ApplyTint();
+            MatchManager.TeamsChanged += OnTeamsChanged;
 
             _health.Revived += OnRevived;
             _planting.StateChanged += OnPlantStateChanged;
-            if (IsOwner) MoveToSpawn();
+            if (IsOwner) MoveToSpawn(_side);
             else ApplyRemoteState();
         }
 
@@ -51,6 +54,7 @@ namespace PeaHeads.Net
         {
             _health.Revived -= OnRevived;
             _planting.StateChanged -= OnPlantStateChanged;
+            MatchManager.TeamsChanged -= OnTeamsChanged;
         }
 
         // Digging in / pulling out is heard by everyone nearby; "ready to spit" only by the owner.
@@ -62,6 +66,19 @@ namespace PeaHeads.Net
                 case PlantState.Unplanting: GameAudio.PlayAt(Sfx.Unplant, transform.position, 0.9f); break;
                 case PlantState.Planted when IsOwner: GameAudio.Play(Sfx.Ready, 0.55f); break;
             }
+        }
+
+        private void OnTeamsChanged()
+        {
+            _side = MatchManager.TeamOf(OwnerClientId);
+            ApplyTint();
+        }
+
+        // Teams are reshuffled every match, so the head colour follows the current assignment.
+        private void ApplyTint()
+        {
+            Color color = Faction.Color(MatchManager.TeamOf(OwnerClientId));
+            foreach (Renderer r in _tinted) r.material.color = color;
         }
 
         private void Update()
@@ -94,21 +111,31 @@ namespace PeaHeads.Net
             _plantFace.SetFlags(mouthOpen, wink);
         }
 
-        // Owner only: back to spawn, unplanted. Used on revive and on match restart.
-        public void Respawn()
+        // Owner only: back to spawn on its team's side, unplanted. Used on revive. Uses the cached side: a revive
+        // can arrive before the reshuffled team list, and must not send us back to last round's side.
+        public void Respawn() => Respawn(_side);
+
+        // Host → owner at round start: the side comes with the call, so a late team-list update can't misplace us.
+        [Rpc(SendTo.Owner)]
+        public void RespawnOnSideRpc(byte team)
+        {
+            _side = team;
+            Respawn(team);
+        }
+
+        private void Respawn(int team)
         {
             if (!IsOwner) return;
             _planting.ResetState();
-            MoveToSpawn();
+            MoveToSpawn(team);
         }
 
         private void OnRevived() => Respawn();
 
-        // Host spawns on team 0's side, any client on team 1's (a rejoining client gets a new id, so ids can't be
-        // used). Random point each time, never the previous one.
-        private void MoveToSpawn()
+        // Random point on the team's side each time, never the previous one.
+        private void MoveToSpawn(int team)
         {
-            SpawnPoint spawn = SpawnPoint.GetRandom(IsHost ? 0 : 1, _lastSpawn);
+            SpawnPoint spawn = SpawnPoint.GetRandom(team, _lastSpawn);
             if (!spawn) return;
             _lastSpawn = spawn;
             _movement.Teleport(spawn.transform.position, spawn.transform.rotation);

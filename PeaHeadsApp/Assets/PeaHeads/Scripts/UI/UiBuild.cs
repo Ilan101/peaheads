@@ -10,7 +10,7 @@ namespace PeaHeads
         public static readonly Color Glass = new(0.04f, 0.07f, 0.05f, 0.78f);
 
         private static Font _font;
-        private static Sprite _rounded, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom;
+        private static Sprite _rounded, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom, _flower, _thorn, _sprout, _scope, _shield;
 
         public static Font Font => _font ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         public static Sprite Rounded => _rounded ? _rounded : _rounded = UiSprites.RoundedRect();
@@ -21,6 +21,11 @@ namespace PeaHeads
         public static Sprite Cross => _cross ? _cross : _cross = UiSprites.Cross();
         public static Sprite Vignette => _vignette ? _vignette : _vignette = UiSprites.Vignette();
         public static Sprite Mushroom => _mushroom ? _mushroom : _mushroom = UiSprites.Mushroom();
+        public static Sprite Flower => _flower ? _flower : _flower = UiSprites.Flower();
+        public static Sprite Thorn => _thorn ? _thorn : _thorn = UiSprites.Thorn();
+        public static Sprite Sprout => _sprout ? _sprout : _sprout = UiSprites.Sprout();
+        public static Sprite Scope => _scope ? _scope : _scope = UiSprites.Scope();
+        public static Sprite Shield => _shield ? _shield : _shield = UiSprites.Shield();
 
         // Overlay canvas with no raycaster: HUDs never take clicks.
         public static RectTransform Canvas(string name, int sortingOrder)

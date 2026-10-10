@@ -15,6 +15,8 @@ namespace PeaHeads
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;
         [SerializeField, Range(0f, 2f)] private float _cooldown = 0.6f;
+        [Tooltip("Seconds between shots while zoomed (wink / RMB) with fire held (mouth open / LMB): full auto.")]
+        [SerializeField, Range(0.05f, 2f)] private float _autoFireInterval = 0.3f;
         [SerializeField, Range(10f, 300f)] private float _maxAimDistance = 100f;
         [SerializeField] private AudioClip _fireSfx;
         [Tooltip("Pea break burst played where a pea hits, on every machine.")]
@@ -27,7 +29,8 @@ namespace PeaHeads
         public event Action FireBlocked;
 
         // 0 right after a shot, 1 when the next one is allowed.
-        public float CooldownProgress => _cooldown <= 0f ? 1f : Mathf.Clamp01(1f - (_nextFireTime - Time.time) / _cooldown);
+        public float CooldownProgress =>
+            _lastInterval <= 0f ? 1f : Mathf.Clamp01(1f - (_nextFireTime - Time.time) / _lastInterval);
 
         private PlantingController _planting;
         private PlayerCameraRig _rig;
@@ -35,6 +38,7 @@ namespace PeaHeads
         private PlayerHealth _health;
         private float _nextFireTime;
         private float _hostNextFireTime;
+        private float _lastInterval;
 
         private void Awake()
         {
@@ -46,15 +50,20 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (!IsSpawned || !IsOwner || !_input.Current.FirePressed) return;
-            if (!TryFire() && !_planting.CanShoot && !_health.IsDead) FireBlocked?.Invoke();
+            if (!IsSpawned || !IsOwner) return;
+            PlayerInputFrame input = _input.Current;
+            // Zoomed: hold to fire full auto. Otherwise one shot per press/mouth opening.
+            if (input.ZoomHeld && input.MouthOpen) TryFire(_autoFireInterval);
+            else if (input.FirePressed && !TryFire(_cooldown) && !_planting.CanShoot && !_health.IsDead)
+                FireBlocked?.Invoke();
         }
 
         // Owner only. Aim at whatever is under the crosshair, but launch from the mouth.
-        public bool TryFire()
+        private bool TryFire(float interval)
         {
             if (!CanFire(_nextFireTime)) return false;
-            _nextFireTime = Time.time + _cooldown;
+            _nextFireTime = Time.time + interval;
+            _lastInterval = interval;
 
             Transform cam = _rig.Camera.transform;
             Vector3 target = PhysicsUtil.CastIgnoring(transform, cam.position, 0f, cam.forward, _maxAimDistance,
@@ -77,7 +86,8 @@ namespace PeaHeads
             if (_health.IsDead || Time.time < _hostNextFireTime) return;
             if (!(direction.sqrMagnitude >= 0.5f)) return;
             if (!IsNearShooter(origin) || !IsNearShooter(sweepFrom)) return;
-            _hostNextFireTime = Time.time + _cooldown * HostCooldownTolerance;
+            // Zoom is owner-side, so the host allows the faster (auto) rate.
+            _hostNextFireTime = Time.time + Mathf.Min(_cooldown, _autoFireInterval) * HostCooldownTolerance;
 
             PeaProjectile pea = Instantiate(_peaPrefab, origin, Quaternion.LookRotation(direction.normalized));
             pea.SetTeam(MatchManager.TeamOf(OwnerClientId));

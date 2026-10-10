@@ -7,7 +7,7 @@ namespace PeaHeads
 {
     // Match HUD (uGUI, built in code): top-centre scoreboard (faction scores, bars, clock badge), "+N" score pop-ups,
     // "GO!" when the clock starts, last-seconds countdown, mushroom collect bar, rival-in-story note and the end-of-match
-    // banner. Lives on the Match object; display and local sounds only.
+    // banner. Lives on the Match object; display and local sounds only. Scoreboard and collect bar hide while scoped in.
     [RequireComponent(typeof(MatchManager))]
     public class ScoreHUD : MonoBehaviour
     {
@@ -45,7 +45,8 @@ namespace PeaHeads
         private readonly Image[] _fills = new Image[2];
         private Image _clockRing;
         private Text _clock, _clockSub;
-        private Image _shieldPill;
+        private RectTransform _scoreboard;
+        private Image _shield;
         private Text _shieldText;
         private Image _collectPanel, _collectFill;
         private Text _go, _goSub, _warn;
@@ -81,7 +82,8 @@ namespace PeaHeads
             bool show = !StoryIntro.IsPlaying;
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
             if (!show) return;
-            UpdateScoreboard(local);
+            _scoreboard.gameObject.SetActive(!PlayerHUD.Scoped);
+            if (!PlayerHUD.Scoped) UpdateScoreboard(local);
             UpdateCollect(local);
             UpdateSplashes(local);
             UpdateBanner(local);
@@ -181,15 +183,20 @@ namespace PeaHeads
             _clockSub.text = waiting ? "WAITING" : $"FIRST TO {_match.TargetScore}";
             _clockSub.color = waiting ? UiBuild.WithAlpha(Warn, 0.7f + 0.3f * Mathf.Sin(now * 5f)) : Dim;
 
+            // Rival still in the intro story (can't be hit yet): pulsing shield beside their bar.
             bool shield = _rivalShielded && !_match.IsEnded;
-            _shieldPill.enabled = _shieldText.enabled = shield;
-            if (shield) _shieldText.text = $"{Faction.Name(1 - local)} is still hearing the story  ·  can't be hit yet";
+            _shield.enabled = _shieldText.enabled = shield;
+            if (!shield) return;
+            float side = 1 - local == 0 ? -1f : 1f;
+            _shield.rectTransform.anchoredPosition = new Vector2(side * (_panelWidth * 0.5f + 24f), 4f);
+            _shield.color = UiBuild.WithAlpha(Warn, 0.65f + 0.35f * Mathf.Sin(now * 5f));
+            _shieldText.rectTransform.anchoredPosition = new Vector2(side * (_panelWidth * 0.5f + 24f), -22f);
         }
 
         private void UpdateCollect(int local)
         {
             float progress = _mushrooms ? _mushrooms.CollectProgress(local) : 0f;
-            bool show = progress > 0f && !_match.IsEnded;
+            bool show = progress > 0f && !_match.IsEnded && !PlayerHUD.Scoped;
             _collectPanel.gameObject.SetActive(show);
             if (!show) return;
             _collectFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, 230f * progress), 10f);
@@ -250,6 +257,7 @@ namespace PeaHeads
             _barWidth = half - 78f;
 
             Image panel = UiBuild.Panel(_canvas, Top, new Vector2(0f, -12f), new Vector2(_panelWidth, 74f), UiBuild.Glass);
+            _scoreboard = panel.rectTransform;
             UiBuild.Outline(panel, new Color(1f, 1f, 1f, 0.12f));
             Transform p = panel.transform;
             for (int team = 0; team < 2; team++)
@@ -282,10 +290,9 @@ namespace PeaHeads
             _clockSub = UiBuild.Label(badge.transform, "", 9, Dim, TextAnchor.MiddleCenter, Centre,
                 new Vector2(0f, -16f), new Vector2(86f, 14f), FontStyle.Bold, false);
 
-            _shieldPill = UiBuild.Panel(_canvas, Top, new Vector2(0f, -112f), new Vector2(480f, 26f),
-                UiBuild.WithAlpha(Warn, 0.92f), 0.8f);
-            _shieldText = UiBuild.Label(_shieldPill.transform, "", 13, Ink, TextAnchor.MiddleCenter, Centre, Vector2.zero,
-                new Vector2(480f, 26f), FontStyle.Bold, false);
+            _shield = UiBuild.Image(p, UiBuild.Shield, Vector2.zero, new Vector2(30f, 30f), Warn);
+            _shieldText = UiBuild.Label(p, "IN STORY", 9, Warn, TextAnchor.MiddleCenter, Centre, Vector2.zero,
+                new Vector2(70f, 14f));
 
             _collectPanel = UiBuild.Panel(_canvas, Bottom, new Vector2(0f, 150f), new Vector2(320f, 56f), UiBuild.Glass);
             UiBuild.Outline(_collectPanel, UiBuild.WithAlpha(_collectColor, 0.6f));

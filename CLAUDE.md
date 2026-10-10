@@ -1,6 +1,6 @@
 # PeaHeads — Claude working notes
 
-36h hackathon (KnightHacks 2026, theme Bloom vs Blight), 3 people, Unity 6. Two-player LAN PvP: host = **BLOOM** (team 0, green), client = **BLIGHT** (team 1, purple). Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
+36h hackathon (KnightHacks 2026, theme Bloom vs Blight), 3 people, Unity 6. Two-player LAN PvP, teams **BLOOM** (team 0, yellow) and **BLIGHT** (team 1, purple), shuffled evenly by the host at every match start (host is not always Bloom). Webcam head tracking drives pea head + viewpoint, mouth-open fires, wink zooms. Full spec: `PeaHeads_Specification.md` (source of truth for design; this file overrides it where they differ).
 
 **I mostly work with Person 2 (player controller + combat).** Person 2 also built `MatchManager` (2026-10-10, with mushroom scoring); Person 3 must be told. Others: Person 1 = CV (Python tracker), Person 3 = networking + arena + match loop.
 
@@ -64,29 +64,32 @@ Assets/PeaHeads/
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
-│   │               auto-restart, fresh match when a client connects; TeamOf), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
+│   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── Audio/      GameAudio (static: Sfx enum → Resources "Sfx/<name>" clips, variants name_0..n; PlayAt 3D / Play 2D; returns
 │   │                 false if missing so inspector clips stay as fallback), MusicPlayer (added by GameMenu: crossfades
 │   │                 menu/story/game loops from Resources "Music/", ducks when paused / under end stinger, Muted in PlayerPrefs)
-│   ├── UI/         PlayerHUD (uGUI built in code, owner only: webcam panel, player card with hearts + plant state, crosshair with
-│   │                 cooldown ring + hit marker, damage/zoom vignettes, knocked-out overlay, kill toast, feedback sounds),
+│   ├── UI/         PlayerHUD (uGUI built in code, owner only: webcam panel top-left; bottom-left team badge flower/thorn +
+│   │                 plant dial (sprout, ring of progress dots) + status line + hearts; crosshair with cooldown ring + hit
+│   │                 marker, red on a kill; round scope view; damage vignette; "SPAT OUT!" death screen; kill toast; sounds;
+│   │                 static Scoped hides HUD/ScoreHUD/Minimap while zoomed),
 │   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks,
-│   │                 collect bar, end banner), UiBuild (shared uGUI helpers + cached UiSprites),
+│   │                 collect bar, shield icon by the rival bar while they're in the story, end banner),
+│   │               UiBuild (shared uGUI helpers + cached UiSprites),
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
-│   │                 nearest-Sporelight distance; M enlarges), UiSprites (procedural icon sprites),
+│   │                 nearest Sporelight glows, no key row; M enlarges), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
 │   │               StoryIntro (uGUI built in code: 7-slide typewriter cutscene with animated UI drawings, played by
 │   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
-│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused; during the
+│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave, with a Controls panel on the right; sets PlayerInput.Paused; during the
 │   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
 │   │               HeadTrackingInput (local Player: raw input × movement multiplier × per-axis gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
-│                   plant/face-flag vars, random spawn teleport, Respawn(), faction tint of Head+Snout+eyelid); SpawnPoint (_team 0/1,
+│                   plant/face-flag vars, random spawn teleport, Respawn(), faction tint of Head+Snout+eyelid, re-applied on TeamsChanged); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests, MatchTeamsTests, UiSpritesTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
@@ -137,11 +140,11 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 ## Networking model (NGO)
 
 - Implemented in `DemoArena`: owner-auth `NetworkTransform` on Player, `PlayerNetSync` vars, `PlayerShooting.FireRpc` → host-spawned `PeaProjectile`, server `PlayerHealth` HP, `MatchManager` points race (design: `docs/superpowers/specs/2026-10-10-mushroom-scoring-design.md`). Players respawn after 3 s. Design: `docs/superpowers/specs/2026-10-10-demo-multiplayer-design.md`.
-- Host = player 1, client = player 2. Connect panel: Host / Join `<IP>`.
+- Host / Join `<IP>` from the GameMenu start screen. Teams are random and even each match (team 0 = Bloom, team 1 = Blight), independent of host/client.
 - `NetworkObject` + `NetworkTransform` (owner-authoritative, interpolated) on player root; head pose synced as the owner's final metre offset (`NetworkVariable<Vector3>`, after the wall sweep) + pitch, interpolated on remote, so per-machine lean tuning can't move the hitbox.
 - `PlantState` as owner-writable `NetworkVariable<byte>`.
 - Fire: owner calls a `[Rpc(SendTo.Server)]` fire method (as in `NetTestPlayer.FireRpc`); server spawns networked `Pea` (`NetworkObject`, server moves it, `NetworkTransform`). Server does collision + damage.
-- `Health` = server-write `NetworkVariable<int>`. Server `MatchManager` scores kills (`PlayerHealth.Killed`, attacker = pea shooter) and mushrooms, ends at the target score, restarts after a delay (`ResetHealth` + `RoundStartedRpc` → `PlayerNetSync.Respawn`). Input frozen while ended.
+- `Health` = server-write `NetworkVariable<int>`. Server `MatchManager` scores kills (`PlayerHealth.Killed`, attacker = pea shooter) and mushrooms, ends at the target score, restarts after a delay (`ShuffleTeams` + `ResetHealth` + per-player `PlayerNetSync.RespawnOnSideRpc(team)`; revive uses the owner's cached side). Input frozen while ended.
 - No lag compensation. No prediction beyond owner-auth movement.
 - Fallback if netcode isn't working by hour ~12: single-machine practice mode with stationary dummy pea that fires on a timer. Keep gameplay scripts usable without NetworkManager where cheap (check `IsSpawned`/`NetworkManager.Singleton == null`).
 

@@ -17,6 +17,22 @@ namespace PeaHeads
     public class GameMenu : MonoBehaviour
     {
         private const float PanelWidth = 440f;
+        private const float ControlsWidth = 420f;
+        private const float PanelGap = 16f;
+
+        private static readonly (string keys, string action)[] ControlLines =
+        {
+            ("Mouse", "Look"),
+            ("WASD", "Move"),
+            ("E", "Plant / Unplant"),
+            ("Lean Your Head", "Peek / Dodge"),
+            ("Open Mouth / LMB", "Fire"),
+            ("Wink / RMB", "Zoom"),
+            ("Zoom + Hold Fire", "Full Auto"),
+            ("C", "Recenter Head"),
+            ("M", "Big Map"),
+            ("Esc", "Menu"),
+        };
 
         [SerializeField] private Font _font;
         [SerializeField] private Color _backdropColor = new(0f, 0f, 0f, 0.55f);
@@ -34,6 +50,7 @@ namespace PeaHeads
         private GameObject _startPanel;
         private GameObject _connectingPanel;
         private GameObject _pausePanel;
+        private GameObject _controlsPanel;
         private GameObject _restartButton;
         private Text _musicLabel;
         private Text _startInfo;
@@ -84,7 +101,9 @@ namespace PeaHeads
                 _storyStarted = false;
                 _story.Stop();
             }
-            else if (connected && !_storyStarted)
+            // Teams are reshuffled when a client joins; wait for ours so the story tells the right side.
+            else if (connected && !_storyStarted &&
+                     (!FindFirstObjectByType<MatchManager>() || MatchManager.HasTeam(nm.LocalClientId)))
             {
                 _storyStarted = true;
                 _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(), null);
@@ -112,6 +131,7 @@ namespace PeaHeads
             _startPanel.SetActive(screen == MenuScreen.Start);
             _connectingPanel.SetActive(screen == MenuScreen.Connecting);
             _pausePanel.SetActive(screen == MenuScreen.Pause);
+            _controlsPanel.SetActive(screen == MenuScreen.Pause);
 
             if (screen == MenuScreen.Pause)
             {
@@ -205,8 +225,8 @@ namespace PeaHeads
             _startInfo = AddLabel(_startPanel, "", 16, _textColor);
             AddLabel(_startPanel, "Host IP", 18, _textColor);
             AddAddressField(_startPanel);
-            AddButton(_startPanel, "Host  (play as Bloom)", OnHost);
-            AddButton(_startPanel, "Join  (play as Blight)", OnJoin);
+            AddButton(_startPanel, "Host", OnHost);
+            AddButton(_startPanel, "Join", OnJoin);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
 
             _connectingPanel = AddPanel("Connecting");
@@ -222,6 +242,14 @@ namespace PeaHeads
             _musicLabel = AddButton(_pausePanel, MusicLabel(), OnToggleMusic).GetComponentInChildren<Text>();
             AddButton(_pausePanel, "Leave", OnLeave);
             _pauseStatus = AddLabel(_pausePanel, "", 16, _textColor);
+
+            // Controls sit to the right of the pause panel; the pair is centred together.
+            _controlsPanel = AddPanel("Controls");
+            _controlsPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(ControlsWidth, 0f);
+            AddLabel(_controlsPanel, "Controls", 24, _accentColor, FontStyle.Bold);
+            foreach (var (keys, action) in ControlLines) AddControlRow(_controlsPanel, keys, action);
+            _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(ControlsWidth + PanelGap) * 0.5f, 0f);
+            _controlsPanel.GetComponent<RectTransform>().anchoredPosition = new Vector2((PanelWidth + PanelGap) * 0.5f, 0f);
         }
 
         private GameObject AddPanel(string name)
@@ -256,6 +284,20 @@ namespace PeaHeads
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             go.GetComponent<LayoutElement>().minHeight = size * 1.4f;
             return label;
+        }
+
+        // Key (bold, accent) on the left, action on the right.
+        private void AddControlRow(GameObject parent, string keys, string action)
+        {
+            var row = new GameObject("Row", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent.transform, false);
+            var layout = row.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            AddLabel(row, keys, 16, _accentColor, FontStyle.Bold).alignment = TextAnchor.MiddleLeft;
+            AddLabel(row, action, 16, _textColor).alignment = TextAnchor.MiddleRight;
         }
 
         private GameObject AddButton(GameObject parent, string text, UnityAction onClick)
