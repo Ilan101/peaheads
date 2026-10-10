@@ -17,14 +17,13 @@ namespace PeaHeads
     public class GameMenu : MonoBehaviour
     {
         private const float PanelWidth = 440f;
-        private const float ControlsWidth = 420f;
         private const float PanelGap = 16f;
 
         private static readonly (string keys, string action)[] ControlLines =
         {
             ("Mouse", "Look"),
             ("WASD", "Move"),
-            ("E", "Plant / Unplant"),
+            ("Space", "Plant / Unplant"),
             ("Lean Your Head", "Peek / Dodge"),
             ("Open Mouth / LMB", "Fire"),
             ("Wink / RMB", "Zoom"),
@@ -137,10 +136,23 @@ namespace PeaHeads
             {
                 _match = FindFirstObjectByType<MatchManager>();
                 _restartButton.SetActive(ShowRestart(nm.IsHost, _match));
+                MatchPausePanels();
             }
 
             if (screen != MenuScreen.None) SetCursorLocked(false);
             else if (wasOverlay) SetCursorLocked(true);
+        }
+
+        // Pause and Controls side by side at the same size: both as tall as the taller one.
+        private void MatchPausePanels()
+        {
+            var pause = (RectTransform)_pausePanel.transform;
+            var controls = (RectTransform)_controlsPanel.transform;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(pause);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(controls);
+            float height = Mathf.Max(LayoutUtility.GetPreferredHeight(pause), LayoutUtility.GetPreferredHeight(controls));
+            pause.sizeDelta = new Vector2(PanelWidth, height);
+            controls.sizeDelta = new Vector2(PanelWidth, height);
         }
 
         private void RefreshText(MenuScreen screen, NetworkManager nm)
@@ -148,7 +160,7 @@ namespace PeaHeads
             switch (screen)
             {
                 case MenuScreen.Start:
-                    _startInfo.text = $"This PC: {_session.LocalIps}  ·  port {_session.Port}";
+                    _startInfo.text = $"This PC: {_session.LocalIps}";
                     _startStatus.text = _session.Status;
                     break;
                 case MenuScreen.Connecting:
@@ -220,13 +232,12 @@ namespace PeaHeads
             _backdrop.GetComponent<Image>().color = _backdropColor;
 
             _startPanel = AddPanel("Start");
-            AddLabel(_startPanel, "PeaHeads", 44, _accentColor, FontStyle.Bold);
+            AddTitle(_startPanel);
             AddLabel(_startPanel, "Bloom vs Blight", 22, _textColor, FontStyle.Italic);
             _startInfo = AddLabel(_startPanel, "", 16, _textColor);
-            AddLabel(_startPanel, "Host IP", 18, _textColor);
             AddAddressField(_startPanel);
-            AddButton(_startPanel, "Host", OnHost);
             AddButton(_startPanel, "Join", OnJoin);
+            AddButton(_startPanel, "Host", OnHost);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
 
             _connectingPanel = AddPanel("Connecting");
@@ -245,11 +256,13 @@ namespace PeaHeads
 
             // Controls sit to the right of the pause panel; the pair is centred together.
             _controlsPanel = AddPanel("Controls");
-            _controlsPanel.GetComponent<RectTransform>().sizeDelta = new Vector2(ControlsWidth, 0f);
             AddLabel(_controlsPanel, "Controls", 24, _accentColor, FontStyle.Bold);
             foreach (var (keys, action) in ControlLines) AddControlRow(_controlsPanel, keys, action);
-            _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(ControlsWidth + PanelGap) * 0.5f, 0f);
+            _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(PanelWidth + PanelGap) * 0.5f, 0f);
             _controlsPanel.GetComponent<RectTransform>().anchoredPosition = new Vector2((PanelWidth + PanelGap) * 0.5f, 0f);
+            // Heights are matched in MatchPausePanels instead of each panel fitting its own content.
+            _pausePanel.GetComponent<ContentSizeFitter>().enabled = false;
+            _controlsPanel.GetComponent<ContentSizeFitter>().enabled = false;
         }
 
         private GameObject AddPanel(string name)
@@ -345,10 +358,34 @@ namespace PeaHeads
             text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
 
+            var placeholderGo = new GameObject("Placeholder", typeof(RectTransform), typeof(Text));
+            placeholderGo.transform.SetParent(go.transform, false);
+            RectTransform placeholderRect = placeholderGo.GetComponent<RectTransform>();
+            Stretch(placeholderRect);
+            placeholderRect.offsetMin = textRect.offsetMin;
+            placeholderRect.offsetMax = textRect.offsetMax;
+            Text placeholder = placeholderGo.GetComponent<Text>();
+            ConfigureText(placeholder, "Host IP", 22, new Color(0f, 0f, 0f, 0.4f));
+            placeholder.alignment = TextAnchor.MiddleLeft;
+            placeholder.fontStyle = FontStyle.Italic;
+
+            // Starts empty so the grey "Host IP" shows; an empty box joins the default (local) address.
             var field = go.GetComponent<InputField>();
             field.textComponent = text;
-            field.text = _session.Address;
+            field.placeholder = placeholder;
             field.onValueChanged.AddListener(value => _session.Address = value);
+        }
+
+        // "PeaHeads" in Chewy (Resources/Fonts, Apache 2.0): bubbly, plant-cartoon title with a dark outline.
+        private void AddTitle(GameObject parent)
+        {
+            Text title = AddLabel(parent, "PeaHeads", 64, _accentColor);
+            Font chewy = Resources.Load<Font>("Fonts/Chewy-Regular");
+            if (chewy) title.font = chewy;
+            title.GetComponent<LayoutElement>().minHeight = 80f;
+            Outline outline = title.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.08f, 0.2f, 0.05f, 0.85f);
+            outline.effectDistance = new Vector2(2f, -2f);
         }
 
         private void ConfigureText(Text text, string value, int size, Color color)

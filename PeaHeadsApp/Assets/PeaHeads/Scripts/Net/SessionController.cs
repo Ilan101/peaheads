@@ -57,7 +57,8 @@ namespace PeaHeads.Net
             _leaving = false;
             var transport = Transport();
             transport.MaxConnectAttempts = _maxConnectAttempts;
-            transport.SetConnectionData((Address ?? "").Trim(), _port);
+            string address = string.IsNullOrWhiteSpace(Address) ? _defaultAddress : Address.Trim();
+            transport.SetConnectionData(address, _port);
             Status = NetworkManager.Singleton.StartClient() ? "" : "Join failed. Check the IP.";
         }
 
