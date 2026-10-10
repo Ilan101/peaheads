@@ -771,8 +771,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.HeadTrackingInput
   _deadZone: 0.03
-  _leanGain: 2.5
-  _verticalGain: 3
+  _leanGain: 1
+  _verticalGain: 1
   _useMouthFire: 1
   _useWinkZoom: 1
 --- !u!1 &5117186791582609117

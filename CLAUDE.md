@@ -89,7 +89,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 {"face": true, "dx": 0.12, "dy": -0.05, "aim": false, "shoot": false}
 ```
 
-- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, divided by face width. `+dx` = player's right (image is mirrored), `+dy` = up. **Not clamped, no dead zone** — Unity applies dead zone, scale and clamp to [-1, 1].
+- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, in face widths, divided by the tracker's 16:9 active rectangle (`RANGE_X` = 0.6 face widths, `RANGE_Y` = `RANGE_X` × 9/16) and **clamped to [-1, 1]** (rectangle edge = 1). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies the dead zone and optional extra gain (`HeadTrackingInput`), then metres (`PlayerCameraRig` max lean/rise/duck).
 - `shoot`: true **while** the mouth is open (≥ 2 frames). It's a level, not an event — Unity detects the false→true edge and applies the cooldown.
 - `aim`: true while exactly one eye is closed (≥ 3 frames). Unity treats it as zoom held.
 - `face: false` → everything zero/false. Unity eases the head back to neutral.

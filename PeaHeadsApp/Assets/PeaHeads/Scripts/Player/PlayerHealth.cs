@@ -19,6 +19,7 @@ namespace PeaHeads
         private readonly NetworkVariable<int> _current = new(DefaultMaxHealth);
 
         public int Current => _current.Value;
+        public int Max => _maxHealth;
         public bool IsDead => _current.Value <= 0;
         public event Action<PlayerHealth> Died;
         public event Action Revived;
