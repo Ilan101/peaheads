@@ -11,7 +11,7 @@ Replace "last plant standing" with a points race. Glowing mushrooms appear aroun
 | Question | Decision |
 |---|---|
 | Teams | 1v1: team 0 = host's player, team 1 = the client's player (same rule as spawn points). |
-| Spawning | 10 fixed spots, mirrored through the origin. 3 active at a time. A collected mushroom reappears at a random free spot after 5 s. |
+| Spawning | 10 fixed spots (mostly mirrored). 3 active at a time. A collected mushroom reappears at a random free spot after 5 s. |
 | Collecting | Server sees the player in the `Planted` state, alive, within 1.5 m of an active mushroom. Planting takes 1 s, so the player is exposed while collecting. |
 | Spot choice | Random among spots that are inactive and have no player within the collect radius, so a mushroom never appears under someone already planted. |
 | Kill credit | The pea remembers its shooter's client id. A kill scores only when the victim is a *player* on the other team; dummies give nothing. |
@@ -79,25 +79,19 @@ All `[SerializeField, Range(...)]`, as in the earlier slider pass.
 
 ## Spot layout
 
-Half table, mirrored to (−x, −z). Positions were chosen to clear the measured cover footprints (≥ 1.5 m from every cover edge), the spawns (≥ 7 m) and the dummies (≥ 2.5 m).
+10 explicit spots (as built), mostly mirrored pairs. (−4, 2) replaces the mirror of (7.5, −6.5), which a hand-placed oak covers. Measured clearance from the nearest cover is ≥ 1.4 m.
 
-| x | z |
-|---|---|
-| −2.5 | −4.5 |
-| 7.5 | −6.5 |
-| −10 | −8.5 |
-| 16 | 0 |
-| −15 | 6 |
+(−2.5, −4.5), (2.5, 4.5), (7.5, −6.5), (−4, 2), (−10, −8.5), (10, 8.5), (16, 0), (−16, 0), (−15, 6), (15, −6)
 
 ## Spawn layout
 
-Team 0 (host) side; team 1 is the mirror (−x, −z), facing the other way. The existing root `SpawnPoint_0` at (0, −12) and `SpawnPoint_1` at (0, 12) stay. The extras clear cover footprints by ≥ 1.8 m and the dummies by ≥ 3 m.
+Team 0 (host) side; team 1 is the mirror (−x, −z), facing the other way. The existing root `SpawnPoint_0` at (0, −12) and `SpawnPoint_1` at (0, 12) stay. Measured clearance from cover is ≥ 1.59 m.
 
 | x | z |
 |---|---|
 | −8 | −13 |
 | 12 | −14 |
-| −16 | −10 |
+| −17.5 | −10.5 |
 
 ## Data flow
 
