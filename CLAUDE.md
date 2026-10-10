@@ -4,23 +4,29 @@
 
 **I mostly work with Person 2 (player controller + combat).** Others: Person 1 = CV (Python tracker), Person 3 = networking + arena + match loop.
 
+## Workflow
+
+- Feature or multi-file work: `superpowers:brainstorming` → spec → `superpowers:writing-plans` → implement → **code-reviewer** agent. Get the user's OK on the design before writing code.
+- Small single-file fixes: just do them.
+- Before claiming done: compile headless (editor closed) and say plainly what was not playtested.
+
 ## Locked decisions
 
 | Area | Choice |
 |---|---|
 | Engine | Unity **6000.3.9f1**, URP, new Input System (`com.unity.inputsystem` 1.18) |
 | Netcode | **Netcode for GameObjects + Unity Transport, direct IP over LAN**. Host-authoritative. Add Unity Relay only if venue Wi-Fi blocks peer connections. |
-| CV | **Python + MediaPipe Face Landmarker**, one process per machine, sends JSON over **UDP localhost**. No video leaves the machine. |
-| Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, skybox, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
+| CV | **Python + MediaPipe Face Mesh** (`head_tracker.py`, repo root), one process per machine, JSON over **UDP `127.0.0.1:5052`**. No video leaves the machine. |
+| Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
 | Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Plain light-blue background, no skybox. |
 | Testing | Hackathon override of global rules: **no 80% coverage / strict TDD.** EditMode tests only for pure logic (planting state machine, gesture edge-detection, packet parsing). Everything else verified by playing. |
 
 ## Repo layout
 
 ```
-peaheads/                      outer repo (git@github.com:Ilan101/peaheads.git) — spec, CLAUDE.md, tracker
+peaheads/                      repo (git@github.com:Ilan101/peaheads.git)
 ├── PeaHeads_Specification.md
-├── tracker/                   (to create) Python CV — Person 1
+├── head_tracker.py            Python webcam tracker — Person 1
 └── PeaHeadsApp/               Unity project (its .gitignore excludes Library/Temp/Logs/UserSettings)
 ```
 
@@ -31,7 +37,10 @@ Unity editor: `~/Unity/Hub/Editor/6000.3.9f1/Editor/Unity`. Batchmode compile/te
 ## Code layout (Unity)
 
 ```
-Assets/PeaHeads/                (no asmdef yet: Assembly-CSharp; add one when tests need it)
+Assets/PeaHeads/
+├── PeaHeads.asmdef             all runtime scripts. Refs: InputSystem, Netcode.Runtime, Networking.Transport, Collections
+├── Editor/         PeaHeads.Editor.asmdef; NetTestSceneBuilder (menu PeaHeads > Build Net Test Scene —
+│                   regenerates NetTest scene + Prefabs/NetTest/*, overwriting hand edits)
 ├── Scripts/
 │   ├── PhysicsUtil.cs   CastIgnoring(): closest ray/sphere hit skipping a root (own colliders)
 │   ├── Player/     PlantingController (state machine, E), PlayerMovement (CharacterController, WASD),
@@ -41,9 +50,10 @@ Assets/PeaHeads/                (no asmdef yet: Assembly-CSharp; add one when te
 │   ├── Combat/     PeaProjectile (sphere-sweep per frame, no Rigidbody; Launch() sweeps head→mouth first)
 │   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair)
 │   ├── Tracking/   (todo) WebcamInputReceiver, GestureController
-│   └── Net/        (todo) MatchManager, ConnectionUI
-├── Prefabs/        Player, Pea, TargetDummy, VFX/   (hand-edited assets; builder script was removed)
-└── Scenes/         DemoArena.unity (sandbox), ForestArena.unity (todo, Person 3)
+│   └── Net/        ConnectionUI (IMGUI host / join-by-IP, port 7777); Test/ NetTestPlayer, NetTestPea
+│                   (throwaway netcode proof); MatchManager (todo)
+├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); NetTest/ (generated)
+└── Scenes/         DemoArena (single-player sandbox), NetTest (LAN test), ForestArena (todo, Person 3)
 ```
 
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, Stem; squashed when planted) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
@@ -51,23 +61,25 @@ Head input currently = arrow keys in `PlayerCameraRig` (marked `ponytail:`); tra
 
 Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
-## CV ↔ Unity contract (agree first, don't change silently)
+## CV ↔ Unity contract (as implemented in `head_tracker.py` — change only together with Person 1)
 
-UDP to `127.0.0.1:5065`, one JSON datagram per tracker frame (~30 Hz):
+UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 
 ```json
-{"t": 1728540000.123, "valid": true, "hx": -0.42, "hy": 0.10, "yaw": -12.0, "pitch": 4.0, "roll": 2.0,
- "mouth": 0.63, "mouthOpen": true, "lEye": false, "rEye": false}
+{"face": true, "dx": 0.12, "dy": -0.05, "aim": false, "shoot": false}
 ```
 
-- `hx`, `hy`: head displacement vs calibrated neutral, normalized by inter-eye distance, dead-zoned, smoothed, clamped **[-1, 1]**. `+hx` = player's right (un-mirror camera image), `+hy` = up.
-- `yaw/pitch/roll`: degrees, optional, for head-model rotation only.
-- `mouthOpen`, `lEye`, `rEye`: thresholded with hysteresis in Python. `lEye/rEye` true = closed, already temporally filtered (≥ ~150 ms) so blinks don't pass.
-- `valid=false` when face lost. Unity eases offsets back to 0.
-- Calibration happens in the Python window (key `c`). Unity also can send `"calibrate"` to `127.0.0.1:5066` (nice-to-have).
-- CV never touches gameplay. Unity decides what a gesture means given state.
+- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, divided by face width. `+dx` = player's right (image is mirrored), `+dy` = up. **Not clamped, no dead zone** — Unity applies dead zone, scale and clamp to [-1, 1].
+- `shoot`: true **while** the mouth is open (≥ 2 frames). It's a level, not an event — Unity detects the false→true edge and applies the cooldown.
+- `aim`: true while exactly one eye is closed (≥ 3 frames). Unity treats it as zoom held.
+- `face: false` → everything zero/false. Unity eases the head back to neutral.
+- Calibration: automatic on the first frame with a face; `C` recalibrates (look straight, eyes open, mouth closed); `Q` quits.
+- No timestamp: Unity treats no packet for > 0.5 s the same as `face: false`.
+- CV never touches gameplay. Unity decides what a gesture means given plant state.
 
-Unity side: `WebcamInputReceiver` reads on background thread (`UdpClient`), stores latest packet under lock, main thread reads in `Update`. Stale > 0.5 s ⇒ treat as `valid=false`. **Keyboard/mouse fallbacks always on**: arrow keys or IJKL = fake head offset, LMB = fire, RMB/Z = zoom. Needed for dev without webcam and as demo backup.
+Open items for Person 1: `cv2.VideoCapture(0, cv2.CAP_DSHOW)` uses a Windows-only backend (use the default backend on Linux/macOS); no `requirements.txt` yet.
+
+Unity side (todo): `WebcamInputReceiver` reads on a background thread (`UdpClient`), stores the latest packet under a lock, main thread reads it in `Update`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
 
 ## Gameplay rules to enforce in code
 
@@ -82,10 +94,11 @@ Unity side: `WebcamInputReceiver` reads on background thread (`UdpClient`), stor
 
 ## Networking model (NGO)
 
+- Proven in `NetTest` scene: `ConnectionUI` host/join over LAN, owner-auth player, server-moved pea, server-side hit counting. Bullets below are the target for the real `Player` prefab.
 - Host = player 1, client = player 2. Connect panel: Host / Join `<IP>`.
 - `NetworkObject` + `NetworkTransform` (owner-authoritative, interpolated) on player root; head pose synced via owner-writable `NetworkVariable<Vector3>` (offset) + aim yaw/pitch, interpolated on remote.
 - `PlantState` as owner-writable `NetworkVariable<byte>`.
-- Fire: owner calls `FireServerRpc(origin, dir)`; server spawns networked `Pea` (`NetworkObject`, server moves it, `NetworkTransform`). Server does collision + damage.
+- Fire: owner calls a `[Rpc(SendTo.Server)]` fire method (as in `NetTestPlayer.FireRpc`); server spawns networked `Pea` (`NetworkObject`, server moves it, `NetworkTransform`). Server does collision + damage.
 - `Health` = server-write `NetworkVariable<int>`. Server `MatchManager` ends round at 0, `MatchEndClientRpc(winner)`, restart resets health + respawns at spawn points.
 - No lag compensation. No prediction beyond owner-auth movement.
 - Fallback if netcode isn't working by hour ~12: single-machine practice mode with stationary dummy pea that fires on a timer. Keep gameplay scripts usable without NetworkManager where cheap (check `IsSpawned`/`NetworkManager.Singleton == null`).
@@ -102,7 +115,7 @@ Put tunables as `[SerializeField]` on components (inspector-tweakable), defaults
 4. NGO two-player over LAN (validate in **hour 0–2** with a cube).
 5. Arena with trees/rocks (ProBuilder + template art).
 6. Win + restart.
-7. Wink zoom + crosshair, HUD, tracking indicator, SFX (reuse `Assets/FPS/Audio`).
+7. Wink zoom + crosshair, HUD, tracking indicator, SFX (`Assets/PeaHeads/Audio`).
 8. Stem bend, hit/defeat anims, polish.
 
 Feature freeze when 1–6 work. Never trade webcam reliability for content.
@@ -112,4 +125,4 @@ Feature freeze when 1–6 work. Never trade webcam reliability for content.
 - C#: `PascalCase` types/methods, `_camelCase` private fields, `[SerializeField] private` over public fields. One `MonoBehaviour` per file, filename = class.
 - Minimal comments. No debug `Debug.Log` spam left in commits (use a single `[SerializeField] bool debug`).
 - Commits: conventional (`feat:`, `fix:`, ...). Commit `.meta` files with their assets.
-- Python tracker: single `tracker/tracker.py` + `requirements.txt` (`mediapipe`, `opencv-python`). Run: `python tracker/tracker.py --cam 0`.
+- Python tracker: `head_tracker.py` at repo root. Deps: `mediapipe`, `opencv-python`. Run: `python head_tracker.py` (webcam 0).
