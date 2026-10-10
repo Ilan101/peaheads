@@ -88,6 +88,8 @@ namespace PeaHeads
         {
             _team0 = new NetworkList<ulong>();
             _team1 = new NetworkList<ulong>();
+            // Evening light + team-tinted fog; added here so older scenes get it without an edit.
+            if (!TryGetComponent(out AtmosphereController _)) gameObject.AddComponent<AtmosphereController>();
         }
 
         public override void OnNetworkSpawn()

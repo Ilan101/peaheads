@@ -299,6 +299,7 @@ namespace PeaHeads.EditorTools
             var match = new SerializedObject(go.AddComponent<MatchManager>());
             go.AddComponent<MushroomSpawner>();
             go.AddComponent<ScoreHUD>();
+            go.AddComponent<AtmosphereController>();
             match.FindProperty("_confettiPrefab").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PeaHeads/Prefabs/VFX/ConfettiCelebration.prefab");
             match.FindProperty("_endSfx").objectReferenceValue =
