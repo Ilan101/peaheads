@@ -38,11 +38,13 @@
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
     "com.unity.multiplayer.center": "1.0.1",
+    "com.unity.multiplayer.playmode": "2.0.2",
     "com.unity.netcode.gameobjects": "2.13.3",
     "com.unity.pipeline": "0.8.0-exp.1",
     "com.unity.probuilder": "6.0.8",
     "com.unity.render-pipelines.universal": "17.3.0",
     "com.unity.test-framework": "1.6.0",
-    "com.unity.timeline": "1.8.10"
+    "com.unity.timeline": "1.8.10",
+    "com.unity.transport": "2.7.4"
   }
 }
