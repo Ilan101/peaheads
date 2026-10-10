@@ -62,7 +62,6 @@ namespace PeaHeads.EditorTools
             ("tree_oak", -15f, -14f, 0f, 6f),
             ("tree_oak", -8f, -17f, 0f, 6f),
             ("tree_fat", -17f, 3f, 0f, 5.5f),
-            ("tree_pineRoundC", 3f, -18f, 0f, 6f),
             ("tree_pineTallA_detailed", 12f, -4f, 0f, 7f),
         };
 
@@ -75,6 +74,8 @@ namespace PeaHeads.EditorTools
             ("tree_oak", -6.76f, 6.48f, 0f, 6f),
             ("tree_oak", 4.93f, 8.25f, 0f, 6f),
             ("tree_oak", 8.68f, -12.85f, 0f, 6f),
+            ("tree_pineRoundC", 2.73f, -16.15f, 0f, 6f),
+            ("tree_pineRoundC", -3f, 18f, 180f, 6f),
         };
 
         private static readonly string[] Trees =
@@ -354,6 +355,15 @@ namespace PeaHeads.EditorTools
         }
 
         // Grass and bushes inside the play area, kept off paths, spawns, mushrooms and cover. No colliders.
+        // Hand-moved in the editor (2026-10-10): the scattered piece whose transform x/z is `from` moves to `to`.
+        private static readonly (Vector2 from, Vector2 to)[] MovedDecoration =
+        {
+            (new(-6.73f, 11.26f), new(8.1f, -2f)),
+            (new(10.33f, 14.91f), new(19.7f, 13.9f)),
+            (new(11.35f, 16.84f), new(-17.9f, -11f)),
+            (new(-3.41f, -8.59f), new(20f, -3.8f)),
+        };
+
         private static void ScatterDecoration(Transform env, Terrain terrain, List<Vector2> cover, System.Random rng)
         {
             var parent = Group(env, "Decoration");
@@ -369,6 +379,14 @@ namespace PeaHeads.EditorTools
                     continue;
                 Place(model, parent, terrain, p, rot, height, false);
                 placed.Add(p);
+            }
+
+            foreach (var (from, to) in MovedDecoration)
+            {
+                Transform piece = parent.Cast<Transform>().FirstOrDefault(t =>
+                    Vector2.Distance(new Vector2(t.position.x, t.position.z), from) < 0.05f);
+                if (piece) piece.position = new Vector3(to.x, piece.position.y, to.y);
+                else Debug.LogWarning($"[PeaHeads] Moved decoration at {from} not found: the scatter changed.");
             }
         }
 
