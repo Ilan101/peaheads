@@ -63,7 +63,7 @@ Assets/PeaHeads/
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
-│   ├── Match/      AtmosphereController (evening sun/ambient at start; fog + sky tint toward the leading team, lead ÷ target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
+│   ├── Match/      AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog + sky tint toward the leading team, lead ÷ target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── Killcam/    FaceFeed (UDP 5053 → 5 s ring of timestamped face JPEGs), ViewRecorder (capture camera on the player
