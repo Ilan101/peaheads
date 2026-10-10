@@ -1,0 +1,3 @@
+# mediapipe pinned: newer releases drop the mp.solutions API that head_tracker.py uses.
+mediapipe==0.10.21
+opencv-python==4.11.0.86

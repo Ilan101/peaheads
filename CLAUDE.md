@@ -95,7 +95,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 - No timestamp: Unity treats no packet for > 0.5 s the same as `face: false`.
 - CV never touches gameplay. Unity decides what a gesture means given plant state.
 
-Open items for Person 1: no `requirements.txt` yet. (`CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
+Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
 Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (dead zone, lean/vertical gain, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **Keyboard/mouse fallbacks always on**: arrow keys = head offset, LMB = fire, RMB = zoom. Needed for dev without a webcam and as demo backup.
 
@@ -144,4 +144,4 @@ Feature freeze when 1–6 work. Never trade webcam reliability for content.
 - C#: `PascalCase` types/methods, `_camelCase` private fields, `[SerializeField] private` over public fields. One `MonoBehaviour` per file, filename = class.
 - Minimal comments. No debug `Debug.Log` spam left in commits (use a single `[SerializeField] bool debug`).
 - Commits: conventional (`feat:`, `fix:`, ...). Commit `.meta` files with their assets.
-- Python tracker: `head_tracker.py` at repo root. Deps: `mediapipe`, `opencv-python`. Run: `python head_tracker.py` (webcam 0).
+- Python tracker: `head_tracker.py` at repo root. Deps in `requirements.txt` (mediapipe pinned 0.10.21 for `mp.solutions`). Setup once: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Run: `.venv/bin/python head_tracker.py` (webcam 0).
