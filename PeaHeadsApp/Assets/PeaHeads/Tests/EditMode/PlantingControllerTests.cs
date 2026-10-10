@@ -110,5 +110,25 @@ namespace PeaHeads.Tests
             Assert.AreEqual(PlantState.Unplanted, _planting.State);
             Assert.AreEqual(1f, _planting.HeightScale);
         }
+
+        [Test]
+        public void PlantedReachesFullProgressAndPlantedHeight()
+        {
+            Plant();
+
+            Assert.AreEqual(1f, _planting.Progress);
+            Assert.AreEqual(0.8f, _planting.HeightScale, 1e-4f);
+        }
+
+        [Test]
+        public void HeightScaleEasesInDuringPlanting()
+        {
+            _planting.Tick(0f, true);
+            _planting.Tick(0.25f, false);
+
+            Assert.AreEqual(0.25f, _planting.Progress, 1e-4f);
+            // SmoothStep(0.25) = 0.15625 → Lerp(1, 0.8, 0.15625)
+            Assert.AreEqual(0.96875f, _planting.HeightScale, 1e-4f);
+        }
     }
 }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace PeaHeads
 {
@@ -10,14 +11,17 @@ namespace PeaHeads
         [SerializeField, Range(0.1f, 3f)] private float _plantTime = 1f;
         [Tooltip("Seconds to unplant.")]
         [SerializeField, Range(0.1f, 3f)] private float _unplantTime = 1f;
-        [SerializeField] private Transform _visual;
-        [SerializeField, Range(0.3f, 1f)] private float _plantedSquash = 0.8f;
+        [Tooltip("Head rest height multiplier when fully planted.")]
+        [FormerlySerializedAs("_plantedSquash")]
+        [SerializeField, Range(0.3f, 1f)] private float _plantedHeight = 0.8f;
 
         public PlantState State { get; private set; }
         public bool CanMove => State == PlantState.Unplanted;
         public bool CanShoot => State == PlantState.Planted;
-        // Current vertical squash of the body (1 = standing). The head rides down with it.
-        public float HeightScale => Mathf.Lerp(1f, _plantedSquash, _progress);
+        // 0 = unplanted, 1 = planted, linear. Visual components shape it with their own curves.
+        public float Progress => _progress;
+        // Head/camera rest height (1 = standing). Eased, never overshoots, so the camera can't bounce.
+        public float HeightScale => Mathf.Lerp(1f, _plantedHeight, Mathf.SmoothStep(0f, 1f, _progress));
 
         private PlayerInput _input;
         private PlayerHealth _health;
@@ -45,9 +49,7 @@ namespace PeaHeads
             }
 
             float target = State is PlantState.Planting or PlantState.Planted ? 1f : 0f;
-            _progress = Mathf.MoveTowards(_progress, target, deltaTime / (target > 0f ? _plantTime : _unplantTime));
-            if (_visual) _visual.localScale = new Vector3(1f, HeightScale, 1f);
-        }
+            _progress = Mathf.MoveTowards(_progress, target, deltaTime / (target > 0f ? _plantTime : _unplantTime));        }
 
         // Reacts only to new network values, so a stale repeat can't undo a transition finished locally.
         public void ApplyRemote(PlantState state)
@@ -63,7 +65,6 @@ namespace PeaHeads
             State = PlantState.Unplanted;
             _timer = 0f;
             _progress = 0f;
-            if (_visual) _visual.localScale = Vector3.one;
         }
 
         // Presses during a transition are ignored so planting is a real commitment.
