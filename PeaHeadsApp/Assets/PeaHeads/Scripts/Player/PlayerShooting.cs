@@ -73,6 +73,7 @@ namespace PeaHeads
             _hostNextFireTime = Time.time + _cooldown * HostCooldownTolerance;
 
             PeaProjectile pea = Instantiate(_peaPrefab, origin, Quaternion.LookRotation(direction.normalized));
+            pea.SetTeam(MatchManager.TeamOf(OwnerClientId));
             pea.NetworkObject.Spawn(destroyWithScene: true);
             pea.Launch(transform, sweepFrom);
             PlayFireSfxRpc(origin);
