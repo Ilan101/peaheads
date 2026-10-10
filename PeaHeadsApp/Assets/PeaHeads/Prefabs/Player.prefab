@@ -1384,7 +1384,7 @@ MonoBehaviour:
   _peaPrefab: {fileID: 8910985278274626123, guid: d8086ce5b995f6e2c926eddecccb42e9,
     type: 3}
   _mouth: {fileID: 2771974750140794050}
-  _cooldown: 0.1
+  _cooldown: 0.2
   _autoFireInterval: 0.2
   _maxAimDistance: 100
   _fireSfx: {fileID: 8300000, guid: 53d2238f4c4b2aa4f8e559c7af9e0126, type: 3}
@@ -1428,6 +1428,8 @@ MonoBehaviour:
   _damageFlashAlpha: 0.35
   _scopeVignette: 0.8
   _scopeFadeSpeed: 8
+  _scopeCircleSize: 1.4
+  _deathTint: {r: 0.35, g: 0, b: 0, a: 0.6}
 --- !u!114 &6559153631543594811
 MonoBehaviour:
   m_ObjectHideFlags: 0
