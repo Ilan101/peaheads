@@ -20,6 +20,7 @@ namespace PeaHeads.Net
         private PlantingController _planting;
         private PlayerMovement _movement;
         private PlayerHealth _health;
+        private SpawnPoint _lastSpawn;
 
         private void Awake()
         {
@@ -63,18 +64,24 @@ namespace PeaHeads.Net
             _planting.ApplyRemote((PlantState)_plantState.Value);
         }
 
-        private void OnRevived()
+        // Owner only: back to spawn, unplanted. Used on revive and on match restart.
+        public void Respawn()
         {
             if (!IsOwner) return;
             _planting.ResetState();
             MoveToSpawn();
         }
 
-        // Host always spawn 0, any client spawn 1 (a rejoining client gets a new id, so ids can't be used).
+        private void OnRevived() => Respawn();
+
+        // Host spawns on team 0's side, any client on team 1's (a rejoining client gets a new id, so ids can't be
+        // used). Random point each time, never the previous one.
         private void MoveToSpawn()
         {
-            SpawnPoint spawn = SpawnPoint.Get(IsHost ? 0 : 1);
-            if (spawn) _movement.Teleport(spawn.transform.position, spawn.transform.rotation);
+            SpawnPoint spawn = SpawnPoint.GetRandom(IsHost ? 0 : 1, _lastSpawn);
+            if (!spawn) return;
+            _lastSpawn = spawn;
+            _movement.Teleport(spawn.transform.position, spawn.transform.rotation);
         }
     }
 }

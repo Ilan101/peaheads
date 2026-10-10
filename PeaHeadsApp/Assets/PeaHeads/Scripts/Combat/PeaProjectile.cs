@@ -12,6 +12,7 @@ namespace PeaHeads
         [SerializeField, Range(1, 5)] private int _damage = 1;
 
         private Transform _owner;
+        private ulong _attacker;
         private float _despawnTime;
         private bool _done;
 
@@ -22,6 +23,7 @@ namespace PeaHeads
         public void Launch(Transform owner, Vector3 sweepFrom)
         {
             _owner = owner;
+            _attacker = owner.GetComponent<NetworkObject>().OwnerClientId;
             _despawnTime = Time.time + _lifetime;
 
             Vector3 gap = transform.position - sweepFrom;
@@ -54,7 +56,7 @@ namespace PeaHeads
         private void Impact(RaycastHit hit)
         {
             PlayerHealth health = hit.collider.GetComponentInParent<PlayerHealth>();
-            if (health) health.TakeDamage(_damage);
+            if (health) health.TakeDamage(_damage, _attacker);
             Finish();
         }
 

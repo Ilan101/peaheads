@@ -16,6 +16,7 @@ namespace PeaHeads.Net
         private string _address;
         private string _status = "";
         private string _localIps;
+        private bool _dismissed;
 
         private void Start()
         {
@@ -40,11 +41,15 @@ namespace PeaHeads.Net
             var nm = NetworkManager.Singleton;
             if (nm == null) return;
             if (nm.IsHost ? nm.ConnectedClientsIds.Count >= 2 : nm.IsConnectedClient) return;
+            // X'd out while hosting solo; comes back once the session stops.
+            if (!nm.IsClient && !nm.IsServer) _dismissed = false;
+            if (_dismissed) return;
 
             float scale = Mathf.Max(1f, Screen.height / 720f);
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
 
             GUILayout.BeginArea(new Rect(10, 10, 340, 240), GUI.skin.box);
+            if (nm.IsHost && GUI.Button(new Rect(314, 4, 22, 20), "X")) _dismissed = true;
 
             if (!nm.IsClient && !nm.IsServer)
             {
