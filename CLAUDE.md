@@ -140,9 +140,9 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 - Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.6 m lateral, 0.6 m up / 0.9 m down, no roll (raw position only), movement multiplier 5, smoothing 7 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
-- Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
+- Pea: spawns at mouth socket, aimed along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 30 u/s (Pea prefab), diameter 0.4, lifetime 4 s. Flies straight for 5 m (10 m if fired zoomed), then gravity 9.81 pulls it down; all on `PeaProjectile` (Pea prefab). No full auto. Cover colliders block it.
 - Points race: kill = 2, mushroom = 3 (stay planted within 1.5 m of a glowing mushroom for 2 s, brown progress bar; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 10 s. Values on MatchManager / MushroomSpawner.
-- Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
+- Health 3; collecting a mushroom restores 1 heart (capped). Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 
 ## Networking model (NGO)

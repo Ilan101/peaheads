@@ -77,6 +77,7 @@ namespace PeaHeads
                 _activeMask.Value &= ~(1 << spot);
                 _respawnTimes.Add(Time.time + _respawnDelay);
                 _match.AddPoints(team, _match.MushroomPoints);
+                if (player.TryGetComponent(out PlayerHealth health)) health.Heal(1);
                 spot = -1;
             }
 

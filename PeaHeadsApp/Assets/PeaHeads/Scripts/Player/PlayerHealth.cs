@@ -60,6 +60,12 @@ namespace PeaHeads
             if (IsSpawned && IsOwner && _shielded.Value != shielded) _shielded.Value = shielded;
         }
 
+        // Server only. Living players only, capped at max.
+        public void Heal(int amount)
+        {
+            if (IsServer && !IsDead) _current.Value = Mathf.Min(_maxHealth, _current.Value + amount);
+        }
+
         public void ResetHealth()
         {
             if (IsServer) _current.Value = _maxHealth;
