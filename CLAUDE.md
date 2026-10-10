@@ -48,7 +48,10 @@ Assets/PeaHeads/
 ├── Scripts/
 │   ├── PhysicsUtil.cs   CastIgnoring(): closest ray/sphere hit skipping a root (own colliders)
 │   ├── Player/     PlayerInput (ONLY device reader → PlayerInputFrame; SetLocal; SetTrackerInput; cursor lock),
-│   │               PlantingController (Tick(dt, pressed) state machine, ApplyRemote, ResetState),
+│   │               PlantingController (Tick(dt, pressed) state machine, ApplyRemote, ResetState, Progress,
+│   │                 eased HeightScale = head/camera sink),
+│   │               StemBender (visual: capsule chain on a Bezier leaf base → head; replaces Visual/Stem at runtime),
+│   │               PlantVisuals (visual: leaf base root-in/pop-out curves, stays grounded; optional plant puff),
 │   │               PlayerMovement (CharacterController, owner only, Teleport),
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp, zoom; SetLocal, ApplyRemote),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
@@ -62,14 +65,14 @@ Assets/PeaHeads/
 │   └── Net/        ConnectionUI (Ilan; IMGUI host / join-by-IP, port 7777); PlayerNetSync (owner-write head/pitch/
 │                   plant vars, random spawn teleport, Respawn(), host/client tint); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
 └── Scenes/         DemoArena (networked: Host alone = solo + dummies, Host/Join = 2P), NetTest (LAN test), ForestArena (todo)
 ```
 
-Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, Stem; squashed when planted) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
+Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
 Head input = arrow keys in `PlayerInput`; the webcam receiver calls `PlayerInput.SetTrackerInput(head, shoot, aim)` (main thread). Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
 Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
