@@ -538,7 +538,7 @@ MonoBehaviour:
   _peaPrefab: {fileID: 8910985278274626123, guid: d8086ce5b995f6e2c926eddecccb42e9,
     type: 3}
   _mouth: {fileID: 2771974750140794050}
-  _cooldown: 0.4
+  _cooldown: 0.05
   _maxAimDistance: 100
   _fireSfx: {fileID: 8300000, guid: 53d2238f4c4b2aa4f8e559c7af9e0126, type: 3}
 --- !u!114 &1797606706706691487
