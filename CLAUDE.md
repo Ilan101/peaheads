@@ -11,8 +11,8 @@
 | Engine | Unity **6000.3.9f1**, URP, new Input System (`com.unity.inputsystem` 1.18) |
 | Netcode | **Netcode for GameObjects + Unity Transport, direct IP over LAN**. Host-authoritative. Add Unity Relay only if venue Wi-Fi blocks peer connections. |
 | CV | **Python + MediaPipe Face Landmarker**, one process per machine, sends JSON over **UDP localhost**. No video leaves the machine. |
-| Base project | FPS Microgame template already in `PeaHeadsApp/Assets/FPS/`. **Reuse assets selectively, write our code in `Assets/PeaHeads/`.** Do not extend `PlayerCharacterController`/weapon system. |
-| Camera | Third-person over-shoulder, close behind head. Head-tracking = bounded **positional** offset of camera pivot + head bone; mouse = yaw/pitch. Zoom = FOV × 1/1.5. |
+| Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, skybox, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
+| Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Plain light-blue background, no skybox. |
 | Testing | Hackathon override of global rules: **no 80% coverage / strict TDD.** EditMode tests only for pure logic (planting state machine, gesture edge-detection, packet parsing). Everything else verified by playing. |
 
 ## Repo layout
@@ -31,19 +31,23 @@ Unity editor: `~/Unity/Hub/Editor/6000.3.9f1/Editor/Unity`. Batchmode compile/te
 ## Code layout (Unity)
 
 ```
-Assets/PeaHeads/
-├── PeaHeads.asmdef            refs: Unity.InputSystem, Unity.Netcode.Runtime, Unity.Collections
+Assets/PeaHeads/                (no asmdef yet: Assembly-CSharp; add one when tests need it)
 ├── Scripts/
-│   ├── Tracking/   FaceTrackingData.cs, WebcamInputReceiver.cs, GestureController.cs
-│   ├── Player/     PlayerMovement.cs, PlantingController.cs, HeadMovementController.cs,
-│   │               PlayerCameraRig.cs, PlayerShooting.cs, PlayerHealth.cs
-│   ├── Combat/     PeaProjectile.cs
-│   ├── Net/        MatchManager.cs, ConnectionUI.cs
-│   └── UI/         PlayerHUD.cs (health, planted state, tracking dot, crosshair)
-├── Prefabs/        Player.prefab, Pea.prefab
-├── Scenes/         ForestArena.unity (single scene; menu = overlay canvas)
-└── Tests/EditMode/ PeaHeads.Tests.asmdef
+│   ├── PhysicsUtil.cs   CastIgnoring(): closest ray/sphere hit skipping a root (own colliders)
+│   ├── Player/     PlantingController (state machine, E), PlayerMovement (CharacterController, WASD),
+│   │               PlayerCameraRig (first person: mouse yaw/pitch, head offset + wall clamp, zoom),
+│   │               PlayerShooting (TryFire(): planted + cooldown, aim at crosshair, launch from mouth),
+│   │               PlayerHealth (3 HP, flash, Died event, optional respawn for dummies)
+│   ├── Combat/     PeaProjectile (sphere-sweep per frame, no Rigidbody; Launch() sweeps head→mouth first)
+│   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair)
+│   ├── Tracking/   (todo) WebcamInputReceiver, GestureController
+│   └── Net/        (todo) MatchManager, ConnectionUI
+├── Prefabs/        Player, Pea, TargetDummy, VFX/   (hand-edited assets; builder script was removed)
+└── Scenes/         DemoArena.unity (sandbox), ForestArena.unity (todo, Person 3)
 ```
+
+Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, Stem; squashed when planted) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
+Head input currently = arrow keys in `PlayerCameraRig` (marked `ponytail:`); tracker replaces that target.
 
 Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
@@ -107,6 +111,5 @@ Feature freeze when 1–6 work. Never trade webcam reliability for content.
 
 - C#: `PascalCase` types/methods, `_camelCase` private fields, `[SerializeField] private` over public fields. One `MonoBehaviour` per file, filename = class.
 - Minimal comments. No debug `Debug.Log` spam left in commits (use a single `[SerializeField] bool debug`).
-- Don't edit `Assets/FPS/` scripts; copy what you need into `Assets/PeaHeads/`.
 - Commits: conventional (`feat:`, `fix:`, ...). Commit `.meta` files with their assets.
 - Python tracker: single `tracker/tracker.py` + `requirements.txt` (`mediapipe`, `opencv-python`). Run: `python tracker/tracker.py --cam 0`.
