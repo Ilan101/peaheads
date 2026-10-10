@@ -34,6 +34,7 @@ namespace PeaHeads
         public int TargetScore => _targetScore;
         public int MushroomPoints => _mushroomPoints;
         public int KillPoints => _killPoints;
+        public float MatchDuration => _matchDuration;
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
         // -1 with IsEnded = draw.
         public int Winner => _winner.Value;

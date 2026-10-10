@@ -106,13 +106,13 @@ Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine
 
 ## Story (StoryIntro)
 
-The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot is killing them. One pod drops two PeaHeads: BLOOM drank the light, BLIGHT drank the Rot. Planting = rooting to draw power (why you can only spit while planted); the free neck = head-tracking dodge. Sporelight +1, knockout +3, first to 20 decides the Grove. Text lives in `StoryIntro.BuildSlides` and `Faction`.
+The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot is killing them. One pod drops two PeaHeads: BLOOM drank the light, BLIGHT drank the Rot. Planting = rooting to draw power (why you can only spit while planted); the free neck = head-tracking dodge. Sporelight +1, knockout +3, first to 20 (or most points when the clock runs out) decides the Grove; a draw leaves it in the balance. Text lives in `StoryIntro.BuildSlides` and `Faction`.
 
 ## Gameplay rules to enforce in code
 
 - States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
-- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.1 m lateral, 0.35 m up / 0.6 m down, 10° roll at full lean, lean gain 3.5 (Player prefab).
+- Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.0 m lateral, 0.5 m up / 0.75 m down, 10° roll at full lean, movement multiplier 4.2, smoothing 5 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.

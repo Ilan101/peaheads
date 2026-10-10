@@ -79,7 +79,7 @@ namespace PeaHeads
             if (!_canvas) Build();
             _onDone = onDone;
             _slides = BuildSlides(team, match ? match.TargetScore : 20, match ? match.MushroomPoints : 1,
-                match ? match.KillPoints : 3);
+                match ? match.KillPoints : 3, match ? Mathf.RoundToInt(match.MatchDuration) : 120);
             _canvas.SetActive(true);
             _content.alpha = 0f;
             _background.color = _slides[0].Background;
@@ -179,7 +179,7 @@ namespace PeaHeads
 
         // ---------- Story ----------
 
-        private Slide[] BuildSlides(int team, int target, int mushroomPoints, int killPoints)
+        private Slide[] BuildSlides(int team, int target, int mushroomPoints, int killPoints, int seconds)
         {
             Color mine = Faction.Color(team);
             Color rival = Faction.Color(1 - team);
@@ -229,7 +229,8 @@ namespace PeaHeads
                 {
                     Title = "CLAIM THE GROVE",
                     Body = $"Plant beside a glowing Sporelight to drink its essence: +{mushroomPoints}. Knock out your " +
-                           $"rival with peas: +{killPoints}. First to {target} decides the fate of the Grove.",
+                           $"rival with peas: +{killPoints}. First to {target} wins; if the {seconds}-second clock runs out, " +
+                           "the most points decides the fate of the Grove.",
                     TitleColor = Gold, Background = new Color(0.07f, 0.1f, 0.13f), Spore = Gold,
                     Draw = art => DrawClaim(art, mine, rival, mushroomPoints, killPoints),
                 },
