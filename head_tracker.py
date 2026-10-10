@@ -1,4 +1,4 @@
-import cv2, socket, json, math
+import cv2, socket, json, math, sys
 import mediapipe as mp
 
 UDP_ADDR = ("127.0.0.1", 5052)
@@ -11,7 +11,7 @@ AIM_FRAMES = 3           # frames a wink must hold before aim = True
 SHOOT_FRAMES = 2         # frames mouth must stay open before shoot = True
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(0)  # DSHOW is Windows-only
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
