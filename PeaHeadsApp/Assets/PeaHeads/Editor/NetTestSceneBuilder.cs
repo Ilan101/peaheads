@@ -126,7 +126,8 @@ namespace PeaHeads.EditorTools
             nm.NetworkConfig.PlayerPrefab = playerPrefab;
             if (!nm.NetworkConfig.Prefabs.NetworkPrefabsLists.Contains(prefabList))
                 nm.NetworkConfig.Prefabs.NetworkPrefabsLists.Add(prefabList);
-            nmGo.AddComponent<ConnectionUI>();
+            nmGo.AddComponent<SessionController>();
+            nmGo.AddComponent<GameMenu>();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
         }

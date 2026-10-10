@@ -28,6 +28,8 @@ namespace PeaHeads
         public PlayerInputFrame Current { get; private set; }
         // Set by MatchManager while a match has ended: input reads as nothing.
         public bool Frozen { get; set; }
+        // Set by GameMenu while the pause menu is open: input reads as nothing and the menu owns the cursor.
+        public bool Paused { get; set; }
 
         private Vector2 _trackerHead;
         private bool _trackerAim;
@@ -76,9 +78,15 @@ namespace PeaHeads
                 return;
             }
 
+            if (Paused)
+            {
+                Current = default;
+                _trackerFirePending = false;
+                return;
+            }
+
             bool click = mouse.leftButton.wasPressedThisFrame;
-            if (kb.escapeKey.wasPressedThisFrame) SetCursorLocked(false);
-            else if (click && Cursor.lockState != CursorLockMode.Locked)
+            if (click && Cursor.lockState != CursorLockMode.Locked)
             {
                 SetCursorLocked(true);
                 click = false;

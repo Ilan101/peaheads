@@ -72,6 +72,14 @@ namespace PeaHeads
             if (team != TeamOf(victim.OwnerClientId)) AddPoints(team, _killPoints);
         }
 
+        // Host's menu button. Also cancels the automatic restart if the match had already ended.
+        public void RestartNow()
+        {
+            if (!IsServer || !IsSpawned) return;
+            CancelInvoke(nameof(Restart));
+            Restart();
+        }
+
         private void Restart()
         {
             if (!IsSpawned) return;
