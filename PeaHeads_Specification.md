@@ -90,10 +90,10 @@ The game uses a combination of keyboard, mouse, and webcam input.
 | `S` | Move backward |
 | `D` | Move right |
 | Mouse movement | Aim and adjust the normal viewing direction |
-| `E` (suggested default) | Plant/unplant |
+| `Space` | Plant/unplant |
 | `Esc` | Pause or open the menu |
 
-The team should choose one planting key and use it consistently. `E` is the suggested default, but the implementation can use `Space` if that feels better.
+The planting key is `Space` (changed from the originally suggested `E` on 2026-10-10).
 
 ### Webcam controls
 

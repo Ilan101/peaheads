@@ -180,7 +180,9 @@ namespace PeaHeads
             _clock.color = warning ? Bad : Color.white;
             _clock.rectTransform.localScale = Vector3.one * (warning ? 1f + 0.12f * Mathf.Abs(Mathf.Sin(now * Mathf.PI)) : 1f);
             _clockRing.color = warning ? UiBuild.WithAlpha(Bad, 0.9f) : new Color(1f, 1f, 1f, 0.25f);
-            _clockSub.text = waiting ? "WAITING" : $"FIRST TO {_match.TargetScore}";
+            // Just the timer; "WAITING" only while the clock waits for the intro story.
+            _clockSub.text = waiting ? "WAITING" : "";
+            _clock.rectTransform.anchoredPosition = new Vector2(0f, waiting ? 7f : 0f);
             _clockSub.color = waiting ? UiBuild.WithAlpha(Warn, 0.7f + 0.3f * Mathf.Sin(now * 5f)) : Dim;
 
             // Rival still in the intro story (can't be hit yet): pulsing shield beside their bar.

@@ -4,17 +4,17 @@ using UnityEngine.UI;
 
 namespace PeaHeads
 {
-    // Local player's HUD (uGUI, built in code): webcam panel top-left; bottom-left team badge (flower / thorn), plant
-    // dial (sprout + ring of dots that fills while planting) with a status line, and hearts; crosshair with cooldown
-    // ring and hit marker (all red on a kill); round scope view while zoomed; damage / low-health vignette; "spat
+    // Local player's HUD (uGUI, built in code): small transparent head-position box top-left (red camera icon without
+    // webcam); bottom-left team badge (flower / thorn), plant dial (sprout + ring of dots that fills while planting)
+    // with a status word, and hearts; crosshair with hit marker (all red on a kill); round scope view while zoomed; damage / low-health vignette; "spat
     // out" death screen; kill toast and feedback sounds. Owner only (PlayerInput's local-only behaviours); hidden
     // during the story. While scoped in, everything but the crosshair hides (ScoreHUD and Minimap read Scoped).
     public class PlayerHUD : MonoBehaviour
     {
         private const float Margin = 20f;
+        private const float TrackerMargin = 6f; // head tracker sits tight in the top-left corner
         private const float IconSize = 53f;
         private const int PlantDots = 12;
-        private const int TrailLength = 6;
         private static readonly Vector2 TopLeft = new(0f, 1f);
         private static readonly Vector2 TopRight = new(1f, 1f);
         private static readonly Vector2 BottomLeft = new(0f, 0f);
@@ -22,14 +22,11 @@ namespace PeaHeads
         private static readonly Vector2 Centre = new(0.5f, 0.5f);
         private static readonly Vector2 MidLeft = new(0f, 0.5f);
         private static readonly Vector2 MidRight = new(1f, 0.5f);
-        private static readonly Color Live = new(0.45f, 0.95f, 0.5f);
         private static readonly Color PlantGreen = new(0.5f, 0.9f, 0.35f);
         private static readonly Color Warn = new(1f, 0.78f, 0.3f);
         private static readonly Color Bad = new(1f, 0.36f, 0.32f);
         private static readonly Color Dim = new(1f, 1f, 1f, 0.6f);
-        private static readonly Color Ink = new(0.06f, 0.08f, 0.06f);
         private static readonly Color HeartRed = new(0.92f, 0.17f, 0.24f);
-        private static readonly Color ChipOff = new(1f, 1f, 1f, 0.1f);
 
         [SerializeField, Range(16f, 96f)] private float _heartSize = 48f;
         [Tooltip("Webcam view width; height follows the tracker's 16:9 rectangle.")]
@@ -65,28 +62,23 @@ namespace PeaHeads
         private bool _markerKill;
         private float _blockedAt = float.NegativeInfinity;
         private float _toastAt = float.NegativeInfinity;
-        private float _mouthAt = float.NegativeInfinity, _winkAt = float.NegativeInfinity;
-        private bool _mouthWas, _winkWas;
-        private float _nextTrail;
         private float[] _heartLostAt = new float[0];
-        private readonly Vector2[] _trail = new Vector2[TrailLength];
 
         private RectTransform _canvas;
         private RectTransform _scopeCircle, _scopeLeft, _scopeRight;
         private Image _scopeImage, _scopeLeftImage, _scopeRightImage;
         private Image _damageVignette;
-        private Outline _trackerOutline;
-        private Image _trackerPanel, _statusPill, _dot, _dotGlow, _mouthChip, _winkChip;
-        private Text _statusText, _boxMessage, _mouthText, _winkText;
-        private readonly Image[] _trailDots = new Image[TrailLength];
+        private RectTransform _tracker;
+        private Image _trackerBox, _dot, _cameraOff;
+        private Text _calibrateText;
         private Vector2 _boxHalf;
         private RectTransform _status;
         private Image _badge, _sprout;
         private readonly Image[] _plantDots = new Image[PlantDots];
-        private Text _stateText, _hintText;
+        private Text _stateText;
         private Image[] _hearts = new Image[0];
         private RectTransform _crosshair;
-        private Image _ring, _cooldown, _centerDot, _marker;
+        private Image _ring, _centerDot, _marker;
         private Text _blockedText;
         private CanvasGroup _death;
         private Image _deathImage;
@@ -155,12 +147,12 @@ namespace PeaHeads
 
             Color faction = Faction.Color(Team);
             bool status = !Scoped && !dead;
-            _trackerPanel.gameObject.SetActive(status);
+            _tracker.gameObject.SetActive(status);
             _status.gameObject.SetActive(status);
             _crosshair.gameObject.SetActive(!dead);
             if (status)
             {
-                UpdateTracker(faction);
+                UpdateTracker();
                 UpdateStatus();
             }
             if (!dead) UpdateCrosshair(faction);
@@ -188,63 +180,15 @@ namespace PeaHeads
 
         // ---------- Webcam panel ----------
 
-        private void UpdateTracker(Color faction)
+        // Box + dot while the webcam tracks; otherwise just a red camera in the corner (keyboard fallback).
+        private void UpdateTracker()
         {
-            TrackingState state = _tracking ? _tracking.State : TrackingState.Off;
-            bool live = state == TrackingState.Tracking;
-            float pulse = 0.7f + 0.3f * Mathf.Sin(Time.time * 6f);
-            (string label, Color color) = state switch
-            {
-                TrackingState.Tracking => ("LIVE", Live),
-                TrackingState.NoFace => ("NO FACE", Warn),
-                _ => ("OFF", Bad),
-            };
-            _statusText.text = label;
-            _statusPill.color = live ? color : UiBuild.WithAlpha(color, pulse);
-            _trackerOutline.effectColor = UiBuild.WithAlpha(live ? faction : color, 0.55f);
-
-            Vector2 head = live ? _tracking.Head : Vector2.zero;
-            Vector2 pos = Vector2.Scale(head, _boxHalf);
-            if (Time.time >= _nextTrail)
-            {
-                _nextTrail = Time.time + 1f / 30f;
-                for (int i = TrailLength - 1; i > 0; i--) _trail[i] = _trail[i - 1];
-                _trail[0] = pos;
-            }
-            _dot.enabled = _dotGlow.enabled = live;
-            _dot.rectTransform.anchoredPosition = _dotGlow.rectTransform.anchoredPosition = pos;
-            _dot.color = faction;
-            _dotGlow.color = UiBuild.WithAlpha(faction, 0.55f);
-            for (int i = 0; i < TrailLength; i++)
-            {
-                _trailDots[i].enabled = live;
-                _trailDots[i].rectTransform.anchoredPosition = _trail[i];
-                _trailDots[i].color = UiBuild.WithAlpha(faction, 0.35f * (1f - (i + 1f) / (TrailLength + 1f)));
-            }
-            _boxMessage.text = state switch
-            {
-                TrackingState.NoFace => "Look at the camera",
-                TrackingState.Off => "Start head_tracker.py\nto lean and dodge",
-                _ => "",
-            };
-            _boxMessage.color = UiBuild.WithAlpha(color, pulse);
-
-            HeadTrackingReceiver tracker = HeadTrackingReceiver.Instance;
-            bool mouth = live && tracker && tracker.Shoot;
-            bool wink = live && tracker && tracker.Aim;
-            if (mouth && !_mouthWas) _mouthAt = Time.time;
-            if (wink && !_winkWas) _winkAt = Time.time;
-            _mouthWas = mouth;
-            _winkWas = wink;
-            SetChip(_mouthChip, _mouthText, mouth, _mouthAt);
-            SetChip(_winkChip, _winkText, wink, _winkAt);
-        }
-
-        private static void SetChip(Image chip, Text text, bool on, float since)
-        {
-            chip.color = on ? Live : ChipOff;
-            text.color = on ? Ink : Dim;
-            chip.rectTransform.localScale = Vector3.one * (on ? UiBuild.Pop(Time.time - since, 0.2f, 0.25f) : 1f);
+            bool live = _tracking && _tracking.State == TrackingState.Tracking;
+            _trackerBox.enabled = live;
+            _dot.enabled = live;
+            _calibrateText.enabled = live;
+            _cameraOff.enabled = !live;
+            if (live) _dot.rectTransform.anchoredPosition = Vector2.Scale(_tracking.Head, _boxHalf);
         }
 
         // ---------- Bottom-left: badge, plant dial, status line, hearts ----------
@@ -263,12 +207,10 @@ namespace PeaHeads
 
             switch (_planting.State)
             {
-                case PlantState.Unplanted: SetState("UPROOTED", Color.white, "WASD move  ·  E plant"); break;
-                case PlantState.Planting: SetState("PLANTING…", Warn, "Digging in your roots"); break;
-                case PlantState.Planted:
-                    SetState(ready ? "READY TO SPIT" : "RELOADING", ready ? PlantGreen : Dim, "Open mouth / click  ·  E uproot");
-                    break;
-                case PlantState.Unplanting: SetState("UPROOTING…", Warn, "Pulling your roots out"); break;
+                case PlantState.Unplanted: SetState("UPROOTED", Color.white); break;
+                case PlantState.Planting: SetState("PLANTING…", Warn); break;
+                case PlantState.Planted: SetState(ready ? "READY TO SPIT" : "RELOADING", ready ? PlantGreen : Dim); break;
+                case PlantState.Unplanting: SetState("UPROOTING…", Warn); break;
             }
 
             int hp = _health.Current;
@@ -286,11 +228,10 @@ namespace PeaHeads
             _status.anchoredPosition = new Vector2(Margin, Margin) + Random.insideUnitCircle * (6f * shake);
         }
 
-        private void SetState(string state, Color color, string hint)
+        private void SetState(string state, Color color)
         {
             _stateText.text = state;
             _stateText.color = color;
-            _hintText.text = hint;
         }
 
         // ---------- Crosshair ----------
@@ -298,17 +239,13 @@ namespace PeaHeads
         private void UpdateCrosshair(Color faction)
         {
             bool canShoot = _planting.CanShoot;
-            float cooldown = _shooting ? _shooting.CooldownProgress : 1f;
             float marker = Time.time - _markerAt;
             bool showMarker = marker < _hitMarkerTime;
             bool killRed = showMarker && _markerKill;
             _crosshair.localScale = Vector3.one * Mathf.Lerp(_crosshair.localScale.x, _rig.IsZoomed ? 1.3f : 1f,
                 1f - Mathf.Exp(-14f * Time.deltaTime));
             _ring.color = killRed ? Bad : canShoot ? new Color(1f, 1f, 1f, 0.95f) : new Color(1f, 1f, 1f, 0.35f);
-            _centerDot.color = killRed ? Bad : canShoot && cooldown >= 1f ? faction : new Color(1f, 1f, 1f, 0.5f);
-            _cooldown.enabled = canShoot && cooldown < 1f;
-            _cooldown.fillAmount = cooldown;
-            _cooldown.color = faction;
+            _centerDot.color = killRed ? Bad : canShoot ? faction : new Color(1f, 1f, 1f, 0.5f);
 
             _marker.enabled = showMarker;
             if (showMarker)
@@ -335,7 +272,8 @@ namespace PeaHeads
             float side = screen.height * _scopeCircleSize;
             float strip = Mathf.Max(0f, (screen.width - side) * 0.5f);
             _scopeCircle.sizeDelta = new Vector2(side, side);
-            _scopeLeft.sizeDelta = _scopeRight.sizeDelta = new Vector2(strip + 2f, 0f);
+            // Exactly abutting: any overlap doubles the alpha into dark vertical lines.
+            _scopeLeft.sizeDelta = _scopeRight.sizeDelta = new Vector2(strip, 0f);
             float scope = dead ? 0f : _scope * _scopeVignette;
             _scopeImage.color = _scopeLeftImage.color = _scopeRightImage.color = new Color(0f, 0f, 0f, scope);
             _scopeImage.enabled = _scopeLeftImage.enabled = _scopeRightImage.enabled = scope > 0f;
@@ -419,40 +357,23 @@ namespace PeaHeads
             return image;
         }
 
+        // Transparent box tucked top-left: centre lines + a dot where the webcam puts your head. Red camera instead
+        // when the webcam isn't tracking.
         private void BuildTracker()
         {
             float boxHeight = _trackerWidth * 9f / 16f;
-            _boxHalf = new Vector2(_trackerWidth * 0.5f - 9f, boxHeight * 0.5f - 9f);
-            _trackerPanel = UiBuild.Panel(_canvas, TopLeft, new Vector2(16f, -16f),
-                new Vector2(_trackerWidth + 20f, boxHeight + 72f), UiBuild.Glass);
-            _trackerOutline = UiBuild.Outline(_trackerPanel, Color.clear);
-            Transform panel = _trackerPanel.transform;
-            UiBuild.Label(panel, "HEAD TRACKING", 12, Dim, TextAnchor.MiddleLeft, TopLeft, new Vector2(10f, -6f),
-                new Vector2(160f, 20f));
-            _statusPill = UiBuild.Panel(panel, TopRight, new Vector2(-10f, -6f), new Vector2(84f, 20f), Live, 0.6f);
-            _statusText = UiBuild.Label(_statusPill.transform, "", 11, Ink, TextAnchor.MiddleCenter, Centre, Vector2.zero,
-                new Vector2(84f, 20f), FontStyle.Bold, false);
-
-            Image box = UiBuild.Panel(panel, TopLeft, new Vector2(10f, -30f), new Vector2(_trackerWidth, boxHeight),
-                new Color(0f, 0f, 0f, 0.4f), 0.6f);
-            UiBuild.Image(box.transform, null, Vector2.zero, new Vector2(1f, boxHeight - 10f), new Color(1f, 1f, 1f, 0.12f));
-            UiBuild.Image(box.transform, null, Vector2.zero, new Vector2(_trackerWidth - 10f, 1f), new Color(1f, 1f, 1f, 0.12f));
-            for (int i = TrailLength - 1; i >= 0; i--)
-                _trailDots[i] = UiBuild.Image(box.transform, UiBuild.Circle, Vector2.zero, new Vector2(9f, 9f), Color.clear);
-            _dotGlow = UiBuild.Image(box.transform, UiBuild.Glow, Vector2.zero, new Vector2(40f, 40f), Color.clear);
-            _dot = UiBuild.Image(box.transform, UiBuild.Circle, Vector2.zero, new Vector2(15f, 15f), Color.white);
-            UiBuild.Outline(_dot, new Color(1f, 1f, 1f, 0.9f), 1.2f);
-            _boxMessage = UiBuild.Label(box.transform, "", 15, Warn, TextAnchor.MiddleCenter, Centre, Vector2.zero,
-                new Vector2(_trackerWidth, 44f));
-
-            _mouthChip = UiBuild.Panel(panel, BottomLeft, new Vector2(10f, 10f), new Vector2(98f, 24f), ChipOff, 0.7f);
-            _mouthText = UiBuild.Label(_mouthChip.transform, "MOUTH · SPIT", 11, Dim, TextAnchor.MiddleCenter, Centre,
-                Vector2.zero, new Vector2(98f, 24f), FontStyle.Bold, false);
-            _winkChip = UiBuild.Panel(panel, BottomLeft, new Vector2(114f, 10f), new Vector2(98f, 24f), ChipOff, 0.7f);
-            _winkText = UiBuild.Label(_winkChip.transform, "WINK · ZOOM", 11, Dim, TextAnchor.MiddleCenter, Centre,
-                Vector2.zero, new Vector2(98f, 24f), FontStyle.Bold, false);
-            UiBuild.Label(panel, "C recenter", 11, Dim, TextAnchor.MiddleRight, BottomRight, new Vector2(-10f, 10f),
-                new Vector2(80f, 24f), FontStyle.Normal);
+            _boxHalf = new Vector2(_trackerWidth * 0.5f - 5f, boxHeight * 0.5f - 5f);
+            const float labelHeight = 22f;
+            _tracker = UiBuild.Node(_canvas, "Tracker", TopLeft, new Vector2(TrackerMargin, -TrackerMargin),
+                new Vector2(_trackerWidth, boxHeight + labelHeight));
+            _calibrateText = UiBuild.Label(_tracker, "Press C to Calibrate", 17, Color.white, TextAnchor.MiddleLeft, TopLeft,
+                Vector2.zero, new Vector2(_trackerWidth, labelHeight));
+            _trackerBox = UiBuild.Image(_tracker, null, TopLeft, new Vector2(0f, -labelHeight),
+                new Vector2(_trackerWidth, boxHeight), new Color(0f, 0f, 0f, 0.35f));
+            UiBuild.Image(_trackerBox.transform, null, Vector2.zero, new Vector2(1f, boxHeight), new Color(1f, 1f, 1f, 0.25f));
+            UiBuild.Image(_trackerBox.transform, null, Vector2.zero, new Vector2(_trackerWidth, 1f), new Color(1f, 1f, 1f, 0.25f));
+            _dot = UiBuild.Image(_trackerBox.transform, UiBuild.Circle, Vector2.zero, new Vector2(10f, 10f), Color.white);
+            _cameraOff = UiBuild.Image(_tracker, UiSprites.Camera(), TopLeft, Vector2.zero, new Vector2(IconSize, IconSize), Bad);
         }
 
         // No panel: icons and hearts sit straight on the scene, with shadows for contrast.
@@ -482,9 +403,7 @@ namespace PeaHeads
             float textX = IconSize * 2f + 24f;
             _stateText = UiBuild.Label(_status, "", 17, Color.white, TextAnchor.MiddleLeft, BottomLeft,
                 new Vector2(textX, iconsY + IconSize * 0.5f), new Vector2(240f, 22f));
-            _stateText.rectTransform.pivot = new Vector2(0f, 0f);
-            _hintText = UiBuild.Label(_status, "", 12, Dim, TextAnchor.MiddleLeft, BottomLeft,
-                new Vector2(textX, iconsY + IconSize * 0.5f - 18f), new Vector2(240f, 16f), FontStyle.Normal);
+            _stateText.rectTransform.pivot = new Vector2(0f, 0.5f); // vertically centred on the icons
 
             _hearts = new Image[count];
             _heartLostAt = new float[count];
@@ -503,15 +422,10 @@ namespace PeaHeads
             _crosshair = UiBuild.Node(_canvas, "Crosshair", Vector2.zero, size);
             _ring = UiBuild.Image(_crosshair, UiBuild.Ring, Vector2.zero, size, Color.white);
             UiBuild.Outline(_ring, new Color(0f, 0f, 0f, 0.35f), 1f);
-            _cooldown = UiBuild.Image(_crosshair, UiBuild.Ring, Vector2.zero, size * 1.35f, Color.white);
-            _cooldown.type = Image.Type.Filled;
-            _cooldown.fillMethod = Image.FillMethod.Radial360;
-            _cooldown.fillOrigin = (int)Image.Origin360.Top;
-            _cooldown.fillClockwise = true;
             _centerDot = UiBuild.Image(_crosshair, UiBuild.Circle, Vector2.zero, new Vector2(4f, 4f), Color.white);
             _marker = UiBuild.Image(_crosshair, UiBuild.Cross, Vector2.zero, size * 1.8f, Color.white);
             _marker.enabled = false;
-            _blockedText = UiBuild.Label(_canvas, "Plant first!  Press E", 17, Warn, TextAnchor.MiddleCenter, Centre,
+            _blockedText = UiBuild.Label(_canvas, "Plant first!  Press Space", 17, Warn, TextAnchor.MiddleCenter, Centre,
                 new Vector2(0f, -46f), new Vector2(400f, 26f));
             _blockedText.enabled = false;
         }

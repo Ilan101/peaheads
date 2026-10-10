@@ -133,7 +133,7 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 
 ## Gameplay rules to enforce in code
 
-- States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `E`. Defeated respawns after 3 s at a random spawn point on the player's side.
+- States: `Unplanted → Planting (1.0 s) → Planted → Unplanting (1.0 s) → Unplanted`. Key `Space` (was E). Defeated respawns after 3 s at a random spawn point on the player's side.
 - WASD only in `Unplanted`. Shooting only in `Planted`. Unplanting disables fire immediately.
 - Head tracking never moves the base/root. It moves head bone + camera pivot offset. Deliberately exaggerated so dodging is easy: max 1.6 m lateral, 0.6 m up / 0.9 m down, no roll (raw position only), movement multiplier 5, smoothing 7 (Player prefab).
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.

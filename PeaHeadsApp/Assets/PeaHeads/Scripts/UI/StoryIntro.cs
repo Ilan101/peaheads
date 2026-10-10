@@ -235,8 +235,8 @@ namespace PeaHeads
                 new Slide
                 {
                     Title = "PLANT TO FIGHT",
-                    Body = "A PeaHead can walk or fight, never both. Press E to plant your roots: only a planted " +
-                           "PeaHead can spit peas. Press E again to uproot and run.",
+                    Body = "A PeaHead can walk or fight, never both. Press Space to plant your roots: only a planted " +
+                           "PeaHead can spit peas. Press Space again to uproot and run.",
                     TitleColor = mine, Background = new Color(0.06f, 0.12f, 0.08f), Spore = mine,
                     Draw = art => DrawPlanting(art, mine),
                 },
@@ -366,7 +366,7 @@ namespace PeaHeads
                 spit.gameObject.SetActive(firing);
                 spit.anchoredPosition = mouth + new Vector2(shot * 700f, 0f);
 
-                caption.text = p < 1.6f ? "WASD: walk" : p < 2.7f ? "E: plant your roots" : "Planted: spit peas!";
+                caption.text = p < 1.6f ? "WASD: walk" : p < 2.7f ? "Space: plant your roots" : "Planted: spit peas!";
                 caption.color = Color.Lerp(Color.white, color, 0.4f);
             };
         }

@@ -109,7 +109,7 @@ namespace PeaHeads
                 Move = new Vector2(Axis(kb.aKey, kb.dKey), Axis(kb.sKey, kb.wKey)),
                 Look = locked ? mouse.delta.ReadValue() * _mouseSensitivity : Vector2.zero,
                 Head = trackerFresh ? _trackerHead : Vector2.zero,
-                PlantPressed = kb.eKey.wasPressedThisFrame,
+                PlantPressed = kb.spaceKey.wasPressedThisFrame,
                 FirePressed = locked && (click || _trackerFirePending),
                 ZoomHeld = locked && (mouse.rightButton.isPressed || (trackerFresh && _trackerAim)),
                 MouthOpen = locked && (mouse.leftButton.isPressed || (trackerFresh && _trackerShootPrevious)),
