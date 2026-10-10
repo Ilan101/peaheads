@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
+using PeaHeads.Net;
+using Unity.Netcode;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -7,8 +10,9 @@ using UnityEngine.SceneManagement;
 
 namespace PeaHeads.EditorTools
 {
-    // Rebuilds DemoArena's Environment root: terrain, cover, tree ring, decoration, lighting.
-    // Re-running overwrites hand edits under Environment; nothing else in the scene is created or deleted.
+    // Rebuilds DemoArena's Environment root: terrain, cover, mushroom spots, spawn points, tree ring, decoration,
+    // lighting. Re-running overwrites hand edits under Environment. The root Match object and the MushroomPickup
+    // prefab are created only if missing; nothing else outside Environment is touched.
     public static class ArenaBuilder
     {
         private const string ScenePath = "Assets/PeaHeads/Scenes/DemoArena.unity";
@@ -80,8 +84,24 @@ namespace PeaHeads.EditorTools
         {
             ("grass_large", 0.5f, 0.8f), ("grass_leafsLarge", 0.5f, 0.8f),
             ("plant_bushLarge", 0.9f, 1.4f), ("plant_bushDetailed", 0.9f, 1.4f),
-            ("mushroom_redGroup", 0.4f, 0.6f), ("mushroom_tanGroup", 0.4f, 0.6f),
+            // No mushrooms here: they would look like pickups.
         };
+
+        private const string PickupPrefabPath = "Assets/PeaHeads/Prefabs/MushroomPickup.prefab";
+        private const string ParticlesMaterialPath =
+            "Packages/com.unity.render-pipelines.universal/Runtime/Materials/ParticlesUnlit.mat";
+        private const string SfxDir = "Assets/PeaHeads/Audio/SFX/UI/";
+
+        // Mushroom pickup spots, clear of cover footprints (>= 1.5 m), spawns and dummies. Mostly mirrored pairs;
+        // (-4, 2) replaces (-7.5, 6.5), which the hand-placed oak covers.
+        private static readonly Vector2[] MushroomSpots =
+        {
+            new(-2.5f, -4.5f), new(2.5f, 4.5f), new(7.5f, -6.5f), new(-4f, 2f), new(-10f, -8.5f),
+            new(10f, 8.5f), new(16f, 0f), new(-16f, 0f), new(-15f, 6f), new(15f, -6f),
+        };
+
+        // Extra team-0 spawn points (team 1 mirrored, facing -z). The scene's root SpawnPoint_0/1 stay too.
+        private static readonly Vector2[] ExtraSpawns = { new(-8f, -13f), new(12f, -14f), new(-17.5f, -10.5f) };
 
         [MenuItem("PeaHeads/Build Arena")]
         public static void Build()
@@ -93,11 +113,14 @@ namespace PeaHeads.EditorTools
             var env = ResetEnvironment(scene);
             var terrain = BuildTerrain(env);
             var rng = new System.Random(Seed);
-            var cover = PlaceCover(env, terrain);
+            var blocked = PlaceCover(env, terrain);
+            blocked.AddRange(PlaceMushrooms(env, terrain));
+            blocked.AddRange(PlaceSpawnPoints(env));
             BuildBoundary(env);
             PlaceTreeRing(env, terrain, rng);
-            ScatterDecoration(env, terrain, cover, rng);
+            ScatterDecoration(env, terrain, blocked, rng);
             ApplyRenderSettings();
+            EnsureMatchObject(scene);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -130,6 +153,155 @@ namespace PeaHeads.EditorTools
                 placed.Add(new Vector2(x, z));
             }
             return placed;
+        }
+
+        private static List<Vector2> PlaceMushrooms(Transform env, Terrain terrain)
+        {
+            var prefab = EnsurePickupPrefab();
+            var parent = Group(env, "Mushrooms");
+            var placed = new List<Vector2>();
+            foreach (Vector2 xz in MushroomSpots)
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+                go.name = $"Mushroom_{placed.Count}";
+                var ground = new Vector3(xz.x, 0f, xz.y);
+                ground.y = terrain.SampleHeight(ground) + terrain.transform.position.y;
+                go.transform.position = ground;
+
+                var spot = new SerializedObject(go.GetComponent<MushroomSpot>());
+                spot.FindProperty("_index").intValue = placed.Count;
+                spot.ApplyModifiedPropertiesWithoutUndo();
+                placed.Add(xz);
+            }
+            return placed;
+        }
+
+        // Returns every spawn position (root SpawnPoint_0/1 included) so decoration keeps clear of them.
+        private static List<Vector2> PlaceSpawnPoints(Transform env)
+        {
+            var parent = Group(env, "SpawnPoints");
+            var placed = new List<Vector2> { new(0f, -12f), new(0f, 12f) };
+            foreach (Vector2 half in ExtraSpawns)
+            for (int team = 0; team < 2; team++)
+            {
+                Vector2 xz = team == 0 ? half : -half;
+                var go = new GameObject($"SpawnPoint_T{team}_{placed.Count}");
+                go.transform.SetParent(parent, false);
+                go.transform.SetPositionAndRotation(new Vector3(xz.x, 0f, xz.y),
+                    Quaternion.Euler(0f, team == 0 ? 0f : 180f, 0f));
+                var point = new SerializedObject(go.AddComponent<SpawnPoint>());
+                point.FindProperty("_team").intValue = team;
+                point.ApplyModifiedPropertiesWithoutUndo();
+                placed.Add(xz);
+            }
+            return placed;
+        }
+
+        // Created once; hand edits to the prefab survive later builds.
+        private static GameObject EnsurePickupPrefab()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(PickupPrefabPath);
+            if (existing) return existing;
+
+            var root = new GameObject("MushroomPickup");
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(root.transform, false);
+
+            var model = (GameObject)PrefabUtility.InstantiatePrefab(
+                AssetDatabase.LoadAssetAtPath<GameObject>(KenneyDir + "mushroom_redGroup.fbx"), visual);
+            model.transform.localScale *= 0.9f / WorldBounds(model).size.y;
+            Bounds bounds = WorldBounds(model);
+            model.transform.position -= new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+            var cap = GlowMaterial("MushroomGlowCap", new Color(1f, 0.25f, 0.2f));
+            var stem = GlowMaterial("MushroomGlowStem", new Color(1f, 0.92f, 0.75f));
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+                r.sharedMaterials = r.sharedMaterials.Select(m => m && m.name == "colorRed" ? cap : stem).ToArray();
+
+            var light = new GameObject("Glow").AddComponent<Light>();
+            light.transform.SetParent(root.transform, false);
+            light.transform.localPosition = new Vector3(0f, 0.6f, 0f);
+            light.type = LightType.Point;
+            light.color = new Color(1f, 0.55f, 0.3f);
+            light.range = 3f;
+            light.intensity = 2f;
+            light.shadows = LightShadows.None;
+
+            var sparkles = BuildSparkles(root.transform);
+
+            var spot = new SerializedObject(root.AddComponent<MushroomSpot>());
+            spot.FindProperty("_visual").objectReferenceValue = visual;
+            spot.FindProperty("_glow").objectReferenceValue = light;
+            spot.FindProperty("_sparkles").objectReferenceValue = sparkles;
+            spot.FindProperty("_collectSfx").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<AudioClip>(SfxDir + "Notification_Chime.wav");
+            spot.ApplyModifiedPropertiesWithoutUndo();
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, PickupPrefabPath);
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        private static ParticleSystem BuildSparkles(Transform parent)
+        {
+            var ps = new GameObject("Sparkles").AddComponent<ParticleSystem>();
+            ps.transform.SetParent(parent, false);
+            ps.transform.localPosition = new Vector3(0f, 0.4f, 0f);
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.loop = true;
+            main.startLifetime = 1.6f;
+            main.startSpeed = 0.4f;
+            main.startSize = 0.08f;
+            main.startColor = new Color(1f, 0.85f, 0.4f);
+            main.gravityModifier = -0.05f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 100;
+            var emission = ps.emission;
+            emission.rateOverTime = 10f;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.5f;
+
+            var material = AssetDatabase.LoadAssetAtPath<Material>(ParticlesMaterialPath);
+            if (!material) Debug.LogWarning($"[PeaHeads] {ParticlesMaterialPath} not found; sparkles have no material.");
+            ps.GetComponent<ParticleSystemRenderer>().sharedMaterial = material;
+            return ps;
+        }
+
+        private static Material GlowMaterial(string name, Color color)
+        {
+            string path = $"{MaterialDir}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!mat)
+            {
+                mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.SetColor("_BaseColor", color);
+            mat.SetFloat("_Smoothness", 0.3f);
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", color * 1.5f);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        // In-scene NetworkObject outside Environment: created once, never deleted, so its network id stays stable.
+        private static void EnsureMatchObject(Scene scene)
+        {
+            if (scene.GetRootGameObjects().Any(r => r.name == "Match")) return;
+            var go = new GameObject("Match");
+            go.AddComponent<NetworkObject>();
+            var match = new SerializedObject(go.AddComponent<MatchManager>());
+            go.AddComponent<MushroomSpawner>();
+            go.AddComponent<ScoreHUD>();
+            match.FindProperty("_confettiPrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PeaHeads/Prefabs/VFX/ConfettiCelebration.prefab");
+            match.FindProperty("_endSfx").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<AudioClip>(SfxDir + "Notification_End.wav");
+            match.ApplyModifiedPropertiesWithoutUndo();
         }
 
         // Invisible walls on the play-area edge; the tree ring is what players see.
@@ -172,11 +344,10 @@ namespace PeaHeads.EditorTools
             }
         }
 
-        // Grass, bushes and mushrooms inside the play area, kept off paths, spawns and cover. No colliders.
+        // Grass and bushes inside the play area, kept off paths, spawns, mushrooms and cover. No colliders.
         private static void ScatterDecoration(Transform env, Terrain terrain, List<Vector2> cover, System.Random rng)
         {
             var parent = Group(env, "Decoration");
-            var spawns = new[] { new Vector2(0f, -12f), new Vector2(0f, 12f) };
             var placed = new List<Vector2>();
             const float extent = PlayHalf - 1.5f;
             for (int attempt = 0; attempt < 400 && placed.Count < 40; attempt++)
@@ -185,7 +356,7 @@ namespace PeaHeads.EditorTools
                 var (model, minHeight, maxHeight) = Decoration[rng.Next(Decoration.Length)];
                 float rot = Range(rng, 0f, 360f), height = Range(rng, minHeight, maxHeight);
 
-                if (PathDistance(p) < 2f || NearAny(p, spawns, 3f) || NearAny(p, cover, 2.8f) || NearAny(p, placed, 1.5f))
+                if (PathDistance(p) < 2f || NearAny(p, cover, 2.8f) || NearAny(p, placed, 1.5f))
                     continue;
                 Place(model, parent, terrain, p, rot, height, false);
                 placed.Add(p);
