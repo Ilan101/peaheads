@@ -43,25 +43,34 @@ namespace PeaHeads.EditorTools
 
         // Half the cover. Each row is mirrored through the origin, (x, z, rot) -> (-x, -z, rot + 180), so both
         // spawns get the same cover; a row at the origin is placed once. Heights in metres: tall cover >= 2.3
-        // hides a standing head (top ~2.15 m); duck cover 1.9 hides a planted head (top ~1.8 m) but not a
-        // standing one; the log (1.3) hides the body only.
+        // hides a standing head (top ~2.15 m); a planted head tops out at ~1.8 m; stumps/logs under that hide
+        // the body only.
         private static readonly (string model, float x, float z, float rot, float height)[] Cover =
         {
             ("rock_tallA", 0f, 0f, 0f, 3.2f),
             ("rock_largeA", 2.5f, -8f, 15f, 3f),
             ("log_large", -6f, -5f, 20f, 1.3f),
-            ("stump_oldTall", 6f, -3f, 0f, 2.6f),
-            ("rock_largeD", -11f, -2f, 40f, 3f),
-            ("log_stackLarge", 11f, -9f, 90f, 1.9f),
+            ("stump_oldTall", 6f, -3f, 0f, 2.23f),
+            ("log_stackLarge", 11f, -9f, 90f, 1.46f),
             ("rock_tallB", -5f, -13f, 0f, 2.6f),
-            ("stump_round", 15f, 8f, 0f, 1.9f),
+            ("stump_round", 15f, 8f, 0f, 1.55f),
             ("rock_largeB", -17f, 13.5f, 60f, 2.6f),
             ("tree_oak", -15f, -14f, 0f, 6f),
             ("tree_oak", -8f, -17f, 0f, 6f),
-            ("tree_pineTallB_detailed", 9f, -15f, 0f, 7f),
             ("tree_fat", -17f, 3f, 0f, 5.5f),
             ("tree_pineRoundC", 3f, -18f, 0f, 6f),
             ("tree_pineTallA_detailed", 12f, -4f, 0f, 7f),
+        };
+
+        // Hand-tuned in the editor (2026-10-10), placed once each, not mirrored.
+        private static readonly (string model, float x, float z, float rot, float height)[] SingleCover =
+        {
+            ("rock_largeD", -11f, -2f, 40f, 3f),
+            ("rock_largeD", 11.64f, 3.96f, 220f, 3f),
+            ("tree_pineTallB_detailed", -9f, 15f, 180f, 7f),
+            ("tree_oak", -6.76f, 6.48f, 0f, 6f),
+            ("tree_oak", 4.93f, 8.25f, 0f, 6f),
+            ("tree_oak", 8.68f, -12.85f, 0f, 6f),
         };
 
         private static readonly string[] Trees =
@@ -114,6 +123,11 @@ namespace PeaHeads.EditorTools
                 if (x == 0f && z == 0f) continue;
                 Place(model, parent, terrain, new Vector2(-x, -z), rot + 180f, height, true);
                 placed.Add(new Vector2(-x, -z));
+            }
+            foreach (var (model, x, z, rot, height) in SingleCover)
+            {
+                Place(model, parent, terrain, new Vector2(x, z), rot, height, true);
+                placed.Add(new Vector2(x, z));
             }
             return placed;
         }
