@@ -64,6 +64,7 @@ namespace PeaHeads
         {
             if (!_font) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (!TryGetComponent(out _story)) _story = gameObject.AddComponent<StoryIntro>();
+            if (!TryGetComponent(out Minimap _)) gameObject.AddComponent<Minimap>();
             EnsureEventSystem();
             BuildCanvas();
         }

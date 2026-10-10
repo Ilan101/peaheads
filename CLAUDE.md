@@ -66,6 +66,9 @@ Assets/PeaHeads/
 │   │               auto-restart, fresh match when a client connects; TeamOf), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── UI/         PlayerHUD (IMGUI placeholder: faction, state, HP, crosshair), ScoreHUD (IMGUI faction score bars + win banner),
+│   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
+│   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
+│   │                 nearest-Sporelight distance; M enlarges), UiSprites (procedural icon sprites),
 │   │               StoryIntro (uGUI built in code: 7-slide typewriter cutscene with animated UI drawings, played by
 │   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
