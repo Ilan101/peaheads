@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -11,6 +12,8 @@ namespace PeaHeads
         private const float HostCooldownTolerance = 0.8f;
         // Reject fire origins further than this from the shooter (bad/forged RPC data).
         private const float MaxOriginDistance = 3f;
+        private const int KillcamChunkSize = 4000;
+        private const int KillcamChunksPerFrame = 6;
 
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;
@@ -100,10 +103,10 @@ namespace PeaHeads
             (point - transform.position).sqrMagnitude <= MaxOriginDistance * MaxOriginDistance;
 
         // Server, from PeaProjectile.Impact.
-        public void ReportImpact(Vector3 point, Vector3 normal, bool damaged, bool killed)
+        public void ReportImpact(Vector3 point, Vector3 normal, bool damaged, bool killed, ulong victim)
         {
             SplatRpc(point, normal);
-            if (damaged) HitConfirmRpc(killed);
+            if (damaged) HitConfirmRpc(killed, victim);
         }
 
         [Rpc(SendTo.ClientsAndHost)]
@@ -123,7 +126,31 @@ namespace PeaHeads
         }
 
         [Rpc(SendTo.Owner)]
-        private void HitConfirmRpc(bool killed) => HitConfirmed?.Invoke(killed);
+        private void HitConfirmRpc(bool killed, ulong victim)
+        {
+            HitConfirmed?.Invoke(killed);
+            if (killed && KillcamView.Instance) KillcamView.Instance.OnLocalKill(this, victim);
+        }
+
+        // Owner: stream a killcam clip to the victim, a few chunks per frame.
+        public void SendKillcam(ulong victim, int clipId, byte[] data) => StartCoroutine(SendChunks(victim, clipId, data));
+
+        private IEnumerator SendChunks(ulong victim, int clipId, byte[] data)
+        {
+            var chunks = KillClip.Split(data, KillcamChunkSize);
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                if (!IsSpawned) yield break;
+                KillcamChunkRpc(clipId, i, chunks.Count, chunks[i], RpcTarget.Single(victim, RpcTargetUse.Temp));
+                if (i % KillcamChunksPerFrame == KillcamChunksPerFrame - 1) yield return null;
+            }
+        }
+
+        [Rpc(SendTo.SpecifiedInParams)]
+        private void KillcamChunkRpc(int clipId, int index, int count, byte[] chunk, RpcParams rpcParams = default)
+        {
+            if (KillcamView.Instance) KillcamView.Instance.ReceiveChunk(clipId, index, count, chunk);
+        }
 
         [Rpc(SendTo.ClientsAndHost)]
         private void PlayFireSfxRpc(Vector3 position)

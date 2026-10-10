@@ -53,6 +53,7 @@ namespace PeaHeads
         private GameObject _controlsPanel;
         private GameObject _restartButton;
         private Text _musicLabel;
+        private Text _faceLabel;
         private Text _startInfo;
         private Text _startStatus;
         private Text _connectingText;
@@ -84,6 +85,9 @@ namespace PeaHeads
             if (!TryGetComponent(out _story)) _story = gameObject.AddComponent<StoryIntro>();
             if (!TryGetComponent(out Minimap _)) gameObject.AddComponent<Minimap>();
             if (!TryGetComponent(out MusicPlayer _)) gameObject.AddComponent<MusicPlayer>();
+            if (!TryGetComponent(out FaceFeed _)) gameObject.AddComponent<FaceFeed>();
+            if (!TryGetComponent(out ViewRecorder _)) gameObject.AddComponent<ViewRecorder>();
+            if (!TryGetComponent(out KillcamView _)) gameObject.AddComponent<KillcamView>();
             EnsureEventSystem();
             BuildCanvas();
         }
@@ -192,6 +196,14 @@ namespace PeaHeads
             _musicLabel.text = MusicLabel();
         }
 
+        private void OnToggleFace()
+        {
+            KillcamView.ShareFace = !KillcamView.ShareFace;
+            _faceLabel.text = FaceLabel();
+        }
+
+        private static string FaceLabel() => KillcamView.ShareFace ? "Killcam Face: On" : "Killcam Face: Off";
+
         private static string MusicLabel() => MusicPlayer.Muted ? "Music: Off" : "Music: On";
 
         private static void EnsureEventSystem()
@@ -240,6 +252,7 @@ namespace PeaHeads
             AddButton(_pausePanel, "Resume", OnResume);
             _restartButton = AddButton(_pausePanel, "Restart Match", OnRestart);
             _musicLabel = AddButton(_pausePanel, MusicLabel(), OnToggleMusic).GetComponentInChildren<Text>();
+            _faceLabel = AddButton(_pausePanel, FaceLabel(), OnToggleFace).GetComponentInChildren<Text>();
             AddButton(_pausePanel, "Leave", OnLeave);
             _pauseStatus = AddLabel(_pausePanel, "", 16, _textColor);
 

@@ -351,6 +351,11 @@ namespace PeaHeads
                 bool ended = _match && _match.IsEnded; // the end banner says the rest
                 _deathImage.color = _deathTint;
                 _deathTitle.enabled = _deathBy.enabled = _deathCount.enabled = !ended;
+                // The victim's killcam takes the middle of the screen: title above it, countdown below.
+                bool killcam = KillcamView.FullscreenActive;
+                _deathTitle.rectTransform.anchoredPosition = new Vector2(0f, killcam ? 286f : 40f);
+                _deathBy.rectTransform.anchoredPosition = new Vector2(0f, killcam ? 246f : -18f);
+                _deathCount.rectTransform.anchoredPosition = new Vector2(0f, killcam ? -300f : -58f);
                 int rival = 1 - Team;
                 _deathBy.text = $"{Faction.Name(rival)} got you";
                 _deathBy.color = Faction.Color(rival);

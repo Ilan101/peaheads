@@ -2,6 +2,10 @@ import cv2, socket, json, math, sys
 import mediapipe as mp
 
 UDP_ADDR = ("127.0.0.1", 5052)
+# Killcam face feed: small mirrored JPEGs (no overlay) to Unity, which keeps the last few seconds for the replay.
+FACE_ADDR = ("127.0.0.1", 5053)
+FACE_SIZE = (256, 144)
+FACE_EVERY = 2  # every 2nd camera frame, ~15 fps
 SMOOTH = 0.35            # head smoothing: higher = more responsive, lower = smoother
 
 # ---- tuning knobs ----
@@ -56,12 +60,18 @@ def mouth_ratio(lm, w, h):
     return gap / width if width > 0 else 0.0
 
 
+frame_index = 0
 while True:
     ok, frame = cap.read()
     if not ok:
         break
     frame = cv2.flip(frame, 1)
     h, w = frame.shape[:2]
+    frame_index += 1
+    if frame_index % FACE_EVERY == 0:
+        ok_jpg, jpg = cv2.imencode(".jpg", cv2.resize(frame, FACE_SIZE), [cv2.IMWRITE_JPEG_QUALITY, 60])
+        if ok_jpg:
+            sock.sendto(jpg.tobytes(), FACE_ADDR)
     result = face_mesh.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     packet = {"face": False, "dx": 0.0, "dy": 0.0, "aim": False, "shoot": False}

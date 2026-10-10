@@ -16,7 +16,7 @@
 |---|---|
 | Engine | Unity **6000.3.9f1**, URP, new Input System (`com.unity.inputsystem` 1.18) |
 | Netcode | **Netcode for GameObjects + Unity Transport, direct IP over LAN**. Host-authoritative. Add Unity Relay only if venue Wi-Fi blocks peer connections. |
-| CV | **Python + MediaPipe Face Mesh** (`head_tracker.py`, repo root), one process per machine, JSON over **UDP `127.0.0.1:5052`**. No video leaves the machine. |
+| CV | **Python + MediaPipe Face Mesh** (`head_tracker.py`, repo root), one process per machine, JSON over **UDP `127.0.0.1:5052`**; small mirrored face JPEGs (256×144, ~15 fps) on **UDP `127.0.0.1:5053`** for the killcam. Video stays local **except** the killer's ~3 s killcam clip, sent to the victim after a kill (user decision 2026-10-10; opt out per player with pause-menu "Killcam Face: Off"). |
 | Base project | Started from FPS Microgame; template stripped. Kept: nature props, SFX, confetti, project-wide `PeaHeads/Input/InputSystem_Actions.inputactions`. All our stuff in `Assets/PeaHeads/`. NGO pinned **2.13.3** (3.x needs Unity 6000.7). |
 | Camera | **First person**, camera inside the head (own head/snout render shadows-only). Head input = bounded **positional** offset of `HeadPivot` (camera rides along), swept so it stops at walls; mouse = yaw (body) / pitch (head). Head sinks with body when planted. Zoom = FOV ÷ 1.5. Webcam lean is proportional (HeadTrackingInput gain). **Head is webcam-only** (no keyboard lean, user decision 2026-10-10: dodging with your real head is the game). Plain light-blue background, no skybox. |
 | Testing | Hackathon override of global rules: **no 80% coverage / strict TDD.** EditMode tests only for pure logic (planting state machine, gesture edge-detection, packet parsing). Everything else verified by playing. |
@@ -66,6 +66,11 @@ Assets/PeaHeads/
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
+│   ├── Killcam/    FaceFeed (UDP 5053 → ring of timestamped face JPEGs), ViewRecorder (10 fps ring of 256×144 screen
+│   │                 captures; Freeze() → AsyncGPUReadback + JPEG), KillClip (pure: clip serialise, ≤4 KB chunks,
+│   │                 ClipAssembler, frame window; EditMode-tested). Flow: PeaProjectile.Impact → PlayerShooting.HitConfirmRpc
+│   │                 (killed, victim id) → KillcamView.OnLocalKill → plays PiP + SendKillcam → KillcamChunkRpc to the victim
+│   │                 → KillcamView full screen over the death screen. UI/KillcamView plays "THE SHOT" | "THE FACE".
 │   ├── Audio/      GameAudio (static: Sfx enum → Resources "Sfx/<name>" clips, variants name_0..n; PlayAt 3D / Play 2D; returns
 │   │                 false if missing so inspector clips stay as fallback), MusicPlayer (added by GameMenu: crossfades
 │   │                 menu/story/game loops from Resources "Music/", ducks when paused / under end stinger, Muted in PlayerPrefs)
@@ -116,6 +121,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 - Calibration: automatic on the first frame with a face; `C` recalibrates (look straight, eyes open, mouth closed); `Q` quits.
 - No timestamp: Unity treats no packet for > 0.5 s the same as `face: false`.
 - CV never touches gameplay. Unity decides what a gesture means given plant state.
+- Face feed (5053): raw JPEG bytes per datagram, every 2nd frame, before the debug overlay. Unity keeps the last ~4 s.
 
 Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 

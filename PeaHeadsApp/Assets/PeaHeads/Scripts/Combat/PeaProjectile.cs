@@ -71,7 +71,12 @@ namespace PeaHeads
             PlayerHealth health = hit.collider.GetComponentInParent<PlayerHealth>();
             bool damaged = health && health.TakeDamage(_damage, _attacker);
             // The pea despawns now, so the (still spawned) shooter broadcasts the splat and the hit marker.
-            if (_shooter && _shooter.IsSpawned) _shooter.ReportImpact(hit.point, hit.normal, damaged, damaged && health.IsDead);
+            if (_shooter && _shooter.IsSpawned)
+            {
+                // Victim's client id for the killcam (dummies have no PlayerNetSync and get none).
+                ulong victim = health && health.TryGetComponent(out Net.PlayerNetSync _) ? health.OwnerClientId : KillcamView.NoVictim;
+                _shooter.ReportImpact(hit.point, hit.normal, damaged, damaged && health.IsDead, victim);
+            }
             Finish();
         }
 
