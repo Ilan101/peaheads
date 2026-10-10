@@ -100,7 +100,7 @@ Assets/PeaHeads/
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
-└── Scenes/         DemoArena (networked: Host alone = solo + dummies, Host/Join = 2P), NetTest (LAN test), ForestArena (todo)
+└── Scenes/         DemoArena (networked: Host/Join = 2P; dummies removed for demo), NetTest (LAN test), ForestArena (todo)
 ```
 
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase = dirt mound, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments; Gen_GroundLeaves) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable, r 0.54), `Snout` (lathe trumpet + Gen_MouthHole), `Mouth` (pea spawn), `PlayerCamera`, Gen_EyeL/EyeR (+Gen_Pupil, Gen_LidR on the right eye), Gen_Collar, Gen_Tuft.
@@ -127,7 +127,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 
 Open items for Person 1: none. (`requirements.txt` added; `CAP_DSHOW` is now only used on Windows — fixed by Person 2, 2026-10-10.)
 
-Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. Mouse fallbacks: LMB = fire, RMB = zoom. **No keyboard head fallback** (removed 2026-10-10 by the user's call); without a face the head eases to neutral.
+Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine; background `UdpClient` thread, latest packet under a lock; disables itself if the port is taken) → `HeadTrackingInput` on the local Player (movement multiplier, lean/vertical gain, no dead zone, C recenters, mouth-fire / wink-zoom toggles) → `PlayerInput.SetTrackerInput`. Design: `docs/superpowers/specs/2026-10-10-webcam-lean-design.md`. **No mouse fire/zoom** (LMB only locks the cursor; removed 2026-10-10 for demo mode). **No keyboard head fallback** (removed 2026-10-10 by the user's call); without a face the head eases to neutral.
 
 ## Story (StoryIntro)
 

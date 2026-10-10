@@ -245,7 +245,7 @@ namespace PeaHeads
                     Title = "A NIMBLE NECK",
                     Body = "Planted, your body can't move, but your neck can. Lean your REAL head to dodge: your " +
                            "PeaHead leans much further. Open your mouth to spit. Close one eye to zoom.\n" +
-                           "Only your real head can dodge. (Left click spits and right click zooms too.)",
+                           "Only your real head can dodge.",
                     TitleColor = mine, Background = new Color(0.06f, 0.1f, 0.12f), Spore = mine,
                     Draw = art => DrawNeck(art, mine, rival),
                 },

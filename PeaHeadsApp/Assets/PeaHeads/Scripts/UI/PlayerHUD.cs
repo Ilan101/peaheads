@@ -25,7 +25,6 @@ namespace PeaHeads
         private static readonly Color PlantGreen = new(0.5f, 0.9f, 0.35f);
         private static readonly Color Warn = new(1f, 0.78f, 0.3f);
         private static readonly Color Bad = new(1f, 0.36f, 0.32f);
-        private static readonly Color Dim = new(1f, 1f, 1f, 0.6f);
         private static readonly Color HeartRed = new(0.92f, 0.17f, 0.24f);
 
         [SerializeField, Range(16f, 96f)] private float _heartSize = 48f;
@@ -221,7 +220,7 @@ namespace PeaHeads
             {
                 case PlantState.Unplanted: SetState("UPROOTED", Color.white); break;
                 case PlantState.Planting: SetState("PLANTING…", Warn); break;
-                case PlantState.Planted: SetState(ready ? "READY TO SPIT" : "RELOADING", ready ? PlantGreen : Dim); break;
+                case PlantState.Planted: SetState("READY TO SPIT", PlantGreen); break;
                 case PlantState.Unplanting: SetState("UPROOTING…", Warn); break;
             }
 

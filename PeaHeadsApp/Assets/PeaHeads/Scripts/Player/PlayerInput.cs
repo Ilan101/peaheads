@@ -89,12 +89,8 @@ namespace PeaHeads
                 return;
             }
 
-            bool click = mouse.leftButton.wasPressedThisFrame;
-            if (click && Cursor.lockState != CursorLockMode.Locked)
-            {
+            if (mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
                 SetCursorLocked(true);
-                click = false;
-            }
             bool locked = Cursor.lockState == CursorLockMode.Locked;
             bool trackerFresh = Time.time - _trackerTime < _trackerTimeout;
             if (Frozen)
@@ -110,9 +106,9 @@ namespace PeaHeads
                 Look = locked ? mouse.delta.ReadValue() * _mouseSensitivity : Vector2.zero,
                 Head = trackerFresh ? _trackerHead : Vector2.zero,
                 PlantPressed = kb.spaceKey.wasPressedThisFrame,
-                FirePressed = locked && (click || _trackerFirePending),
-                ZoomHeld = locked && (mouse.rightButton.isPressed || (trackerFresh && _trackerAim)),
-                MouthOpen = locked && (mouse.leftButton.isPressed || (trackerFresh && _trackerShootPrevious)),
+                FirePressed = locked && _trackerFirePending,
+                ZoomHeld = locked && trackerFresh && _trackerAim,
+                MouthOpen = locked && trackerFresh && _trackerShootPrevious,
                 RecenterPressed = kb.cKey.wasPressedThisFrame,
             };
             _trackerFirePending = false;
