@@ -21,7 +21,7 @@ namespace PeaHeads
         {
             if (!_match.IsSpawned) return;
             _label ??= new GUIStyle(GUI.skin.label)
-                { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.black } };
             _banner ??= new GUIStyle(_label) { fontSize = 48 };
 
             int localTeam = MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId);

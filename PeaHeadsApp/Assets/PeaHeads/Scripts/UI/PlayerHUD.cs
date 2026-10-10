@@ -29,7 +29,7 @@ namespace PeaHeads
 
         private void OnGUI()
         {
-            _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
+            _style ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, normal = { textColor = Color.black } };
 
             GUI.Label(new Rect(Margin, Margin - 8f, 700f, 30f), TrackingLabel(), _style);
             if (_tracking && _tracking.State == TrackingState.Tracking)
