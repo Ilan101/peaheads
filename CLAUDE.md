@@ -38,7 +38,7 @@ Unity editor: `~/Unity/Hub/Editor/6000.3.9f1/Editor/Unity`. Batchmode compile/te
 
 ```
 Assets/PeaHeads/
-├── PeaHeads.asmdef             all runtime scripts. Refs: InputSystem, Netcode.Runtime, Networking.Transport, Collections
+├── PeaHeads.asmdef             all runtime scripts. Refs: InputSystem, Netcode.Runtime, Networking.Transport, Collections, UnityEngine.UI
 ├── Editor/         PeaHeads.Editor.asmdef; NetTestSceneBuilder (menu PeaHeads > Build Net Test Scene —
 │                   regenerates NetTest scene + Prefabs/NetTest/*, overwriting hand edits)
 │                   ArenaBuilder (menu PeaHeads > Build Arena — rebuilds DemoArena's Environment root: terrain,
@@ -61,13 +61,15 @@ Assets/PeaHeads/
 │   ├── Match/      MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               auto-restart; TeamOf), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
-│   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner)
+│   ├── UI/         PlayerHUD (IMGUI placeholder: state, HP, crosshair), ScoreHUD (IMGUI score bars + win banner),
+│   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
+│   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave; sets PlayerInput.Paused)
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
 │   │               HeadTrackingInput (local Player: dead zone + lean/vertical gain → PlayerInput; C recenters)
-│   └── Net/        ConnectionUI (Ilan; IMGUI host / join-by-IP, port 7777); PlayerNetSync (owner-write head/pitch/
+│   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
 │                   plant vars, random spawn teleport, Respawn(), host/client tint); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
@@ -77,7 +79,7 @@ Assets/PeaHeads/
 Player hierarchy: `Player` (CharacterController + scripts, yaw) → `Visual` (LeafBase, animated by PlantVisuals; Stem, deactivated at runtime and replaced by StemBender segments) and `HeadPivot` (offset by head input, pitched by mouse) → `Head` (trigger collider, hittable), `Snout`, `Mouth` (pea spawn), `PlayerCamera`.
 Head input = arrow keys in `PlayerInput`; `HeadTrackingInput` calls `PlayerInput.SetTrackerInput(head, shoot, aim)` each frame while a face is tracked. Player prefab ships with `PlayerInput`, HUD and `PlayerCamera` disabled; `PlayerNetSync` enables them on the owner only.
 
-Only make files when needed. One scene, no MainMenu scene (connect panel overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
+Only make files when needed. One scene, no MainMenu scene (GameMenu start screen overlay is enough). Scene file ownership: **Person 3 owns `ForestArena.unity`**; others work in prefabs or their own test scenes (`Scenes/Sandbox_<name>.unity`) to avoid YAML merge conflicts.
 
 ## CV ↔ Unity contract (as implemented in `head_tracker.py` — change only together with Person 1)
 
