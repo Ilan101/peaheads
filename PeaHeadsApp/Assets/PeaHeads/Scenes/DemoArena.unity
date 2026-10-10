@@ -7938,7 +7938,7 @@ MonoBehaviour:
   _matchDuration: 120
   _killPoints: 3
   _mushroomPoints: 1
-  _restartDelay: 5
+  _restartDelay: 10
   _confettiPrefab: {fileID: 7276764443248859406, guid: 2f5d313409ec64adc9647e645f3fd9f2,
     type: 3}
   _endSfx: {fileID: 8300000, guid: a533219934975884e81c1add37af9930, type: 3}

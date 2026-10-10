@@ -34,7 +34,10 @@ namespace PeaHeads
         };
 
         [SerializeField] private Font _font;
+        [Tooltip("Dim behind the pause menu (over gameplay).")]
         [SerializeField] private Color _backdropColor = new(0f, 0f, 0f, 0.55f);
+        [Tooltip("Dim behind the start / connecting screens: light, so the lit arena shows through.")]
+        [SerializeField] private Color _startBackdropColor = new(0f, 0f, 0f, 0.15f);
         [SerializeField] private Color _panelColor = new(0.1f, 0.17f, 0.1f, 0.95f);
         [SerializeField] private Color _buttonColor = new(0.3f, 0.55f, 0.2f, 1f);
         [SerializeField] private Color _buttonHoverColor = new(0.45f, 0.75f, 0.3f, 1f);
@@ -131,6 +134,7 @@ namespace PeaHeads
             bool wasOverlay = _shown is MenuScreen.Pause or MenuScreen.Story;
             _shown = screen;
             _backdrop.SetActive(screen is not (MenuScreen.None or MenuScreen.Story));
+            _backdrop.GetComponent<Image>().color = screen == MenuScreen.Pause ? _backdropColor : _startBackdropColor;
             _startPanel.SetActive(screen == MenuScreen.Start);
             _connectingPanel.SetActive(screen == MenuScreen.Connecting);
             _pausePanel.SetActive(screen == MenuScreen.Pause);

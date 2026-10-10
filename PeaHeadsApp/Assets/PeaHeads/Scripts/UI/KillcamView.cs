@@ -8,7 +8,7 @@ namespace PeaHeads
     // Killcam. The killer sees only their own face (FaceFeed) around the kill: it starts the moment the kill lands,
     // trailing real time by a second so the frames already exist, slows down over the hit and runs on past it.
     // The victim gets the killer's view (ViewRecorder) and face sent over the network (PlayerShooting.SendKillcam)
-    // and sees "THE SHOT" | "THE FACE" full screen over the death screen, shrinking to the corner once they respawn.
+    // and sees the shot and the face side by side full screen over the death screen, shrinking to the corner once they respawn.
     // Frames are decoded one at a time as they're shown, so playback never hitches. Added by GameMenu.
     public class KillcamView : MonoBehaviour
     {
@@ -111,22 +111,16 @@ namespace PeaHeads
         {
             public RectTransform Root;
             public CanvasGroup Group;
-            public Image Flash;
-            public Image Progress;
-            public Text Subtitle;
             public Timeline Timeline;
             public float StartedAt = float.NegativeInfinity;
 
             public bool Playing(float now) => now - StartedAt < Timeline.Duration + FadeTime;
             public float ClipTime(float now) => Timeline.ClipTime(now - StartedAt);
 
-            // Flash on the hit, progress bar, fade at the end.
+            // Fade at the end.
             public void Animate(float now)
             {
                 float r = now - StartedAt;
-                float sinceHit = r - (Timeline.SlowFrom - Timeline.Start) - -Timeline.SlowFrom / Timeline.SlowSpeed;
-                Flash.color = new Color(1f, 1f, 1f, sinceHit >= 0f ? Mathf.Clamp01(1f - sinceHit / 0.35f) * 0.75f : 0f);
-                Progress.fillAmount = Mathf.Clamp01(r / Timeline.Duration);
                 Group.alpha = Mathf.Clamp01((Timeline.Duration + FadeTime - r) / FadeTime);
             }
         }
@@ -145,7 +139,6 @@ namespace PeaHeads
 
         private RectTransform _canvas;
         private Image _victimBadge;
-        private Text _victimNoWebcam, _waiting;
 
         private void Awake()
         {
@@ -181,8 +174,6 @@ namespace PeaHeads
                 _killAt = kill;
                 _killerFace.Reset(new List<ClipFrame>());
                 _killer.StartedAt = Time.unscaledTime;
-                _killer.Subtitle.text = $"You spat out {Faction.Name(victimTeam)}";
-                _killer.Subtitle.color = Faction.Color(killerTeam);
             }
 
             if (victim == NoVictim || victim == nm.LocalClientId || !ViewRecorder.Instance) return;
@@ -214,13 +205,11 @@ namespace PeaHeads
             _victim.StartedAt = Time.unscaledTime;
             _victimSlowPlayed = false;
             Color killer = Faction.Color(clip.KillerTeam);
-            _victim.Subtitle.text = $"{Faction.Name(clip.KillerTeam)} spat you out";
-            _victim.Subtitle.color = killer;
             _victimBadge.sprite = clip.KillerTeam == 0 ? UiBuild.Flower : UiBuild.Thorn;
             _victimBadge.color = killer;
             bool hasFace = _victimFace.HasFrames;
             _victimFace.Image.enabled = hasFace;
-            _victimBadge.enabled = _victimNoWebcam.enabled = !hasFace;
+            _victimBadge.enabled = !hasFace;
             _victimView.Image.enabled = _victimView.HasFrames;
         }
 
@@ -247,8 +236,6 @@ namespace PeaHeads
                 if (!local) return;
                 Build();
             }
-            _waiting.enabled = waiting && !story;
-            if (_waiting.enabled) _waiting.color = new Color(1f, 1f, 1f, 0.6f + 0.4f * Mathf.Sin(now * 5f));
 
             // Both stay visible over the scope vignette.
             UpdateVictim(now, victimPlaying && !story, fullscreen);
@@ -299,25 +286,18 @@ namespace PeaHeads
 
             // Victim: two panels, title, progress.
             BuildRoot(_victim, VictimSize, 210f);
-            _victimView.Image = Panel(_victim.Root, "THE SHOT", new Vector2(-PanelSize.x * 0.5f - 10f, -6f), PanelSize, out _);
-            _victimFace.Image = Panel(_victim.Root, "THE FACE", new Vector2(PanelSize.x * 0.5f + 10f, -6f), PanelSize,
+            _victimView.Image = Panel(_victim.Root, new Vector2(-PanelSize.x * 0.5f - 10f, -6f), PanelSize, out _);
+            _victimFace.Image = Panel(_victim.Root, new Vector2(PanelSize.x * 0.5f + 10f, -6f), PanelSize,
                 out RectTransform facePanel);
             _victimBadge = UiBuild.Image(facePanel, UiBuild.Flower, new Vector2(0f, 16f), new Vector2(96f, 96f), Color.white);
-            _victimNoWebcam = UiBuild.Label(facePanel, "no webcam", 18, new Color(1f, 1f, 1f, 0.6f), TextAnchor.MiddleCenter,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -60f), new Vector2(300f, 24f));
-            BuildProgress(_victim, new Vector2(0f, -186f), PanelSize.x * 2f + 20f);
 
             // Killer: one face panel in the bottom-right corner.
             Vector2 killerSize = KillerPanelSize + new Vector2(20f, 90f);
             BuildRoot(_killer, killerSize, killerSize.y * 0.5f - 18f);
             _killer.Root.anchorMin = _killer.Root.anchorMax = _killer.Root.pivot = new Vector2(1f, 0f);
             _killer.Root.anchoredPosition = new Vector2(-20f, 20f);
-            _killerFace.Image = Panel(_killer.Root, "YOUR REACTION", new Vector2(0f, -4f), KillerPanelSize, out _);
-            BuildProgress(_killer, new Vector2(0f, -killerSize.y * 0.5f + 14f), KillerPanelSize.x);
+            _killerFace.Image = Panel(_killer.Root, new Vector2(0f, -4f), KillerPanelSize, out _);
 
-            _waiting = UiBuild.Label(_canvas, "Receiving killcam…", 22, Color.white, TextAnchor.MiddleCenter,
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(600f, 30f));
-            _waiting.enabled = false;
         }
 
         private void BuildRoot(Playback playback, Vector2 size, float titleY)
@@ -326,35 +306,20 @@ namespace PeaHeads
             playback.Group = playback.Root.gameObject.AddComponent<CanvasGroup>();
             playback.Group.blocksRaycasts = false;
             bool big = size.x > 800f;
-            Text title = UiBuild.Label(playback.Root, "KILLCAM", big ? 34 : 22, Bad, TextAnchor.MiddleCenter,
+            // The only text: "KILL CAM" for both killer and victim.
+            Text title = UiBuild.Label(playback.Root, "KILL CAM", big ? 34 : 22, Bad, TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 0.5f), new Vector2(0f, titleY), new Vector2(600f, 40f));
             UiBuild.Outline(title, new Color(0f, 0f, 0f, 0.6f), 2f);
-            playback.Subtitle = UiBuild.Label(playback.Root, "", big ? 22 : 15, Color.white, TextAnchor.MiddleCenter,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, titleY - (big ? 32f : 22f)), new Vector2(800f, 30f));
             playback.Root.gameObject.SetActive(false);
         }
 
-        private static void BuildProgress(Playback playback, Vector2 pos, float width)
-        {
-            Image track = UiBuild.Panel(playback.Root, new Vector2(0.5f, 0.5f), pos, new Vector2(width, 6f),
-                new Color(0f, 0f, 0f, 0.5f), 0.2f);
-            playback.Progress = UiBuild.Image(track.transform, null, Vector2.zero, Vector2.zero, Bad);
-            UiBuild.Stretch(playback.Progress.rectTransform);
-            playback.Progress.type = Image.Type.Filled;
-            playback.Progress.fillMethod = Image.FillMethod.Horizontal;
-            playback.Flash = UiBuild.Image(playback.Root, null, Vector2.zero, Vector2.zero, Color.clear);
-            UiBuild.Stretch(playback.Flash.rectTransform);
-        }
-
-        private static RawImage Panel(RectTransform root, string label, Vector2 pos, Vector2 size, out RectTransform panel)
+        private static RawImage Panel(RectTransform root, Vector2 pos, Vector2 size, out RectTransform panel)
         {
             Image frame = UiBuild.Panel(root, new Vector2(0.5f, 0.5f), pos, size + new Vector2(10f, 10f), UiBuild.Glass, 0.6f);
             UiBuild.Outline(frame, new Color(1f, 1f, 1f, 0.25f));
             panel = frame.rectTransform;
             RawImage image = UiBuild.Node(panel, "Frames", Vector2.zero, size).gameObject.AddComponent<RawImage>();
             image.raycastTarget = false;
-            UiBuild.Label(panel, label, 15, Color.white, TextAnchor.MiddleLeft, new Vector2(0f, 1f), new Vector2(4f, 20f),
-                new Vector2(260f, 20f));
             return image;
         }
     }

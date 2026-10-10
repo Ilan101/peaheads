@@ -64,7 +64,9 @@ namespace PeaHeads
         private float _toastAt = float.NegativeInfinity;
         private float[] _heartLostAt = new float[0];
 
-        private RectTransform _canvas;
+        // Draw order: HUD 40 < killcam 42 < minimap 50 < scope vignette 51 < crosshair 52, so the scope darkens the
+        // minimap and killcam but never the crosshair.
+        private RectTransform _canvas, _scopeCanvas, _crosshairCanvas;
         private RectTransform _scopeCircle, _scopeLeft, _scopeRight;
         private Image _scopeImage, _scopeLeftImage, _scopeRightImage;
         private Image _damageVignette;
@@ -100,7 +102,7 @@ namespace PeaHeads
         private void OnEnable()
         {
             if (!_canvas) Build();
-            _canvas.gameObject.SetActive(true);
+            SetCanvasesActive(true);
             _lastHealth = _health.Current;
             if (!_shooting) return;
             _shooting.HitConfirmed += OnHitConfirmed;
@@ -110,7 +112,7 @@ namespace PeaHeads
         private void OnDisable()
         {
             Scoped = false;
-            if (_canvas) _canvas.gameObject.SetActive(false);
+            if (_canvas) SetCanvasesActive(false);
             if (!_shooting) return;
             _shooting.HitConfirmed -= OnHitConfirmed;
             _shooting.FireBlocked -= OnFireBlocked;
@@ -118,7 +120,17 @@ namespace PeaHeads
 
         private void OnDestroy()
         {
-            if (_canvas) Destroy(_canvas.gameObject);
+            if (!_canvas) return;
+            Destroy(_canvas.gameObject);
+            Destroy(_scopeCanvas.gameObject);
+            Destroy(_crosshairCanvas.gameObject);
+        }
+
+        private void SetCanvasesActive(bool active)
+        {
+            _canvas.gameObject.SetActive(active);
+            _scopeCanvas.gameObject.SetActive(active);
+            _crosshairCanvas.gameObject.SetActive(active);
         }
 
         private void OnHitConfirmed(bool killed)
@@ -142,7 +154,7 @@ namespace PeaHeads
             Scoped = _scope > 0.5f && !dead;
 
             bool show = !StoryIntro.IsPlaying;
-            if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
+            if (_canvas.gameObject.activeSelf != show) SetCanvasesActive(show);
             if (!show) return;
 
             Color faction = Faction.Color(Team);
@@ -314,6 +326,8 @@ namespace PeaHeads
         private void Build()
         {
             _canvas = UiBuild.Canvas("PlayerHUDCanvas", 40);
+            _scopeCanvas = UiBuild.Canvas("ScopeCanvas", 51);
+            _crosshairCanvas = UiBuild.Canvas("CrosshairCanvas", 52);
             BuildScope();
             _damageVignette = FullScreen(_canvas, UiBuild.Vignette, Color.clear);
             BuildTracker();
@@ -341,7 +355,7 @@ namespace PeaHeads
 
         private void BuildScope()
         {
-            _scopeImage = UiBuild.Image(_canvas, UiBuild.Scope, Vector2.zero, Vector2.one, Color.clear);
+            _scopeImage = UiBuild.Image(_scopeCanvas, UiBuild.Scope, Vector2.zero, Vector2.one, Color.clear);
             _scopeCircle = _scopeImage.rectTransform;
             _scopeLeftImage = Strip(MidLeft, out _scopeLeft);
             _scopeRightImage = Strip(MidRight, out _scopeRight);
@@ -350,7 +364,7 @@ namespace PeaHeads
         // Full-height strip on the left or right screen edge.
         private Image Strip(Vector2 anchor, out RectTransform rect)
         {
-            Image image = UiBuild.Image(_canvas, null, anchor, Vector2.zero, Vector2.zero, Color.clear);
+            Image image = UiBuild.Image(_scopeCanvas, null, anchor, Vector2.zero, Vector2.zero, Color.clear);
             rect = image.rectTransform;
             rect.anchorMin = new Vector2(anchor.x, 0f);
             rect.anchorMax = new Vector2(anchor.x, 1f);
@@ -419,13 +433,13 @@ namespace PeaHeads
         private void BuildCrosshair()
         {
             Vector2 size = new(_crosshairSize, _crosshairSize);
-            _crosshair = UiBuild.Node(_canvas, "Crosshair", Vector2.zero, size);
+            _crosshair = UiBuild.Node(_crosshairCanvas, "Crosshair", Vector2.zero, size);
             _ring = UiBuild.Image(_crosshair, UiBuild.Ring, Vector2.zero, size, Color.white);
             UiBuild.Outline(_ring, new Color(0f, 0f, 0f, 0.35f), 1f);
             _centerDot = UiBuild.Image(_crosshair, UiBuild.Circle, Vector2.zero, new Vector2(4f, 4f), Color.white);
             _marker = UiBuild.Image(_crosshair, UiBuild.Cross, Vector2.zero, size * 1.8f, Color.white);
             _marker.enabled = false;
-            _blockedText = UiBuild.Label(_canvas, "Plant first!  Press Space", 17, Warn, TextAnchor.MiddleCenter, Centre,
+            _blockedText = UiBuild.Label(_crosshairCanvas, "Plant first!  Press Space", 17, Warn, TextAnchor.MiddleCenter, Centre,
                 new Vector2(0f, -46f), new Vector2(400f, 26f));
             _blockedText.enabled = false;
         }
