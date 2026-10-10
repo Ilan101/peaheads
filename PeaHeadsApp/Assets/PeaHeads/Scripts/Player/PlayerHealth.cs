@@ -10,9 +10,9 @@ namespace PeaHeads
     {
         private const int DefaultMaxHealth = 3;
 
-        [SerializeField] private int _maxHealth = DefaultMaxHealth;
+        [SerializeField, Range(1, 10)] private int _maxHealth = DefaultMaxHealth;
         [Tooltip("> 0: host restores HP after this many seconds.")]
-        [SerializeField] private float _respawnDelay;
+        [SerializeField, Range(0f, 10f)] private float _respawnDelay;
         [SerializeField] private Renderer _flashRenderer;
         [SerializeField] private AudioClip _hitSfx;
 

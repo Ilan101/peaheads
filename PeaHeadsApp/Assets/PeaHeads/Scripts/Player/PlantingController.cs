@@ -6,9 +6,12 @@ namespace PeaHeads
 
     public class PlantingController : MonoBehaviour
     {
-        [SerializeField] private float _transitionTime = 1f;
+        [Tooltip("Seconds to plant.")]
+        [SerializeField, Range(0.1f, 3f)] private float _plantTime = 1f;
+        [Tooltip("Seconds to unplant.")]
+        [SerializeField, Range(0.1f, 3f)] private float _unplantTime = 1f;
         [SerializeField] private Transform _visual;
-        [SerializeField] private float _plantedSquash = 0.8f;
+        [SerializeField, Range(0.3f, 1f)] private float _plantedSquash = 0.8f;
 
         public PlantState State { get; private set; }
         public bool CanMove => State == PlantState.Unplanted;
@@ -42,7 +45,7 @@ namespace PeaHeads
             }
 
             float target = State is PlantState.Planting or PlantState.Planted ? 1f : 0f;
-            _progress = Mathf.MoveTowards(_progress, target, deltaTime / _transitionTime);
+            _progress = Mathf.MoveTowards(_progress, target, deltaTime / (target > 0f ? _plantTime : _unplantTime));
             if (_visual) _visual.localScale = new Vector3(1f, HeightScale, 1f);
         }
 
@@ -52,7 +55,7 @@ namespace PeaHeads
             if (state == _lastRemote) return;
             _lastRemote = state;
             State = state;
-            _timer = _transitionTime;
+            _timer = Duration(state);
         }
 
         public void ResetState()
@@ -73,7 +76,9 @@ namespace PeaHeads
         private void Begin(PlantState state)
         {
             State = state;
-            _timer = _transitionTime;
+            _timer = Duration(state);
         }
+
+        private float Duration(PlantState state) => state == PlantState.Unplanting ? _unplantTime : _plantTime;
     }
 }

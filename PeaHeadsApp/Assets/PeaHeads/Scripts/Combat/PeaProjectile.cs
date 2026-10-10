@@ -6,14 +6,16 @@ namespace PeaHeads
     // Host moves the pea and resolves hits; clients only see it through NetworkTransform.
     public class PeaProjectile : NetworkBehaviour
     {
-        [SerializeField] private float _speed = 10f;
-        [SerializeField] private float _radius = 0.2f;
-        [SerializeField] private float _lifetime = 4f;
-        [SerializeField] private int _damage = 1;
+        [SerializeField, Range(1f, 50f)] private float _speed = 10f;
+        [SerializeField, Range(0.05f, 1f)] private float _radius = 0.2f;
+        [SerializeField, Range(0.5f, 10f)] private float _lifetime = 4f;
+        [SerializeField, Range(1, 5)] private int _damage = 1;
 
         private Transform _owner;
         private float _despawnTime;
         private bool _done;
+
+        private void Awake() => transform.localScale = Vector3.one * (_radius * 2f);
 
         // Server only, right after Spawn(). sweepFrom is a point inside the shooter (head centre): the gap from
         // there to the spawn point is checked first, so a mouth poking through a wall can't fire through it.

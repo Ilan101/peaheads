@@ -16,13 +16,13 @@ namespace PeaHeads
 
         [Header("Head offset")]
         [SerializeField] private Vector2 _headRange = new(0.6f, 0.3f);
-        [SerializeField] private float _headSmoothing = 10f;
+        [SerializeField, Range(1f, 30f)] private float _headSmoothing = 10f;
         [Tooltip("Lean stops this far from walls so the camera can't see through them.")]
-        [SerializeField] private float _headCollisionRadius = 0.3f;
+        [SerializeField, Range(0.05f, 1f)] private float _headCollisionRadius = 0.3f;
 
         [Header("Zoom")]
-        [SerializeField] private float _zoomFactor = 1.5f;
-        [SerializeField] private float _zoomSpeed = 12f;
+        [SerializeField, Range(1f, 4f)] private float _zoomFactor = 1.5f;
+        [SerializeField, Range(1f, 30f)] private float _zoomSpeed = 12f;
 
         public Camera Camera => _camera;
         public bool IsZoomed { get; private set; }

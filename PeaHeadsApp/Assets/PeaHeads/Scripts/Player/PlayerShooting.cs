@@ -13,8 +13,8 @@ namespace PeaHeads
 
         [SerializeField] private PeaProjectile _peaPrefab;
         [SerializeField] private Transform _mouth;
-        [SerializeField] private float _cooldown = 0.6f;
-        [SerializeField] private float _maxAimDistance = 100f;
+        [SerializeField, Range(0f, 2f)] private float _cooldown = 0.6f;
+        [SerializeField, Range(10f, 300f)] private float _maxAimDistance = 100f;
         [SerializeField] private AudioClip _fireSfx;
 
         private PlantingController _planting;

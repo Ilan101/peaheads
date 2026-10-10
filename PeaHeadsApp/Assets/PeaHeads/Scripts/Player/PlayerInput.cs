@@ -19,8 +19,8 @@ namespace PeaHeads
     [DefaultExecutionOrder(-100)]
     public class PlayerInput : MonoBehaviour
     {
-        [SerializeField] private float _mouseSensitivity = 0.1f;
-        [SerializeField] private float _trackerTimeout = 0.5f;
+        [SerializeField, Range(0.01f, 1f)] private float _mouseSensitivity = 0.1f;
+        [SerializeField, Range(0.1f, 2f)] private float _trackerTimeout = 0.5f;
         [Tooltip("Switched on/off with local ownership: own camera, HUD.")]
         [SerializeField] private GameObject[] _localOnlyObjects = new GameObject[0];
         [SerializeField] private Behaviour[] _localOnlyBehaviours = new Behaviour[0];

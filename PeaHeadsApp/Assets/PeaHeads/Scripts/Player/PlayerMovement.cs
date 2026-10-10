@@ -6,7 +6,7 @@ namespace PeaHeads
     [RequireComponent(typeof(CharacterController), typeof(PlantingController), typeof(PlayerInput))]
     public class PlayerMovement : MonoBehaviour
     {
-        [SerializeField] private float _speed = 5f;
+        [SerializeField, Range(0f, 20f)] private float _speed = 5f;
 
         private CharacterController _controller;
         private PlantingController _planting;

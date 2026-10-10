@@ -39,6 +39,7 @@ namespace PeaHeads.Net
         {
             var nm = NetworkManager.Singleton;
             if (nm == null) return;
+            if (nm.IsHost ? nm.ConnectedClientsIds.Count >= 2 : nm.IsConnectedClient) return;
 
             float scale = Mathf.Max(1f, Screen.height / 720f);
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));

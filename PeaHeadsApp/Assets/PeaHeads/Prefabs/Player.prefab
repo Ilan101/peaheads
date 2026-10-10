@@ -382,11 +382,11 @@ GameObject:
   - component: {fileID: 7329153826975129172}
   - component: {fileID: 6822468299848805421}
   - component: {fileID: 6425983241601873529}
+  - component: {fileID: 4373243512297181890}
   - component: {fileID: 7853724537610189293}
   - component: {fileID: 1797606706706691487}
   - component: {fileID: 1385081697139971756}
   - component: {fileID: 6559153631543594811}
-  - component: {fileID: 4373243512297181890}
   - component: {fileID: 7002818379305711566}
   - component: {fileID: 2167027642314637930}
   m_Layer: 0
@@ -450,7 +450,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 37eeef433ed7a1d5384c84640b8977e3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlantingController
-  _transitionTime: 1
+  _plantTime: 1
+  _unplantTime: 1
   _visual: {fileID: 4201618126745001407}
   _plantedSquash: 0.8
 --- !u!114 &6822468299848805421
@@ -489,6 +490,33 @@ MonoBehaviour:
   _headCollisionRadius: 0.3
   _zoomFactor: 1.5
   _zoomSpeed: 12
+--- !u!114 &4373243512297181890
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4859009225941106794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 4102722372
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  m_InScenePlacedDisabledByDefault: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  m_InScenePlaced: 0
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &7853724537610189293
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -555,33 +583,6 @@ MonoBehaviour:
   - {fileID: 5519229150126660072}
   _localOnlyBehaviours:
   - {fileID: 1385081697139971756}
---- !u!114 &4373243512297181890
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4859009225941106794}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 0
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  m_InScenePlacedDisabledByDefault: 0
-  DeferredDespawnTick: 0
-  Ownership: 1
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  m_InScenePlaced: 0
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
-  SyncOwnerTransformWhenParented: 1
-  AllowOwnerToParent: 0
 --- !u!114 &7002818379305711566
 MonoBehaviour:
   m_ObjectHideFlags: 0
