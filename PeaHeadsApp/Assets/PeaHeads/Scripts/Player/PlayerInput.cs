@@ -13,6 +13,7 @@ namespace PeaHeads
         public bool PlantPressed;
         public bool FirePressed;
         public bool ZoomHeld;
+        public bool RecenterPressed;
     }
 
     // The only reader of keyboard/mouse (and later the webcam). Enabled only on the local player's plant.
@@ -102,6 +103,7 @@ namespace PeaHeads
                 PlantPressed = kb.eKey.wasPressedThisFrame,
                 FirePressed = locked && (click || _trackerFirePending),
                 ZoomHeld = locked && (mouse.rightButton.isPressed || (trackerFresh && _trackerAim)),
+                RecenterPressed = kb.cKey.wasPressedThisFrame,
             };
             _trackerFirePending = false;
         }
