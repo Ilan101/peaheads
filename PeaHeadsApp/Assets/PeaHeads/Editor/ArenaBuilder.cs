@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 
 namespace PeaHeads.EditorTools
 {
-    // Rebuilds DemoArena's Environment root: terrain, cover, tree ring, decoration, fog.
+    // Rebuilds DemoArena's Environment root: terrain, cover, tree ring, decoration, lighting.
     // Re-running overwrites hand edits under Environment; nothing else in the scene is created or deleted.
     public static class ArenaBuilder
     {
@@ -19,26 +19,49 @@ namespace PeaHeads.EditorTools
         private const float PlayHalf = 20f;
         private const int Seed = 42;
 
-        private static readonly Color FogColor = new(0.62f, 0.8f, 0.95f);
-
         private const string KenneyDir = ArtDir + "/Kenney/";
+        private const string MaterialDir = ArtDir + "/Materials";
         private const float Sink = 0.1f;
+        private const float MaxCoverWidth = 4.5f; // Kenney's "large" rocks are 8-14 m wide at cover height
+
+        // Kenney's own colours (orange rocks with teal tops, rocks and stumps the same brown) are swapped by
+        // material name for these flat, matte URP materials.
+        private static readonly (string name, Color color)[] Palette =
+        {
+            ("dirt", new Color(0.58f, 0.6f, 0.64f)),          // rock stone
+            ("_defaultMat", new Color(0.86f, 0.86f, 0.83f)),  // rock highlights, mushroom stems
+            ("grass", new Color(0.38f, 0.8f, 0.22f)),         // rock moss, grass tufts, bushes
+            ("leafsGreen", new Color(0.33f, 0.74f, 0.2f)),
+            ("leafsDark", new Color(0.16f, 0.55f, 0.25f)),
+            ("woodBark", new Color(0.6f, 0.4f, 0.22f)),       // oak
+            ("woodBarkDark", new Color(0.42f, 0.27f, 0.15f)),
+            ("woodDark", new Color(0.45f, 0.29f, 0.16f)),
+            ("woodInner", new Color(0.92f, 0.76f, 0.52f)),
+            ("colorRed", new Color(0.9f, 0.18f, 0.15f)),
+            ("colorTan", new Color(0.9f, 0.75f, 0.5f)),
+        };
 
         // Half the cover. Each row is mirrored through the origin, (x, z, rot) -> (-x, -z, rot + 180), so both
         // spawns get the same cover; a row at the origin is placed once. Heights in metres: tall cover >= 2.3
-        // hides a standing head (top ~2.15 m), low cover ~1.1 hides the body only.
+        // hides a standing head (top ~2.15 m); duck cover 1.9 hides a planted head (top ~1.8 m) but not a
+        // standing one; the log (1.3) hides the body only.
         private static readonly (string model, float x, float z, float rot, float height)[] Cover =
         {
-            ("rock_tallA", 0f, 0f, 0f, 2.6f),
-            ("rock_largeA", 2.5f, -8f, 15f, 2.4f),
-            ("log_large", -6f, -5f, 20f, 1.1f),
-            ("stump_oldTall", 6f, -3f, 0f, 2.4f),
-            ("rock_largeD", -11f, -2f, 40f, 2.5f),
-            ("log_stackLarge", 11f, -9f, 90f, 1.2f),
-            ("rock_tallB", -5f, -13f, 0f, 2.5f),
-            ("stump_round", 14f, 6f, 0f, 1.0f),
-            ("rock_largeB", -16f, 12f, 60f, 2.3f),
+            ("rock_tallA", 0f, 0f, 0f, 3.2f),
+            ("rock_largeA", 2.5f, -8f, 15f, 3f),
+            ("log_large", -6f, -5f, 20f, 1.3f),
+            ("stump_oldTall", 6f, -3f, 0f, 2.6f),
+            ("rock_largeD", -11f, -2f, 40f, 3f),
+            ("log_stackLarge", 11f, -9f, 90f, 1.9f),
+            ("rock_tallB", -5f, -13f, 0f, 2.6f),
+            ("stump_round", 15f, 8f, 0f, 1.9f),
+            ("rock_largeB", -17f, 13.5f, 60f, 2.6f),
             ("tree_oak", -15f, -14f, 0f, 6f),
+            ("tree_oak", -8f, -17f, 0f, 6f),
+            ("tree_pineTallB_detailed", 9f, -15f, 0f, 7f),
+            ("tree_fat", -17f, 3f, 0f, 5.5f),
+            ("tree_pineRoundC", 3f, -18f, 0f, 6f),
+            ("tree_pineTallA_detailed", 12f, -4f, 0f, 7f),
         };
 
         private static readonly string[] Trees =
@@ -57,6 +80,7 @@ namespace PeaHeads.EditorTools
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
+            RemapKenneyMaterials();
             var env = ResetEnvironment(scene);
             var terrain = BuildTerrain(env);
             var rng = new System.Random(Seed);
@@ -171,6 +195,7 @@ namespace PeaHeads.EditorTools
             var t = go.transform;
             t.rotation = Quaternion.Euler(0f, yRot, 0f) * t.rotation;
             t.localScale *= (height + Sink) / WorldBounds(go).size.y;
+            if (solid) CapFootprint(go);
 
             var ground = new Vector3(xz.x, 0f, xz.y);
             ground.y = terrain.SampleHeight(ground) + terrain.transform.position.y - Sink;
@@ -183,6 +208,22 @@ namespace PeaHeads.EditorTools
                 if (solid) mf.gameObject.AddComponent<MeshCollider>().sharedMesh = mf.sharedMesh;
             }
             go.isStatic = true;
+        }
+
+        // Squashes the prop horizontally (height unchanged) if its footprint is wider than MaxCoverWidth.
+        private static void CapFootprint(GameObject go)
+        {
+            Vector3 size = WorldBounds(go).size;
+            float factor = MaxCoverWidth / Mathf.Max(size.x, size.z);
+            if (factor >= 1f) return;
+
+            var t = go.transform;
+            Vector3 localUp = Quaternion.Inverse(t.rotation) * Vector3.up;
+            Vector3 squash = Vector3.one * factor;
+            if (Mathf.Abs(localUp.x) > 0.9f) squash.x = 1f;
+            else if (Mathf.Abs(localUp.y) > 0.9f) squash.y = 1f;
+            else squash.z = 1f;
+            t.localScale = Vector3.Scale(t.localScale, squash);
         }
 
         // From mesh bounds + transforms (always current), not Renderer.bounds (can lag behind transform edits).
@@ -225,9 +266,9 @@ namespace PeaHeads.EditorTools
             if (!AssetDatabase.IsValidFolder(TerrainDir)) AssetDatabase.CreateFolder(ArtDir, "Terrain");
             var layers = new[]
             {
-                Layer("Grass", "aerial_grass_rock"),
-                Layer("Path", "forest_ground_04"),
-                Layer("ForestFloor", "forest_leaves_02"),
+                Layer("Grass", new Color(0.47f, 0.78f, 0.3f)),
+                Layer("Path", new Color(0.85f, 0.7f, 0.45f)),
+                Layer("ForestFloor", new Color(0.32f, 0.6f, 0.24f)),
             };
 
             var data = LoadOrCreate<TerrainData>(TerrainDir + "/ArenaTerrain.asset");
@@ -307,26 +348,80 @@ namespace PeaHeads.EditorTools
         private static Vector2 ToWorld(float u, float v) =>
             new(u * TerrainSize - TerrainSize / 2f, v * TerrainSize - TerrainSize / 2f);
 
-        private static TerrainLayer Layer(string name, string texture)
+        // Flat-colour layer, to match the low-poly props.
+        private static TerrainLayer Layer(string name, Color color)
         {
-            string dir = ArtDir + "/Textures/";
-            string normalPath = dir + texture + "_nor_gl_1k.jpg";
-            var importer = AssetImporter.GetAtPath(normalPath) as TextureImporter;
-            if (importer == null) throw new System.IO.FileNotFoundException($"Missing texture {normalPath}");
-            if (importer.textureType != TextureImporterType.NormalMap)
-            {
-                importer.textureType = TextureImporterType.NormalMap;
-                importer.SaveAndReimport();
-            }
-
             var layer = LoadOrCreate<TerrainLayer>($"{TerrainDir}/{name}.terrainlayer");
-            layer.diffuseTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(dir + texture + "_diff_1k.jpg");
-            layer.normalMapTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
+            layer.diffuseTexture = SolidTexture(name, color);
+            layer.normalMapTexture = null;
             layer.tileSize = new Vector2(4f, 4f);
             layer.smoothness = 0f;
             layer.metallic = 0f;
             EditorUtility.SetDirty(layer);
             return layer;
+        }
+
+        private static Texture2D SolidTexture(string name, Color color)
+        {
+            string path = $"{TerrainDir}/{name}.png";
+            var pixels = new Color[16];
+            System.Array.Fill(pixels, color);
+            var tex = new Texture2D(4, 4);
+            tex.SetPixels(pixels);
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path);
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        private static void RemapKenneyMaterials()
+        {
+            if (!AssetDatabase.IsValidFolder(MaterialDir)) AssetDatabase.CreateFolder(ArtDir, "Materials");
+            var palette = new Dictionary<string, Material>();
+            foreach (var (name, color) in Palette) palette[name] = PaletteMaterial(name, color);
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { ArtDir + "/Kenney" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var importer = (ModelImporter)AssetImporter.GetAtPath(path);
+                var current = importer.GetExternalObjectMap();
+                bool changed = false;
+
+                // Palette assets share the Kenney names, so this works before and after the first remap.
+                var used = new HashSet<string>();
+                foreach (var r in AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentsInChildren<Renderer>())
+                foreach (var m in r.sharedMaterials)
+                    if (m) used.Add(m.name);
+
+                foreach (string name in used)
+                {
+                    if (!palette.TryGetValue(name, out var mat))
+                    {
+                        Debug.LogWarning($"[PeaHeads] {path}: material '{name}' has no palette entry; Kenney colour kept.");
+                        continue;
+                    }
+                    var id = new AssetImporter.SourceAssetIdentifier(typeof(Material), name);
+                    if (current.TryGetValue(id, out var existing) && existing == mat) continue;
+                    importer.AddRemap(id, mat);
+                    changed = true;
+                }
+                if (changed) importer.SaveAndReimport();
+            }
+        }
+
+        private static Material PaletteMaterial(string name, Color color)
+        {
+            string path = $"{MaterialDir}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!mat)
+            {
+                mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.SetColor("_BaseColor", color);
+            mat.SetFloat("_Smoothness", 0f);
+            EditorUtility.SetDirty(mat);
+            return mat;
         }
 
         private static Material TerrainMaterial()
@@ -351,21 +446,18 @@ namespace PeaHeads.EditorTools
 
         private static void ApplyRenderSettings()
         {
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = FogColor;
-            RenderSettings.fogStartDistance = 25f;
-            RenderSettings.fogEndDistance = 70f;
+            // Neutral ambient: a blue sky term tints every upward face.
+            RenderSettings.fog = false;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.75f, 0.85f, 0.95f);
-            RenderSettings.ambientEquatorColor = new Color(0.55f, 0.6f, 0.5f);
-            RenderSettings.ambientGroundColor = new Color(0.3f, 0.27f, 0.2f);
+            RenderSettings.ambientSkyColor = new Color(0.85f, 0.85f, 0.82f);
+            RenderSettings.ambientEquatorColor = new Color(0.65f, 0.65f, 0.6f);
+            RenderSettings.ambientGroundColor = new Color(0.45f, 0.42f, 0.36f);
 
             var sun = GameObject.Find("Directional Light");
             if (sun && sun.TryGetComponent(out Light light))
             {
-                light.color = new Color(1f, 0.95f, 0.84f);
-                light.intensity = 1.3f;
+                light.color = new Color(1f, 0.97f, 0.9f);
+                light.intensity = 1.4f;
             }
             else Debug.LogWarning("[PeaHeads] No 'Directional Light' found; sun left unchanged.");
         }

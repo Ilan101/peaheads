@@ -6,6 +6,15 @@
 
 Replace DemoArena's primitive cubes and cylinders with a readable low-poly forest clearing: textured terrain, real rock/log/stump cover sized for the lean-to-peek mechanic, a tree-line boundary, fog. Gameplay code and the Player / Pea / TargetDummy prefabs are untouched.
 
+## Revision 2 (after first playtest)
+
+Supersedes the sections below where they differ; `ArenaBuilder.cs` holds the current table.
+- **Colours:** Kenney's materials (orange `dirt` rock stone, teal `grass` tops, rocks and stumps the same `woodBark` brown) are remapped by name to builder-generated matte URP Lit materials in `Art/Arena/Materials/` (`Palette` table): grey rock, moss-green tops, oak-brown wood, more saturated greens.
+- **Ground:** Poly Haven textures removed. Terrain layers are flat colours (builder writes 4×4 PNGs into `Terrain/`).
+- **Lighting:** fog off; ambient made neutral (the blue sky term tinted upward faces).
+- **Cover sizes:** big rocks 2.6–3.2 m; "duck" cover (log stack, round stump) 1.9 m hides a planted head (top ~1.8 m) but not a standing one. Solid props are capped at a 4.5 m footprint (squashed horizontally), since Kenney's `rock_large*` models are 8–14 m wide at cover height.
+- **Interior trees:** 5 more mirrored rows (10 trees, with colliders).
+
 ## Decisions
 
 | Question | Decision |
