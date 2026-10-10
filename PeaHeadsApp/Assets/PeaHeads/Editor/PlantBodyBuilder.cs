@@ -29,10 +29,12 @@ namespace PeaHeads.EditorTools
             {
                 Snout = SaveMesh(PlantMeshes.Lathe(PlantMeshes.SnoutProfile, 32), "Snout"),
                 MouthHole = SaveMesh(PlantMeshes.Disc(0.19f, 32), "MouthHole"),
-                GroundLeaf = SaveMesh(PlantMeshes.Leaf(0.75f, 0.3f, 0.08f, 10), "Leaf"),
+                // Short enough not to poke far past cover (tip ~0.62 m from the root, ~0.85 m planted).
+                GroundLeaf = SaveMesh(PlantMeshes.Leaf(0.5f, 0.26f, 0.06f, 10), "Leaf"),
                 CollarLeaf = SaveMesh(PlantMeshes.Leaf(0.38f, 0.22f, 0.06f, 8), "CollarLeaf"),
                 TuftLeaf = SaveMesh(PlantMeshes.Leaf(0.42f, 0.16f, 0.22f, 10), "TuftLeaf"),
-                Sphere = Resources.GetBuiltinResource<Mesh>("Sphere.fbx"),
+                // Same built-in sphere as the Head (3D Object > Sphere).
+                Sphere = Resources.GetBuiltinResource<Mesh>("New-Sphere.fbx"),
                 PlantGreen = SaveMaterial("PlantGreen", new Color(0.42f, 0.76f, 0.29f)),
                 LeafGreen = SaveMaterial("LeafGreen", new Color(0.27f, 0.58f, 0.18f)),
                 EyeWhite = SaveMaterial("EyeWhite", Color.white),
@@ -183,6 +185,7 @@ namespace PeaHeads.EditorTools
                 return mesh;
             }
             EditorUtility.CopySerialized(mesh, existing);
+            EditorUtility.SetDirty(existing);
             Object.DestroyImmediate(mesh);
             return existing;
         }
