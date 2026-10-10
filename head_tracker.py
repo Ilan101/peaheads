@@ -5,7 +5,7 @@ UDP_ADDR = ("127.0.0.1", 5052)
 SMOOTH = 0.35            # head smoothing: higher = more responsive, lower = smoother
 
 # ---- tuning knobs ----
-EYE_CLOSED_RATIO = 0.70  # eye counts as closed below 60% of your open-eye value
+EYE_CLOSED_RATIO = 0.50  # eye counts as closed below 60% of your open-eye value
 MOUTH_OPEN = 0.30        # mouth-open ratio threshold (try 0.2 - 0.45)
 AIM_FRAMES = 3           # frames a wink must hold before aim = True
 SHOOT_FRAMES = 2         # frames mouth must stay open before shoot = True
