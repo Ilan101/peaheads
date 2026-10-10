@@ -1,4 +1,5 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -49,6 +50,7 @@ namespace PeaHeads
 
         private Slide[] _slides;
         private Action _onDone;
+        private MatchManager _match;
         private int _index;
         private int _next = -1;
         private float _slideTime;
@@ -71,15 +73,21 @@ namespace PeaHeads
 
         private int Last => _slides.Length - 1;
 
-        private void OnDisable() => IsPlaying = false;
+        private void OnDisable()
+        {
+            IsPlaying = false;
+            MatchManager.TeamsChanged -= OnTeamsChanged;
+        }
 
         // match may be null (scores then use the defaults from the spec).
         public void Play(int team, MatchManager match, Action onDone)
         {
             if (!_canvas) Build();
             _onDone = onDone;
-            _slides = BuildSlides(team, match ? match.TargetScore : 20, match ? match.MushroomPoints : 1,
-                match ? match.KillPoints : 3, match ? Mathf.RoundToInt(match.MatchDuration) : 120);
+            _match = match;
+            _slides = BuildFor(team);
+            MatchManager.TeamsChanged -= OnTeamsChanged;
+            MatchManager.TeamsChanged += OnTeamsChanged;
             _canvas.SetActive(true);
             _content.alpha = 0f;
             _background.color = _slides[0].Background;
@@ -90,8 +98,23 @@ namespace PeaHeads
         public void Stop()
         {
             IsPlaying = false;
+            MatchManager.TeamsChanged -= OnTeamsChanged;
             _onDone = null;
             if (_canvas) _canvas.SetActive(false);
+        }
+
+        private Slide[] BuildFor(int team) =>
+            BuildSlides(team, _match ? _match.TargetScore : 20, _match ? _match.MushroomPoints : 1,
+                _match ? _match.KillPoints : 3, _match ? Mathf.RoundToInt(_match.MatchDuration) : 120);
+
+        // Teams are reshuffled when a client joins, possibly mid-story: retell it for the team we have now.
+        private void OnTeamsChanged()
+        {
+            if (!IsPlaying || NetworkManager.Singleton == null) return;
+            Slide[] slides = BuildFor(MatchManager.TeamOf(NetworkManager.Singleton.LocalClientId));
+            bool redraw = slides[_index].Title != _slides[_index].Title;
+            _slides = slides;
+            if (redraw) ShowSlide(_index);
         }
 
         private void Update()

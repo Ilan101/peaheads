@@ -22,6 +22,8 @@ namespace PeaHeads.Net
         private PlayerHealth _health;
         private SpawnPoint _lastSpawn;
         private PlantFace _plantFace;
+        // Owner: the side to respawn on after a death. Set by the host's round-start call, refreshed on team change.
+        private int _side;
 
         private void Awake()
         {
@@ -38,18 +40,25 @@ namespace PeaHeads.Net
             _input.SetLocal(IsOwner);
             _rig.SetLocal(IsOwner);
 
+            _side = MatchManager.TeamOf(OwnerClientId);
             ApplyTint();
-            MatchManager.TeamsChanged += ApplyTint;
+            MatchManager.TeamsChanged += OnTeamsChanged;
 
             _health.Revived += OnRevived;
-            if (IsOwner) MoveToSpawn(MatchManager.TeamOf(OwnerClientId));
+            if (IsOwner) MoveToSpawn(_side);
             else ApplyRemoteState();
         }
 
         public override void OnNetworkDespawn()
         {
             _health.Revived -= OnRevived;
-            MatchManager.TeamsChanged -= ApplyTint;
+            MatchManager.TeamsChanged -= OnTeamsChanged;
+        }
+
+        private void OnTeamsChanged()
+        {
+            _side = MatchManager.TeamOf(OwnerClientId);
+            ApplyTint();
         }
 
         // Teams are reshuffled every match, so the head colour follows the current assignment.
@@ -89,12 +98,17 @@ namespace PeaHeads.Net
             _plantFace.SetFlags(mouthOpen, wink);
         }
 
-        // Owner only: back to spawn on its team's side, unplanted. Used on revive.
-        public void Respawn() => Respawn(MatchManager.TeamOf(OwnerClientId));
+        // Owner only: back to spawn on its team's side, unplanted. Used on revive. Uses the cached side: a revive
+        // can arrive before the reshuffled team list, and must not send us back to last round's side.
+        public void Respawn() => Respawn(_side);
 
         // Host → owner at round start: the side comes with the call, so a late team-list update can't misplace us.
         [Rpc(SendTo.Owner)]
-        public void RespawnOnSideRpc(byte team) => Respawn(team);
+        public void RespawnOnSideRpc(byte team)
+        {
+            _side = team;
+            Respawn(team);
+        }
 
         private void Respawn(int team)
         {
