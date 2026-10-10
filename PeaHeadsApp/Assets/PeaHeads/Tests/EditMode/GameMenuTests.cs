@@ -28,6 +28,16 @@ namespace PeaHeads.Tests
         public void ScreenFor_ConnectedOpen_IsPause() =>
             Assert.AreEqual(MenuScreen.Pause, GameMenu.ScreenFor(true, true, true));
 
+        [Test]
+        public void SessionActive_FalseWhileShuttingDown() =>
+            Assert.IsFalse(GameMenu.SessionActive(true, true, true));
+
+        [TestCase(true, false, ExpectedResult = true)]
+        [TestCase(false, true, ExpectedResult = true)]
+        [TestCase(false, false, ExpectedResult = false)]
+        public bool SessionActive_ClientOrServer(bool isClient, bool isServer) =>
+            GameMenu.SessionActive(isClient, isServer, false);
+
         [TestCase(true, true, ExpectedResult = true)]
         [TestCase(true, false, ExpectedResult = false)]
         [TestCase(false, true, ExpectedResult = false)]

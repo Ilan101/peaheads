@@ -50,6 +50,10 @@ namespace PeaHeads
 
         public static bool ShowRestart(bool isHost, bool matchExists) => isHost && matchExists;
 
+        // Shutdown is deferred to the end of the frame; treat it as already over so Leave goes straight to Start.
+        public static bool SessionActive(bool isClient, bool isServer, bool shuttingDown) =>
+            (isClient || isServer) && !shuttingDown;
+
         private void Awake() => _session = GetComponent<SessionController>();
 
         // Start, not Awake: SessionController fills Address/LocalIps in its Awake.
@@ -65,7 +69,7 @@ namespace PeaHeads
             var nm = NetworkManager.Singleton;
             if (nm == null || !_backdrop) return;
 
-            bool active = nm.IsClient || nm.IsServer;
+            bool active = SessionActive(nm.IsClient, nm.IsServer, nm.ShutdownInProgress);
             bool connected = nm.IsHost || nm.IsConnectedClient;
             if (!active) _pauseOpen = false;
             Keyboard kb = Keyboard.current;

@@ -79,17 +79,22 @@ namespace PeaHeads.Net
         private void OnClientDisconnect(ulong clientId)
         {
             var nm = NetworkManager.Singleton;
-            if (nm.IsServer && clientId != nm.LocalClientId)
-            {
-                Status = $"Player {clientId} left.";
-                return;
-            }
-            if (_leaving) return;
+            bool remoteClientLeft = nm.IsServer && clientId != nm.LocalClientId;
+            string status = DisconnectStatus(_leaving, remoteClientLeft, clientId, _wasConnected, nm.DisconnectEvent);
+            if (status != null) Status = status;
+            if (!remoteClientLeft) _wasConnected = false;
+        }
 
-            if (!string.IsNullOrEmpty(nm.DisconnectReason)) Status = nm.DisconnectReason;
-            else if (_wasConnected) Status = "Host ended the session.";
-            else Status = "Disconnected / could not reach host. Same Wi-Fi? Firewall?";
-            _wasConnected = false;
+        // null = keep the current status. NGO's DisconnectReason is a debug string, so map the event instead.
+        public static string DisconnectStatus(bool leaving, bool remoteClientLeft, ulong clientId, bool wasConnected,
+            NetworkTransport.DisconnectEvents disconnectEvent)
+        {
+            if (leaving) return null;
+            if (remoteClientLeft) return $"Player {clientId} left.";
+            if (!wasConnected) return "Could not reach host. Same Wi-Fi? Firewall?";
+            return disconnectEvent == NetworkTransport.DisconnectEvents.ProtocolTimeout
+                ? "Lost connection to the host."
+                : "Host ended the session.";
         }
 
         private static UnityTransport Transport() =>
