@@ -11,7 +11,7 @@ namespace PeaHeads.Net
         [SerializeField] private Color _hostColor = new(0.55f, 0.85f, 0.25f);
         [SerializeField] private Color _clientColor = new(0.95f, 0.6f, 0.2f);
 
-        private readonly NetworkVariable<Vector2> _head = new(writePerm: NetworkVariableWritePermission.Owner);
+        private readonly NetworkVariable<Vector3> _headOffset = new(writePerm: NetworkVariableWritePermission.Owner);
         private readonly NetworkVariable<float> _pitch = new(writePerm: NetworkVariableWritePermission.Owner);
         private readonly NetworkVariable<byte> _plantState = new(writePerm: NetworkVariableWritePermission.Owner);
 
@@ -51,7 +51,7 @@ namespace PeaHeads.Net
             if (!IsSpawned) return;
             if (IsOwner)
             {
-                _head.Value = _rig.HeadInput;
+                _headOffset.Value = _rig.HeadOffset;
                 _pitch.Value = _rig.Pitch;
                 _plantState.Value = (byte)_planting.State;
             }
@@ -60,7 +60,7 @@ namespace PeaHeads.Net
 
         private void ApplyRemoteState()
         {
-            _rig.ApplyRemote(_head.Value, _pitch.Value);
+            _rig.ApplyRemote(_headOffset.Value, _pitch.Value);
             _planting.ApplyRemote((PlantState)_plantState.Value);
         }
 
