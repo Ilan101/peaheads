@@ -41,6 +41,8 @@ Assets/PeaHeads/
 ├── PeaHeads.asmdef             all runtime scripts. Refs: InputSystem, Netcode.Runtime, Networking.Transport, Collections
 ├── Editor/         PeaHeads.Editor.asmdef; NetTestSceneBuilder (menu PeaHeads > Build Net Test Scene —
 │                   regenerates NetTest scene + Prefabs/NetTest/*, overwriting hand edits)
+│                   ArenaBuilder (menu PeaHeads > Build Arena — rebuilds DemoArena's Environment root: terrain,
+│                   mirrored Cover table, tree ring, fog; overwrites hand edits under Environment)
 ├── Scripts/
 │   ├── PhysicsUtil.cs   CastIgnoring(): closest ray/sphere hit skipping a root (own colliders)
 │   ├── Player/     PlayerInput (ONLY device reader → PlayerInputFrame; SetLocal; SetTrackerInput; cursor lock),
@@ -56,6 +58,7 @@ Assets/PeaHeads/
 │                   plant vars, spawn teleport, host/client tint); SpawnPoint; OverviewCamera; Test/ (NetTest proof);
 │                   MatchManager (todo)
 ├── Tests/EditMode/ PlantingControllerTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Art/Arena/      CC0 Kenney Nature Kit FBX + Poly Haven textures (CREDITS.md); Terrain/ is generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); NetTest/ (generated)
 └── Scenes/         DemoArena (networked: Host alone = solo + dummies, Host/Join = 2P), NetTest (LAN test), ForestArena (todo)
 ```
