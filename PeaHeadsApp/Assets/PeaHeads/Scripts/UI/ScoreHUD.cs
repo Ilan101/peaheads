@@ -29,11 +29,15 @@ namespace PeaHeads
             DrawBar(new Rect(mid - _barWidth - 10f, 12f, _barWidth, 26f), 0, false, localTeam);
             DrawBar(new Rect(mid + 10f, 12f, _barWidth, 26f), 1, true, localTeam);
 
+            int seconds = Mathf.CeilToInt(_match.TimeRemaining);
+            GUI.Label(new Rect(mid - 60f, 42f, 120f, 30f), $"{seconds / 60}:{seconds % 60:00}", _label);
+
             if (!_match.IsEnded) return;
-            string winner = _match.Winner == 0 ? "PLAYER 1" : "PLAYER 2";
-            string result = _match.Winner == localTeam ? "You win!" : "You lose";
+            bool draw = _match.Winner < 0;
+            string winner = draw ? "DRAW" : _match.Winner == 0 ? "PLAYER 1 WINS" : "PLAYER 2 WINS";
+            string result = draw ? "Tied on points" : _match.Winner == localTeam ? "You win!" : "You lose";
             float y = Screen.height * 0.3f;
-            GUI.Label(new Rect(0f, y, Screen.width, 60f), $"{winner} WINS", _banner);
+            GUI.Label(new Rect(0f, y, Screen.width, 60f), winner, _banner);
             GUI.Label(new Rect(0f, y + 64f, Screen.width, 30f), $"{result}   Restarting...", _label);
         }
 

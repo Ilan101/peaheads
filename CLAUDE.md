@@ -89,7 +89,7 @@ UDP to `127.0.0.1:5052`, one JSON datagram per webcam frame:
 {"face": true, "dx": 0.12, "dy": -0.05, "aim": false, "shoot": false}
 ```
 
-- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, in face widths, divided by the tracker's 16:9 active rectangle (`RANGE_X` = 0.6 face widths, `RANGE_Y` = `RANGE_X` × 9/16) and **clamped to [-1, 1]** (rectangle edge = 1). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies the dead zone and optional extra gain (`HeadTrackingInput`), then metres (`PlayerCameraRig` max lean/rise/duck).
+- `dx`, `dy`: smoothed nose displacement from the calibrated neutral, in face widths, divided by the tracker's 16:9 active box (half-width `BOX_FRAC` = 0.30 of the frame width, frame-relative so camera mode can't shrink it) and **clamped to [-1, 1]** (box edge = 1). Tracker requests MJPG 30 fps (720p YUYV is only ~10 fps). `+dx` = player's right (image is mirrored), `+dy` = up. Unity applies the dead zone and optional extra gain (`HeadTrackingInput`), then metres (`PlayerCameraRig` max lean/rise/duck).
 - `shoot`: true **while** the mouth is open (≥ 2 frames). It's a level, not an event — Unity detects the false→true edge and applies the cooldown.
 - `aim`: true while exactly one eye is closed (≥ 3 frames). Unity treats it as zoom held.
 - `face: false` → everything zero/false. Unity eases the head back to neutral.
@@ -109,7 +109,7 @@ Unity side: `HeadTrackingReceiver` (scene object `HeadTracking`, one per machine
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
-- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
+- Points race: kill = 3, mushroom = 1 (finish planting within 1.5 m of a glowing mushroom; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw) → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
 - Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 
