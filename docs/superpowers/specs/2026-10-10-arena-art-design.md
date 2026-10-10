@@ -83,7 +83,8 @@ Layout is **point-symmetric about the origin**: every row at (x, z, rot) is mirr
 | `rock_largeD` | −11 | −2 | 40 | 2.5 | left flank |
 | `log_stackLarge` | 11 | −9 | 90 | 1.2 | right flank, low |
 | `rock_tallB` | −5 | −13 | 0 | 2.5 | spawn side |
-| `stump_round` | 13 | 2 | 0 | 1.0 | low |
+| `stump_round` | 14 | 6 | 0 | 1.0 | low |
+| `rock_largeB` | −16 | 12 | 60 | 2.3 | far flank |
 | `tree_oak` | −15 | −14 | 0 | 6 | corner tree, collider |
 
 ## Unchanged
