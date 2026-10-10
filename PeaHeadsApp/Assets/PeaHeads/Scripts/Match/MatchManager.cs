@@ -17,7 +17,7 @@ namespace PeaHeads
         [SerializeField, Range(30f, 600f)] private float _matchDuration = 120f;
         [SerializeField, Range(0, 10)] private int _killPoints = 3;
         [SerializeField, Range(0, 10)] private int _mushroomPoints = 1;
-        [SerializeField, Range(1f, 30f)] private float _restartDelay = 5f;
+        [SerializeField, Range(1f, 30f)] private float _restartDelay = 10f;
         [SerializeField] private GameObject _confettiPrefab;
         [SerializeField] private AudioClip _endSfx;
 

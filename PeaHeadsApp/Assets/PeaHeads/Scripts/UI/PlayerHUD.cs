@@ -8,7 +8,7 @@ namespace PeaHeads
     // webcam); bottom-left team badge (flower / thorn), plant dial (sprout + ring of dots that fills while planting)
     // with a status word, and hearts; crosshair with hit marker (all red on a kill); round scope view while zoomed; damage / low-health vignette; "spat
     // out" death screen; kill toast and feedback sounds. Owner only (PlayerInput's local-only behaviours); hidden
-    // during the story. While scoped in, everything but the crosshair hides (ScoreHUD and Minimap read Scoped).
+    // during the story. While scoped in, the HUD and scoreboard hide (ScoreHUD reads Scoped); crosshair, minimap and killcam stay.
     public class PlayerHUD : MonoBehaviour
     {
         private const float Margin = 20f;

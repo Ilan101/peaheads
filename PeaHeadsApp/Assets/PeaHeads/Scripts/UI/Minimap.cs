@@ -89,7 +89,7 @@ namespace PeaHeads
             int team = MatchManager.TeamOf(nm.LocalClientId);
             if (team != _bakedTeam) Bake(team);
 
-            bool show = !StoryIntro.IsPlaying && !PlayerHUD.Scoped;
+            bool show = !StoryIntro.IsPlaying; // stays visible over the scope vignette
             if (_canvas.activeSelf != show) _canvas.SetActive(show);
             if (!show) return;
 

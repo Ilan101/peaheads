@@ -139,7 +139,7 @@ The Hollow Grove's Sporelights (= the mushrooms) hold the forest's life; the Rot
 - Fire on mouth **closed→open edge** only, plus cooldown 0.6 s. Mouth must close before next shot.
 - Zoom on exactly one eye closed; both closed = nothing.
 - Pea: spawns at mouth socket, straight line along camera aim (raycast from camera center to get target point, then fire from mouth toward it), speed 10 u/s, diameter 0.4, lifetime 4 s. Cover colliders block it.
-- Points race: kill = 3, mushroom = 1 (stay planted within 1.5 m of a glowing mushroom for 2 s, brown progress bar; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 5 s. Values on MatchManager / MushroomSpawner.
+- Points race: kill = 3, mushroom = 1 (stay planted within 1.5 m of a glowing mushroom for 2 s, brown progress bar; 3 of 10 spots active, respawn 5 s), first to 20 wins, or most points when the 120 s clock runs out (tie = draw; the clock starts once nobody is watching the intro story) → banner, input frozen, auto-restart after 10 s. Values on MatchManager / MushroomSpawner.
 - Health 3. Hit colliders on **head and base/stem** (leaning head out = head exposed; base still exposed if out of cover).
 - Local camera uses local webcam data immediately; never wait on network.
 

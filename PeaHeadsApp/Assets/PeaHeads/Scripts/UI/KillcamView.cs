@@ -176,7 +176,7 @@ namespace PeaHeads
                 if (!local) return;
                 Build();
             }
-            bool show = playing && !StoryIntro.IsPlaying && (fullscreen || !PlayerHUD.Scoped);
+            bool show = playing && !StoryIntro.IsPlaying; // stays visible over the scope vignette
             _root.gameObject.SetActive(show);
             _waiting.enabled = waiting && !StoryIntro.IsPlaying;
             if (_waiting.enabled) _waiting.color = new Color(1f, 1f, 1f, 0.6f + 0.4f * Mathf.Sin(now * 5f));
