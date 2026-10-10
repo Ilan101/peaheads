@@ -6,6 +6,10 @@
 
 Real head movement from the webcam drives the in-game head: **lean left/right and duck/raise, proportional** to how far the player actually moves. It replaces the arrow keys' fixed full lean whenever the tracker sees a face. How much real movement maps to in-game movement is adjustable, so lean can be exaggerated. Mouth-open fires and a wink zooms (each toggleable). Ilan's stem bends with the lean and his planting animation keeps working, now joined by a dust puff. A small HUD indicator shows whether the webcam is driving the head.
 
+## Update (tracker commit 7f07503)
+
+`head_tracker.py` now sends `dx`/`dy` already scaled to its 16:9 on-screen rectangle (`RANGE_X` = 0.6 face widths, `RANGE_Y` = `RANGE_X` × 9/16) and clamped to −1..1. So `HeadTrackingInput` gains now default to **1** (rectangle edge = full in-game lean; >1 still exaggerates). The HUD tracker view is a 16:9 box (256 px wide by default) in the top-left. HP is shown as hearts in the bottom-left; the controls line is gone.
+
 ## How the pieces work today
 
 | Piece | What it does | Gap |

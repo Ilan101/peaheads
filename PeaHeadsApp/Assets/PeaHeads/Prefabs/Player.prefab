@@ -454,8 +454,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 37eeef433ed7a1d5384c84640b8977e3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlantingController
-  _plantTime: 0.75
-  _unplantTime: 3
+  _plantTime: 0.7
+  _unplantTime: 0.7
   _plantedHeight: 0.85
 --- !u!114 &6822468299848805421
 MonoBehaviour:
@@ -488,12 +488,20 @@ MonoBehaviour:
   - {fileID: 1857080282461240938}
   - {fileID: 9118644184780454952}
   _pitchLimits: {x: -70, y: 70}
+<<<<<<< HEAD
   _maxLean: 1.1
   _maxRise: 0.35
   _maxDuck: 0.6
   _headSmoothing: 16
   _leanRoll: 10
   _headCollisionRadius: 0.3
+=======
+  _maxLean: 1
+  _maxRise: 0.5
+  _maxDuck: 0.75
+  _headSmoothing: 5
+  _headCollisionRadius: 0.299715
+>>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
   _zoomFactor: 1.5
   _zoomSpeed: 12
 --- !u!114 &4373243512297181890
@@ -571,6 +579,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 781d134da118f87dc838f85ac92244ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PeaHeads.PlayerHUD
+  _heartSize: 40
+  _trackerWidth: 256
 --- !u!114 &6559153631543594811
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -771,9 +781,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7ebb9a6e510e41479723460a86a18ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.HeadTrackingInput
+  _movementMultiplier: 4.2
   _deadZone: 0.03
+<<<<<<< HEAD
   _leanGain: 3.5
   _verticalGain: 4
+=======
+  _leanGain: 1
+  _verticalGain: 1
+>>>>>>> 30a6db55afce18d6027465428d01898033b4c9a5
   _useMouthFire: 1
   _useWinkZoom: 1
 --- !u!1 &5117186791582609117
