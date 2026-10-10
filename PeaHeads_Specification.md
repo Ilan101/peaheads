@@ -31,7 +31,8 @@ A typical encounter should follow this sequence:
 5. **Aim:** Line up a shot using normal mouse aiming or close one eye to activate zoom and a crosshair.
 6. **Fire:** Open your mouth to shoot a pea projectile from the character's mouth.
 7. **React:** Unplant to reposition or use real-life head movement to dodge an incoming projectile.
-8. **Repeat:** Find a new angle, outmaneuver the opponent, and land enough hits to win.
+8. **Collect:** Plant on top of a glowing mushroom to collect it for a point. Planting takes time, so collecting in the open is a risk.
+9. **Repeat:** Find a new angle, outmaneuver the opponent, and race to the target score with kills and mushrooms.
 
 The central tension is that planting allows the player to shoot, but makes them vulnerable to incoming fire. Players must decide when to commit to a shot and when to unplant and reposition.
 
@@ -328,9 +329,13 @@ For the initial demo:
 
 - Each player starts with three health points.
 - A projectile hit removes one health point.
-- A player who reaches zero health loses the round.
-- The remaining player wins.
-- After a round ends, provide a simple restart option.
+- A player who reaches zero health is defeated and respawns at their spawn point after a short delay.
+- **Points race** (added 2026-10-10, see `docs/superpowers/specs/2026-10-10-mushroom-scoring-design.md`):
+  - A kill gives the shooter **3 points**.
+  - Collecting a mushroom gives **1 point**. Glowing mushrooms appear at spots around the map, a few at a time; a player collects one by completing a plant on top of it.
+  - The first player to **20 points** wins. Each player's score is shown as a bar at the top of the screen.
+  - All values are adjustable on the components.
+- When a player wins, both screens show the winner, then the match restarts automatically: scores reset and players respawn.
 
 Avoid implementing complicated health regeneration, weapon upgrades, status effects, or multiple weapon types unless the core game is already complete.
 
@@ -439,7 +444,7 @@ Multiplayer is a significant technical risk for a 36-hour hackathon, so the team
 - Players can plant, unplant, and fire independently.
 - Pea projectiles are visible to both players.
 - Hits and health changes are synchronized.
-- The match ends when one player is defeated.
+- The match ends when one player reaches the target score.
 - Both players see the result of the match.
 
 ### Networking recommendation
