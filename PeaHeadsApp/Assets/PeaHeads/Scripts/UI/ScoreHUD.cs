@@ -9,15 +9,21 @@ namespace PeaHeads
     public class ScoreHUD : MonoBehaviour
     {
         [SerializeField, Range(100f, 600f)] private float _barWidth = 320f;
+        [SerializeField] private Color _collectColor = new(0.5f, 0.3f, 0.12f);
 
         private MatchManager _match;
+        private MushroomSpawner _mushrooms;
         private GUIStyle _label;
         private GUIStyle _banner;
         private GUIStyle _line;
         private bool _rivalShielded;
         private float _nextRivalCheck;
 
-        private void Awake() => _match = GetComponent<MatchManager>();
+        private void Awake()
+        {
+            _match = GetComponent<MatchManager>();
+            _mushrooms = GetComponent<MushroomSpawner>();
+        }
 
         private void Update()
         {
@@ -45,6 +51,9 @@ namespace PeaHeads
             int seconds = Mathf.CeilToInt(_match.TimeRemaining);
             GUI.Label(new Rect(mid - 60f, 42f, 120f, 30f), $"{seconds / 60}:{seconds % 60:00}", _label);
 
+            float collect = _mushrooms ? _mushrooms.CollectProgress(localTeam) : 0f;
+            if (collect > 0f) DrawCollectBar(collect);
+
             if (_rivalShielded && !_match.IsEnded)
                 GUI.Label(new Rect(0f, 72f, Screen.width, 24f),
                     $"{Faction.Name(1 - localTeam)} is still hearing the story... (can't be hit yet)", _label);
@@ -58,6 +67,18 @@ namespace PeaHeads
             GUI.Label(new Rect(0f, y + 68f, Screen.width, 34f), draw ? "Tied on points" : Faction.WinLine(winner), _line);
             string result = draw ? "" : winner == localTeam ? "You win!   " : "You lose   ";
             GUI.Label(new Rect(0f, y + 106f, Screen.width, 30f), $"{result}Restarting...", _label);
+        }
+
+        // Bottom-centre progress of the mushroom the local player is planted on.
+        private void DrawCollectBar(float progress)
+        {
+            var rect = new Rect((Screen.width - _barWidth) / 2f, Screen.height - 70f, _barWidth, 22f);
+            GUI.color = new Color(0f, 0f, 0f, 0.5f);
+            GUI.DrawTexture(rect, Texture2D.whiteTexture);
+            GUI.color = _collectColor;
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width * progress, rect.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(rect.x, rect.y - 26f, rect.width, 24f), "Collecting mushroom...", _label);
         }
 
         private void DrawBar(Rect rect, int team, bool fillFromRight, int localTeam)
