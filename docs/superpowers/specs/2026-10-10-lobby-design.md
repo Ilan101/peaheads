@@ -85,3 +85,10 @@ joiner during a match, 5th player rejected.
 ## Out of scope
 
 Ready-up toggles, kicking players, choosing teams in the lobby, returning to the lobby after a match.
+
+## Changes after first build (2026-10-10, user)
+
+- Head indicator = the HUD's own tracker (`TrackerPanel`): "Press C to Calibrate" over a transparent box with the head
+  dot, top-left. No live face feed, no CALIBRATE button.
+- Slots fill middle-out (centre-left, centre-right, then the edges).
+- Title = the start menu's "PeaHeads" title card with the Bloom flower / Blight thorn badges (`UiBuild.TitleCard`).

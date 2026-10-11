@@ -69,10 +69,7 @@ namespace PeaHeads
         private RectTransform _scopeCircle, _scopeLeft, _scopeRight;
         private Image _scopeImage, _scopeLeftImage, _scopeRightImage;
         private Image _damageVignette;
-        private RectTransform _tracker;
-        private Image _trackerBox, _dot, _cameraOff;
-        private Text _calibrateText;
-        private Vector2 _boxHalf;
+        private TrackerPanel _tracker;
         private RectTransform _status;
         private Image _badge, _sprout;
         private readonly Image[] _plantDots = new Image[PlantDots];
@@ -159,12 +156,12 @@ namespace PeaHeads
 
             Color faction = Faction.Color(Team);
             bool status = !Scoped && !dead;
-            _tracker.gameObject.SetActive(status);
+            _tracker.Root.gameObject.SetActive(status);
             _status.gameObject.SetActive(status);
             _crosshair.gameObject.SetActive(!dead);
             if (status)
             {
-                UpdateTracker();
+                _tracker.Refresh(_tracking);
                 UpdateStatus();
             }
             if (!dead) UpdateCrosshair(faction);
@@ -189,19 +186,6 @@ namespace PeaHeads
             }
             else if (hp > 0 && _lastHealth <= 0) GameAudio.Play(Sfx.Respawn, 0.8f);
             _lastHealth = hp;
-        }
-
-        // ---------- Webcam panel ----------
-
-        // Box + dot while the webcam tracks; otherwise just a red camera in the corner (keyboard fallback).
-        private void UpdateTracker()
-        {
-            bool live = _tracking && _tracking.State == TrackingState.Tracking;
-            _trackerBox.enabled = live;
-            _dot.enabled = live;
-            _calibrateText.enabled = live;
-            _cameraOff.enabled = !live;
-            if (live) _dot.rectTransform.anchoredPosition = Vector2.Scale(_tracking.Head, _boxHalf);
         }
 
         // ---------- Bottom-left: badge, plant dial, status line, hearts ----------
@@ -378,24 +362,8 @@ namespace PeaHeads
             return image;
         }
 
-        // Transparent box tucked top-left: centre lines + a dot where the webcam puts your head. Red camera instead
-        // when the webcam isn't tracking.
-        private void BuildTracker()
-        {
-            float boxHeight = _trackerWidth * 9f / 16f;
-            _boxHalf = new Vector2(_trackerWidth * 0.5f - 5f, boxHeight * 0.5f - 5f);
-            const float labelHeight = 22f;
-            _tracker = UiBuild.Node(_canvas, "Tracker", TopLeft, new Vector2(TrackerMargin, -TrackerMargin),
-                new Vector2(_trackerWidth, boxHeight + labelHeight));
-            _calibrateText = UiBuild.Label(_tracker, "Press C to Calibrate", 17, Color.white, TextAnchor.MiddleLeft, TopLeft,
-                Vector2.zero, new Vector2(_trackerWidth, labelHeight));
-            _trackerBox = UiBuild.Image(_tracker, null, TopLeft, new Vector2(0f, -labelHeight),
-                new Vector2(_trackerWidth, boxHeight), new Color(0f, 0f, 0f, 0.35f));
-            UiBuild.Image(_trackerBox.transform, null, Vector2.zero, new Vector2(1f, boxHeight), new Color(1f, 1f, 1f, 0.25f));
-            UiBuild.Image(_trackerBox.transform, null, Vector2.zero, new Vector2(_trackerWidth, 1f), new Color(1f, 1f, 1f, 0.25f));
-            _dot = UiBuild.Image(_trackerBox.transform, UiBuild.Circle, Vector2.zero, new Vector2(10f, 10f), Color.white);
-            _cameraOff = UiBuild.Image(_tracker, UiSprites.Camera(), TopLeft, Vector2.zero, new Vector2(IconSize, IconSize), Bad);
-        }
+        private void BuildTracker() =>
+            _tracker = new TrackerPanel(_canvas, new Vector2(TrackerMargin, -TrackerMargin), _trackerWidth);
 
         // No panel: icons and hearts sit straight on the scene, with shadows for contrast.
         private void BuildStatus()

@@ -25,12 +25,8 @@ namespace PeaHeads
 
         private PlayerInput _input;
         private Vector2 _neutral;
-        private bool _calibrate;
 
         private void Awake() => _input = GetComponent<PlayerInput>();
-
-        // Lobby button: the next tracked frame becomes neutral (same as C).
-        public void Calibrate() => _calibrate = true;
 
         private void OnDisable() => SetIdle(TrackingState.Off);
 
@@ -51,11 +47,7 @@ namespace PeaHeads
 
             State = TrackingState.Tracking;
             var raw = new Vector2(tracker.Dx, tracker.Dy);
-            if (_input.Current.RecenterPressed || _calibrate)
-            {
-                _neutral = raw;
-                _calibrate = false;
-            }
+            if (_input.Current.RecenterPressed) _neutral = raw;
             Head = new Vector2(
                 Mathf.Clamp(Recenter(raw.x, _neutral.x) * _leanGain * _movementMultiplier, -1f, 1f),
                 Mathf.Clamp(Recenter(raw.y, _neutral.y) * _verticalGain * _movementMultiplier, -1f, 1f));

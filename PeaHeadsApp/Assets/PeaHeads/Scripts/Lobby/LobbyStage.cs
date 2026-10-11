@@ -26,9 +26,13 @@ namespace PeaHeads
 
         public static bool Contains(Vector3 position) => (position - Origin).sqrMagnitude < Radius * Radius;
 
-        // Plants face the camera (−Z). Slot 0 is +X, which the mirrored view shows on the left.
+        // Slots fill from the middle out: centre-left, centre-right, then the two edges (columns counted from the left).
+        // ponytail: written for SlotCount = 4.
+        private static readonly int[] Columns = { 1, 2, 0, 3 };
+
+        // Plants face the camera (−Z). Column 0 is +X, which the mirrored view shows on the left.
         public Pose Slot(int index) => new(
-            Origin + new Vector3(((SlotCount - 1) * 0.5f - index) * _slotSpacing, 0f, 0f),
+            Origin + new Vector3(((SlotCount - 1) * 0.5f - Columns[index]) * _slotSpacing, 0f, 0f),
             Quaternion.Euler(0f, 180f, 0f));
 
         private void Awake()

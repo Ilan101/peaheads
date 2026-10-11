@@ -8,13 +8,11 @@ using UnityEngine.UI;
 namespace PeaHeads
 {
     // Holding room after the story (and for mid-round joiners until the next round): the real plants stand in
-    // LobbyStage's slots facing a mirrored camera, heads live, nothing else moves. Story-styled uGUI on top: title,
-    // slot names, framing window + Calibrate, host START. Added by GameMenu, which opens and closes it.
+    // LobbyStage's slots facing a mirrored camera, heads live, nothing else moves. Story-styled uGUI on top: PeaHeads
+    // title card, slot names, the HUD's head tracker, host START. Added by GameMenu, which opens and closes it.
     public class LobbyView : MonoBehaviour
     {
         private const int SporeCount = 30;
-        private const float FrameWidth = 288f;
-        private const float FrameHeight = 162f;
         private static readonly Color Gold = new(1f, 0.84f, 0.42f);
         private static readonly Color Cream = new(0.95f, 0.9f, 0.8f);
         private static readonly Color Ink = new(0.05f, 0.04f, 0.03f, 0.85f);
@@ -31,11 +29,10 @@ namespace PeaHeads
         private Text _status;
         private GameObject _startButton;
         private readonly Text[] _names = new Text[LobbyStage.SlotCount];
-        private RawImage _face;
-        private Texture2D _faceTexture;
-        private byte[] _shownJpeg;
-        private Text _noFace;
-        private Image _dot;
+        private TrackerPanel _tracker;
+        private RectTransform _title;
+        private RectTransform _bloomBadge;
+        private RectTransform _blightBadge;
         private RectTransform[] _spores;
         private float[] _sporeSpeed;
         private NetworkObject _modePlayer;
@@ -45,11 +42,6 @@ namespace PeaHeads
             waiting || (storyDone && matchIsLobby);
 
         private void OnDisable() => IsOpen = false;
-
-        private void OnDestroy()
-        {
-            if (_faceTexture) Destroy(_faceTexture);
-        }
 
         public void SetOpen(bool open)
         {
@@ -105,7 +97,8 @@ namespace PeaHeads
             _view.texture = _stage.Texture;
             UpdateNames(members, localId);
             UpdateFooter(members.Count, nm && nm.IsHost);
-            UpdateFace(player);
+            _tracker.Refresh(player ? player.GetComponent<HeadTrackingInput>() : null);
+            UiBuild.AnimateTitle(_title, _bloomBadge, _blightBadge, Time.unscaledTime);
             UpdateSpores(Time.unscaledDeltaTime);
         }
 
@@ -165,27 +158,6 @@ namespace PeaHeads
                 : "Next round starts when this match ends";
         }
 
-        // Live face from the tracker's feed with the head dot, as in the HUD's webcam panel.
-        private void UpdateFace(NetworkObject player)
-        {
-            FaceFeed feed = FaceFeed.Instance;
-            byte[] jpeg = feed && feed.Live ? feed.Latest : null;
-            if (jpeg != null && jpeg != _shownJpeg)
-            {
-                _faceTexture.LoadImage(jpeg);
-                _shownJpeg = jpeg;
-            }
-            _face.enabled = jpeg != null;
-
-            HeadTrackingInput tracking = player ? player.GetComponent<HeadTrackingInput>() : null;
-            bool live = tracking && tracking.State == TrackingState.Tracking;
-            _noFace.enabled = !live;
-            _dot.enabled = live;
-            if (live)
-                _dot.rectTransform.anchoredPosition = Vector2.Scale(tracking.Head,
-                    new Vector2(FrameWidth * 0.5f - 7f, FrameHeight * 0.5f - 7f));
-        }
-
         private void UpdateSpores(float dt)
         {
             Rect area = _canvas.rect;
@@ -203,13 +175,6 @@ namespace PeaHeads
         private void OnStart()
         {
             if (MatchManager.Instance) MatchManager.Instance.StartMatch();
-        }
-
-        private void OnCalibrate()
-        {
-            NetworkManager nm = NetworkManager.Singleton;
-            NetworkObject player = nm ? nm.LocalClient?.PlayerObject : null;
-            if (player && player.TryGetComponent(out HeadTrackingInput tracking)) tracking.Calibrate();
         }
 
         // ---------- Build ----------
@@ -230,9 +195,13 @@ namespace PeaHeads
             UiBuild.Stretch(vignette.rectTransform);
 
             var top = new Vector2(0.5f, 1f);
-            Text title = DisplayLabel(_canvas, "THE GROVE GATHERS", 60, Gold, top, new Vector2(0f, -36f), new Vector2(1000f, 80f));
-            UiBuild.Outline(title, Ink, 2.5f);
-            _subtitle = UiBuild.Label(_canvas, "", 22, Cream, TextAnchor.MiddleCenter, top, new Vector2(0f, -112f),
+            UiBuild.Image(_canvas, UiBuild.Glow, top, new Vector2(0f, 35f), new Vector2(560f, 230f),
+                UiBuild.WithAlpha(UiBuild.Accent, 0.22f));
+            Text title = UiBuild.Label(_canvas, "PeaHeads", 92, UiBuild.Accent, TextAnchor.MiddleCenter, top,
+                new Vector2(0f, -28f), new Vector2(700f, 104f), FontStyle.Normal, false);
+            UiBuild.TitleCard(title, out _bloomBadge, out _blightBadge);
+            _title = title.rectTransform;
+            _subtitle = UiBuild.Label(_canvas, "", 22, Cream, TextAnchor.MiddleCenter, top, new Vector2(0f, -140f),
                 new Vector2(800f, 34f));
             for (int i = 0; i < _names.Length; i++)
             {
@@ -240,12 +209,12 @@ namespace PeaHeads
                 UiBuild.Outline(_names[i], Ink, 2f);
             }
 
-            BuildFraming();
+            _tracker = new TrackerPanel(_canvas, new Vector2(6f, -6f), 256f); // same spot and size as the HUD's
             var bottom = new Vector2(0.5f, 0f);
             _startButton = Button(_canvas, "START", bottom, new Vector2(0f, 60f), new Vector2(260f, 68f), 38, OnStart);
             _status = DisplayLabel(_canvas, "", 26, Cream, bottom, new Vector2(0f, 76f), new Vector2(900f, 40f));
             UiBuild.Outline(_status, Ink, 2f);
-            DisplayLabel(_canvas, "C: CALIBRATE        ESC: MENU", 16, UiBuild.WithAlpha(Color.white, 0.6f), bottom,
+            DisplayLabel(_canvas, "ESC: MENU", 16, UiBuild.WithAlpha(Color.white, 0.6f), bottom,
                 new Vector2(0f, 22f), new Vector2(600f, 26f));
             _canvas.gameObject.SetActive(false);
         }
@@ -263,32 +232,6 @@ namespace PeaHeads
                 _spores[i] = spore.rectTransform;
                 _sporeSpeed[i] = Random.Range(15f, 45f);
             }
-        }
-
-        // Bottom-left: "YOUR HEAD", live face with cross lines and head dot, Calibrate button.
-        private void BuildFraming()
-        {
-            Image panel = UiBuild.Panel(_canvas, Vector2.zero, new Vector2(16f, 16f),
-                new Vector2(FrameWidth + 16f, FrameHeight + 98f), UiBuild.Glass);
-            Transform p = panel.transform;
-            var top = new Vector2(0.5f, 1f);
-            DisplayLabel(p, "YOUR HEAD", 20, Gold, top, new Vector2(0f, -6f), new Vector2(FrameWidth, 26f));
-
-            RectTransform frame = UiBuild.Node(p, "Frame", top, new Vector2(0f, -36f), new Vector2(FrameWidth, FrameHeight));
-            UiBuild.Image(frame, null, Vector2.zero, new Vector2(FrameWidth, FrameHeight), new Color(0f, 0f, 0f, 0.5f));
-            _faceTexture = new Texture2D(2, 2);
-            _face = UiBuild.Node(frame, "Face", Vector2.zero, new Vector2(FrameWidth, FrameHeight)).gameObject
-                .AddComponent<RawImage>();
-            _face.texture = _faceTexture;
-            _face.raycastTarget = false;
-            Color line = UiBuild.WithAlpha(Color.white, 0.3f);
-            UiBuild.Image(frame, null, Vector2.zero, new Vector2(1f, FrameHeight), line);
-            UiBuild.Image(frame, null, Vector2.zero, new Vector2(FrameWidth, 1f), line);
-            _dot = UiBuild.Image(frame, UiBuild.Circle, Vector2.zero, new Vector2(14f, 14f), Gold);
-            _noFace = UiBuild.Label(frame, "No face found", 20, Cream, TextAnchor.MiddleCenter, Centre, Vector2.zero,
-                new Vector2(FrameWidth, 30f));
-
-            Button(p, "CALIBRATE", new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(FrameWidth, 44f), 24, OnCalibrate);
         }
 
         private static Text DisplayLabel(Transform parent, string value, int size, Color color, Vector2 anchor,

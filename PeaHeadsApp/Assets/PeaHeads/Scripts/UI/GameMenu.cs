@@ -40,7 +40,7 @@ namespace PeaHeads
         [SerializeField] private Color _buttonColor = new(0.3f, 0.55f, 0.2f, 1f);
         [SerializeField] private Color _buttonHoverColor = new(0.45f, 0.75f, 0.3f, 1f);
         [SerializeField] private Color _textColor = Color.white;
-        [SerializeField] private Color _accentColor = new(0.65f, 0.95f, 0.35f, 1f);
+        [SerializeField] private Color _accentColor = UiBuild.Accent;
 
         private SessionController _session;
         private StoryIntro _story;
@@ -150,9 +150,7 @@ namespace PeaHeads
             float t = Time.unscaledTime;
             if (screen == MenuScreen.Start && _title)
             {
-                _title.localScale = Vector3.one * (1f + 0.025f * Mathf.Sin(t * 2f));
-                _bloomBadge.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.6f) * 12f);
-                _blightBadge.localRotation = Quaternion.Euler(0f, 0f, t * -40f);
+                UiBuild.AnimateTitle(_title, _bloomBadge, _blightBadge, t);
             }
             if (screen == MenuScreen.Connecting && _spinner) _spinner.localRotation = Quaternion.Euler(0f, 0f, t * -300f);
         }
@@ -477,14 +475,8 @@ namespace PeaHeads
         private void AddTitle(GameObject parent)
         {
             Text title = AddLabel(parent, "PeaHeads", 92, _accentColor);
-            title.font = UiBuild.DisplayFont;
             title.GetComponent<LayoutElement>().minHeight = 104f;
-            Outline outline = title.gameObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0.08f, 0.2f, 0.05f, 0.9f);
-            outline.effectDistance = new Vector2(3f, -3f);
-            Shadow shadow = title.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
-            shadow.effectDistance = new Vector2(0f, -6f);
+            UiBuild.TitleCard(title, out _bloomBadge, out _blightBadge);
             _title = title.rectTransform;
 
             // Glow sits on the panel behind the title (a child of the title would draw over the letters).
@@ -492,18 +484,6 @@ namespace PeaHeads
                 new Vector2(560f, 230f), new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.22f));
             glow.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             glow.transform.SetAsFirstSibling();
-            _bloomBadge = Badge(UiBuild.Flower, Faction.BloomColor, -205f);
-            _blightBadge = Badge(UiBuild.Thorn, Faction.BlightColor, 205f);
-        }
-
-        private RectTransform Badge(Sprite sprite, Color color, float x)
-        {
-            Image badge = UiBuild.Image(_title, sprite, new Vector2(x, 4f), new Vector2(54f, 54f), color);
-            badge.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
-            Shadow shadow = badge.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
-            shadow.effectDistance = new Vector2(2f, -3f);
-            return badge.rectTransform;
         }
 
         // Quarter ring that the menu turns while connecting.

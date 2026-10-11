@@ -8,6 +8,8 @@ namespace PeaHeads
     public static class UiBuild
     {
         public static readonly Color Glass = new(0.04f, 0.07f, 0.05f, 0.78f);
+        // Menu accent green: the PeaHeads title, panel headings and outlines.
+        public static readonly Color Accent = new(0.65f, 0.95f, 0.35f, 1f);
 
         private static Font _font, _display;
         private static Sprite _rounded, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom, _flower, _thorn, _sprout, _scope, _shield;
@@ -119,6 +121,38 @@ namespace PeaHeads
             outline.effectColor = color;
             outline.effectDistance = new Vector2(distance, -distance);
             return outline;
+        }
+
+        // "PeaHeads" title card (start menu, lobby): Chewy with a dark green outline and drop shadow, a swaying Bloom
+        // flower and a spinning Blight thorn either side. Animate with AnimateTitle.
+        public static void TitleCard(Text title, out RectTransform bloom, out RectTransform blight)
+        {
+            title.font = DisplayFont;
+            title.fontStyle = FontStyle.Normal;
+            Outline(title, new Color(0.08f, 0.2f, 0.05f, 0.9f), 3f);
+            Shadow shadow = title.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+            shadow.effectDistance = new Vector2(0f, -6f);
+            bloom = TitleBadge(title.rectTransform, Flower, Faction.BloomColor, -205f);
+            blight = TitleBadge(title.rectTransform, Thorn, Faction.BlightColor, 205f);
+        }
+
+        // Title breathes, the flower sways, the thorn turns.
+        public static void AnimateTitle(RectTransform title, RectTransform bloom, RectTransform blight, float time)
+        {
+            title.localScale = Vector3.one * (1f + 0.025f * Mathf.Sin(time * 2f));
+            bloom.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(time * 1.6f) * 12f);
+            blight.localRotation = Quaternion.Euler(0f, 0f, time * -40f);
+        }
+
+        private static RectTransform TitleBadge(RectTransform title, Sprite sprite, Color color, float x)
+        {
+            Image badge = Image(title, sprite, new Vector2(x, 4f), new Vector2(54f, 54f), color);
+            badge.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            Shadow shadow = badge.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+            shadow.effectDistance = new Vector2(2f, -3f);
+            return badge.rectTransform;
         }
 
         public static void Stretch(RectTransform rect)
