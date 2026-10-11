@@ -136,7 +136,7 @@ namespace PeaHeads
             }
             foreach (Camera cam in Camera.allCameras)
             {
-                if (cam.GetComponentInParent<LobbyStage>()) continue;
+                if (cam.cullingMask == 0 || cam.GetComponentInParent<LobbyStage>()) continue;
                 if (_sky && cam.clearFlags == CameraClearFlags.SolidColor) cam.clearFlags = CameraClearFlags.Skybox;
                 cam.backgroundColor = _fog;
             }

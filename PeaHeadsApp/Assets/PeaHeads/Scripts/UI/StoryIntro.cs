@@ -21,6 +21,8 @@ namespace PeaHeads
         private static readonly Color Gold = new(1f, 0.84f, 0.42f);
         private static readonly Color Cream = new(0.95f, 0.9f, 0.8f);
         private static readonly Color Soil = new(0.24f, 0.16f, 0.1f);
+        private static readonly Color GrassDark = new(0.22f, 0.42f, 0.18f);
+        private static readonly Color GrassLight = new(0.36f, 0.6f, 0.26f);
         private static readonly Color Skin = new(0.96f, 0.8f, 0.65f);
         private static readonly Color Ink = new(0.08f, 0.06f, 0.05f);
 
@@ -59,12 +61,18 @@ namespace PeaHeads
         private float _typed;
         private Action<float> _animate;
 
+        private const int BokehCount = 7;
+        private const float SlideShift = 70f;
+
         private GameObject _canvas;
         private Image _background;
         private CanvasGroup _content;
+        private RectTransform _contentRect;
+        private CanvasGroup _hintGroup;
+        private RectTransform[] _bokeh;
+        private Image[] _bokehImages;
         private Text _title;
         private Text _body;
-        private Text _hint;
         private RectTransform _art;
         private Image[] _dots;
         private RectTransform[] _spores;
@@ -126,12 +134,16 @@ namespace PeaHeads
             Cursor.visible = true;
             float dt = Time.unscaledDeltaTime;
 
-            if (_next >= 0)
+            bool leaving = _next >= 0;
+            if (leaving)
             {
                 _content.alpha = Mathf.MoveTowards(_content.alpha, 0f, dt / FadeTime);
                 if (_content.alpha <= 0f) ShowSlide(_next);
             }
             else _content.alpha = Mathf.MoveTowards(_content.alpha, 1f, dt / FadeTime);
+            // Outgoing slide drifts left, the next one arrives from the right.
+            float away = 1f - _content.alpha;
+            _contentRect.anchoredPosition = new Vector2((leaving ? -1f : 1f) * away * away * SlideShift, 0f);
 
             Slide slide = _slides[_index];
             float blend = 1f - Mathf.Exp(-3f * dt);
@@ -142,9 +154,10 @@ namespace PeaHeads
             _typed = Mathf.Min(slide.Body.Length, _typed + dt * _charsPerSecond);
             _body.text = slide.Body.Substring(0, (int)_typed);
             _animate?.Invoke(_slideTime);
+            _title.rectTransform.localScale = Vector3.one * UiBuild.Pop(_slideTime, 0.45f, 0.14f);
             // The hint pulses once the text is fully shown: the player decides when to move on.
             bool typed = _typed >= slide.Body.Length;
-            _hint.color = new Color(1f, 1f, 1f, typed ? 0.65f + 0.35f * Mathf.Sin(_slideTime * 4f) : 0.35f);
+            _hintGroup.alpha = typed ? 0.7f + 0.3f * Mathf.Sin(_slideTime * 4f) : 0.4f;
 
             Keyboard kb = Keyboard.current;
             if (kb == null) return;
@@ -165,7 +178,7 @@ namespace PeaHeads
             _body.text = "";
             for (int i = _art.childCount - 1; i >= 0; i--) Destroy(_art.GetChild(i).gameObject);
             _animate = slide.Draw(_art);
-            _hint.color = new Color(1f, 1f, 1f, 0.6f);
+            _hintGroup.alpha = 0.4f;
             for (int i = 0; i < _dots.Length; i++)
             {
                 _dots[i].color = i == index ? slide.TitleColor : new Color(1f, 1f, 1f, 0.25f);
@@ -193,6 +206,12 @@ namespace PeaHeads
         {
             Rect area = ((RectTransform)_canvas.transform).rect;
             float time = Time.unscaledTime;
+            for (int i = 0; i < BokehCount; i++)
+            {
+                float a = time * (0.05f + i * 0.012f) + i * 2.1f;
+                _bokeh[i].anchoredPosition = new Vector2(Mathf.Sin(a) * area.width * 0.42f, Mathf.Cos(a * 0.8f + i) * area.height * 0.38f);
+                _bokehImages[i].color = Color.Lerp(_bokehImages[i].color, WithAlpha(color, 0.07f + 0.03f * (i % 3)), blend);
+            }
             for (int i = 0; i < SporeCount; i++)
             {
                 Vector2 p = _spores[i].anchoredPosition;
@@ -680,13 +699,28 @@ namespace PeaHeads
 
         // ---------- Drawing helpers ----------
 
-        private void Ground(RectTransform art) =>
-            Shape(art, new Vector2(0f, GroundY - 10f), new Vector2(820f, 20f), Soil, null);
+        // Soil with a grassy rim and tufts (fixed layout so slides don't flicker between visits).
+        private void Ground(RectTransform art)
+        {
+            Image soil = Shape(art, new Vector2(0f, GroundY - 14f), new Vector2(840f, 28f), Soil, UiBuild.Rounded);
+            soil.type = Image.Type.Sliced;
+            soil.pixelsPerUnitMultiplier = 1.5f;
+            Image grass = Shape(art, new Vector2(0f, GroundY - 2f), new Vector2(836f, 7f), GrassDark, UiBuild.Rounded);
+            grass.type = Image.Type.Sliced;
+            grass.pixelsPerUnitMultiplier = 4f;
+            for (int i = 0; i < 26; i++)
+            {
+                float x = -400f + i * 32f + Mathf.Sin(i * 12.9898f) * 9f;
+                float size = 9f + 5f * Mathf.Abs(Mathf.Sin(i * 4.1f));
+                Shape(art, new Vector2(x, GroundY + 1f + size * 0.2f), new Vector2(size * 1.3f, size), i % 3 == 0 ? GrassLight : GrassDark);
+            }
+        }
 
         // Side-view PeaHead facing right (or left). Root sits at the leaf base; use PlacePea to stand it on the ground.
         private Pea MakePea(RectTransform parent, Color color, bool faceLeft)
         {
             RectTransform root = Node(parent, "Pea", Vector2.zero, Vector2.zero);
+            Shape(root, new Vector2(0f, 2f), new Vector2(120f, 18f), new Color(0f, 0f, 0f, 0.3f), _glow);
             Color dark = Shade(color, 0.65f);
             Shape(root, new Vector2(-26f, 10f), new Vector2(60f, 20f), dark);
             Shape(root, new Vector2(26f, 10f), new Vector2(60f, 20f), dark);
@@ -789,6 +823,15 @@ namespace PeaHeads
             scaler.matchWidthOrHeight = 0.5f;
             var root = (RectTransform)_canvas.transform;
 
+            // Draws nothing: keeps a camera on the display while the story covers the screen and the player's camera
+            // rests (PlayerCameraRig). On and off with the canvas.
+            Camera blank = new GameObject("StoryScreenCamera", typeof(Camera)).GetComponent<Camera>();
+            blank.transform.SetParent(root, false);
+            blank.cullingMask = 0;
+            blank.clearFlags = CameraClearFlags.SolidColor;
+            blank.backgroundColor = Color.black;
+            blank.depth = -50f;
+
             // The whole background is the "next" button.
             RectTransform backgroundRect = Node(root, "Background", Vector2.zero, Vector2.zero);
             Stretch(backgroundRect);
@@ -796,6 +839,15 @@ namespace PeaHeads
             var advance = backgroundRect.gameObject.AddComponent<Button>();
             advance.transition = Selectable.Transition.None;
             advance.onClick.AddListener(Advance);
+
+            _bokeh = new RectTransform[BokehCount];
+            _bokehImages = new Image[BokehCount];
+            for (int i = 0; i < BokehCount; i++)
+            {
+                float size = 260f + 90f * (i % 4);
+                _bokehImages[i] = Shape(root, Vector2.zero, new Vector2(size, size), Color.clear, _glow);
+                _bokeh[i] = _bokehImages[i].rectTransform;
+            }
 
             _spores = new RectTransform[SporeCount];
             _sporeImages = new Image[SporeCount];
@@ -813,6 +865,7 @@ namespace PeaHeads
             RectTransform content = Node(root, "Content", Vector2.zero, Vector2.zero);
             Stretch(content);
             _content = content.gameObject.AddComponent<CanvasGroup>();
+            _contentRect = content;
             _content.blocksRaycasts = false;
             Image vignette = Shape(root, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.55f), UiBuild.Vignette);
             Stretch(vignette.rectTransform);
@@ -824,13 +877,15 @@ namespace PeaHeads
             Image glow = Shape(content, new Vector2(0f, 60f), new Vector2(760f, 380f), new Color(1f, 1f, 1f, 0.06f), _glow);
             glow.raycastTarget = false;
             _art = Node(content, "Art", new Vector2(0f, 60f), new Vector2(820f, 300f));
-            Image card = Shape(content, new Vector2(0f, -224f), new Vector2(1060f, 84f), new Color(0f, 0f, 0f, 0.38f), UiBuild.Rounded);
+            Image card = Shape(content, new Vector2(0f, -224f), new Vector2(1180f, 84f), new Color(0f, 0f, 0f, 0.38f), UiBuild.Rounded);
             card.type = Image.Type.Sliced;
-            _body = Label(content, new Vector2(0f, -224f), new Vector2(1020f, 80f), 26, FontStyle.Bold);
+            _body = Label(content, new Vector2(0f, -224f), new Vector2(1140f, 80f), 26, FontStyle.Bold);
             _body.alignment = TextAnchor.MiddleCenter;
-            _hint = Label(content, new Vector2(0f, -297f), new Vector2(900f, 34f), 16, FontStyle.Normal);
-            _hint.font = UiBuild.DisplayFont;
-            _hint.text = "SPACE: NEXT          ESC: SKIP";
+            RectTransform hint = Node(content, "Hint", new Vector2(0f, -297f), new Vector2(520f, 36f));
+            _hintGroup = hint.gameObject.AddComponent<CanvasGroup>();
+            _hintGroup.blocksRaycasts = false;
+            HintKey(hint, -150f, "SPACE", 96f, "NEXT");
+            HintKey(hint, 70f, "ESC", 58f, "SKIP");
             _dots = new Image[SlideCount];
             for (int i = 0; i < SlideCount; i++)
                 _dots[i] = Shape(content, new Vector2((i - (SlideCount - 1) * 0.5f) * 34f, -334f), new Vector2(10f, 10f),
@@ -842,6 +897,26 @@ namespace PeaHeads
             }
 
             _canvas.SetActive(false);
+        }
+
+        // A light keycap with its action written beside it, like the tutorial prompts.
+        private void HintKey(RectTransform parent, float x, string key, float width, string action)
+        {
+            Image cap = Shape(parent, new Vector2(x, 0f), new Vector2(width, 30f), new Color(0.92f, 0.92f, 0.88f), UiBuild.Rounded);
+            cap.type = Image.Type.Sliced;
+            cap.pixelsPerUnitMultiplier = 2.4f;
+            Shadow shadow = cap.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectDistance = new Vector2(0f, -3f);
+            Text text = Label(cap.rectTransform, Vector2.zero, new Vector2(width, 30f), 17, FontStyle.Normal);
+            text.font = UiBuild.DisplayFont;
+            text.text = key;
+            text.color = Ink;
+            text.GetComponent<Shadow>().enabled = false;
+            Text label = Label(parent, new Vector2(x + width * 0.5f + 44f, 0f), new Vector2(80f, 30f), 18, FontStyle.Normal);
+            label.font = UiBuild.DisplayFont;
+            label.text = action;
+            label.alignment = TextAnchor.MiddleLeft;
         }
 
         private static void Stretch(RectTransform rect)

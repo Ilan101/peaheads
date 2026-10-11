@@ -28,6 +28,8 @@ namespace PeaHeads
         public event Action<bool> HitConfirmed;
         // Owner only: fire was pressed while not planted (HUD hint).
         public event Action FireBlocked;
+        // Owner only: a pea just left the mouth (HUD crosshair kick).
+        public event Action Fired;
 
         // 0 right after a shot, 1 when the next one is allowed.
         public float CooldownProgress =>
@@ -70,6 +72,7 @@ namespace PeaHeads
             FireRpc(_mouth.position, (target - _mouth.position).normalized, cam.position, zoomed);
             PlayFireSfx(_mouth.position); // the shooter hears it now; everyone else via PlayFireSfxRpc
             _rig.AddShake(0.25f);
+            Fired?.Invoke();
             return true;
         }
 

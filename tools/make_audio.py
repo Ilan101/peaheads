@@ -612,6 +612,29 @@ def sfx_charge():
     return tone * (0.65 + 0.35 * np.sin(2 * np.pi * 10 * t))
 
 
+def sfx_step(seed):
+    """Soft footstep in grass: a muffled thump under a short leafy crunch. Quiet by design (played every step)."""
+    sr = SFX_SR
+    t = time_axis(0.16, sr)
+    r = rng(seed)
+    thump_f = r.uniform(80, 100)
+    thump = np.sin(2 * np.pi * np.cumsum(thump_f * (1 + 0.8 * np.exp(-t / 0.01))) / sr) * np.exp(-t / 0.035)
+    crunch = grains_window(0.16, 0.0, 0.06, 18, seed + 100, 700, 3800) * np.exp(-t / 0.05)
+    return thump * 0.7 + crunch * 0.9
+
+
+def sfx_heal():
+    """A heart grows back: two soft rising bell notes with a little sparkle."""
+    return sfx_chord([84, 91], 0.09, 0.8, bell, shimmer=0.07, gains=[0.8, 1.0])
+
+
+def sfx_hover():
+    """Menu hover: the faintest woody tick."""
+    sr = SFX_SR
+    t = time_axis(0.06, sr)
+    return (np.sin(2 * np.pi * 1800 * t) + 0.3 * np.sin(2 * np.pi * 3700 * t)) * np.exp(-t / 0.012)
+
+
 def sfx_tick(freq):
     sr = SFX_SR
     t = time_axis(0.12, sr)
@@ -727,6 +750,12 @@ def make_sfx():
         'go': normalize(sfx_chord([64, 71, 76, 80, 83, 88], 0.04, 1.4, harp, shimmer=0.12), 0.85),
         'page': normalize(sfx_page(), 0.35),
         'click': normalize(sfx_click(), 0.5),
+        'step_0': normalize(sfx_step(81), 0.6),
+        'step_1': normalize(sfx_step(82), 0.6),
+        'step_2': normalize(sfx_step(83), 0.6),
+        'step_3': normalize(sfx_step(84), 0.6),
+        'heal': normalize(sfx_heal(), 0.6),
+        'hover': normalize(sfx_hover(), 0.35),
         'win': normalize(stinger('win'), 0.85),
         'lose': normalize(stinger('lose'), 0.8),
         'draw': normalize(stinger('draw'), 0.8),

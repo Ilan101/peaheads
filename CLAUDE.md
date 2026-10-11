@@ -57,58 +57,72 @@ Assets/PeaHeads/
 │   │               PlantVisuals (visual: leaf base root-in/pop-out curves, stays grounded; ground leaves spread; optional plant puff),
 │   │               PlantMeshes (static lathe/dome/disc/leaf generators, snout + mouth-hole constants),
 │   │               PlantFace (+FaceFlags: snout flare + wink eyelid from 2 synced flags; opponent-visible),
-│   │               PlayerMovement (CharacterController, owner only, Teleport),
+│   │               PlayerMovement (CharacterController, owner only, Teleport; acceleration/deceleration/brake glide, walls stop
+│   │                 the glide; Speed01 (remote copies measure it from the synced position)),
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
-│   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote),
+│   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote; local walk feel: step hop/sway/roll, run FOV, Sfx.Step
+│   │                 footfalls, Perlin shake (AddShake: spit, hits, planting); camera rests while StoryIntro covers the screen),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived; on death the host sends CleansedRpc(killerTeam, position): 0.3 s tint to the killer's colour via property blocks, renderers hide 0.35 s after death (colliders at once), tint cleared on revive)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Lobby/      LobbyStage (runtime-built 3D set at (3000,0,0), out of every camera/minimap: soil strip, 4 slots
-│   │                 filled middle-out, facing −Z, point light, local lobby camera → RenderTexture + a blank screen camera (no "No cameras rendering"); Contains(pos))
+│   │                 filled middle-out, facing −Z, point light, back wall, pedestal + glowing rim + spotlight per slot lit in
+│   │                 the pea's team colour (SetSlot), local lobby camera → RenderTexture + a blank screen camera (no "No cameras
+│   │                 rendering"); Contains(pos). Primitives use Resources/KillSites materials: the built-in default is magenta in builds)
 │   ├── Match/      KillSitePlanner (pure: seeded scatter, puddle outline, takeover, cap, ground filter, shade steps), KillSites (added by MatchManager: cleanse burst + killer-ground patches — one draped puddle (rings x wobbly PuddleOutline, each vertex raycast onto the ground, spreads out over 1 s) + flowers (Bloom) or glowing purple mushrooms (Blight) placed by raycast near the death height — takeover of the other team's patches, cap 20, shared per-colour materials, cleared on RoundReset and session start/end; materials (Lit, Glow with emission so the variant ships, Particle) in Resources/KillSites via PeaHeads > Build Kill Site Materials),
 │   │               AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog colour + thickness build as the leader nears the win, 30% → full at 90% of the target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               Lobby state at session start (host START → first round, lobby teams kept), auto-restart, mid-round joiners go to the smaller team + a _waiting list (lobby until the next round); team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start; _round counter → static RoundReset on every machine), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── Killcam/    FaceFeed (UDP 5053 → 5 s ring of timestamped face JPEGs), ViewRecorder (capture camera on the player
-│   │                 camera, no HUD/shadows, 20 fps 480×270 RT ring; Collect() includes post-kill frames, AsyncGPUReadback,
-│   │                 3 JPEG encodes per frame), KillClip (pure: clip serialise, ≤4 KB chunks,
+│   │                 camera, no HUD/shadows, 25 fps 480×270 RT ring; Collect() includes post-kill frames; readbacks queued, 6
+│   │                 per frame into 12 preallocated buffers, JPEGs encoded on worker threads (EncodeArrayToJPG is thread
+│   │                 safe), so a kill costs the killer no frame), KillClip (pure: clip serialise, ≤4 KB chunks,
 │   │                 ClipAssembler, frame window; EditMode-tested). Flow: PeaProjectile.Impact → PlayerShooting.HitConfirmRpc
 │   │                 (killed, victim id) → KillcamView.OnLocalKill → killer sees only their own face live (−1 s…+1.6 s, slow-mo on the hit) +
 │   │                 SendKillcam (view + face, −1.5…+1.5 s) → KillcamChunkRpc → victim sees "THE SHOT" | "THE FACE" full
-│   │                 screen over the death screen. Frames decode on demand (one reused texture per panel).
+│   │                 screen over the death screen. Playback decodes ~0.6 s ahead under a 4 ms/frame budget into pooled
+│   │                 textures, crossfades consecutive frames in slow-mo only (no ghosting at 1×), slight zoom, victim starts after 0.5 s prebuffer.
 │   ├── Visual/     WorldPolish (added by GameMenu; on top of AtmosphereController, never touches sky/fog/sun): global URP
-│   │                 Volume (bloom, neutral tonemap, grading, vignette) + SMAA on screen cameras, arena spores, Sporelight
-│   │                 beams + collect rings, pea glow + trails (DecoratePea), plant dirt bursts (PlantBurst)
+│   │                 Volume (bloom, neutral tonemap, grading, vignette) + SMAA on screen cameras (not blank ones), arena spores,
+│   │                 Sporelight beams (fade as the camera walks in) + collect rings, pea glow + trails (DecoratePea), plant dirt
+│   │                 bursts (PlantBurst); quality governor: median arena frame over _targetFrameMs (21) steps down one tier at a
+│   │                 time, never up: quarter-res bloom + medium SMAA → FXAA + 85% render scale (FSR) → 75% (render scale on the
+│   │                 pipeline asset, in memory only, restored on destroy incl. leaving play mode)
 │   ├── Audio/      GameAudio (static: Sfx enum → Resources "Sfx/<name>" clips, variants name_0..n; PlayAt 3D / Play 2D; returns
-│   │                 false if missing so inspector clips stay as fallback), MusicPlayer (added by GameMenu: crossfades
+│   │                 false if missing so inspector clips stay as fallback; Step/Heal/Hover too), MusicPlayer (added by GameMenu: crossfades
 │   │                 menu/story/game loops from Resources "Music/", ducks when paused / under end stinger, Muted in PlayerPrefs)
 │   ├── UI/         PlayerHUD (uGUI built in code, owner only: webcam panel top-left; bottom-left team badge flower/thorn +
 │   │                 plant dial (sprout, ring of progress dots) + status line + hearts; crosshair with cooldown ring + hit
-│   │                 marker, red on a kill; round scope view; damage vignette; "SPAT OUT!" death screen; kill toast; sounds;
-│   │                 static Scoped hides HUD/ScoreHUD/Minimap while zoomed),
+│   │                 marker, red on a kill, kicks open on each spit, hidden once the round is decided; round scope view;
+│   │                 damage vignette; "SPAT OUT!" death screen; kill toast; green heart pop + Sfx.Heal on a Sporelight heal;
+│   │                 sounds; static Scoped hides HUD/ScoreHUD/Minimap while zoomed),
 │   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks, rising Sporelight charge loop (pitch = collect progress),
-│   │                 collect bar, shield icon by the rival bar while they're in the story, end banner),
-│   │               UiBuild (shared uGUI helpers + cached UiSprites; Accent green, TitleCard/AnimateTitle for the PeaHeads title),
+│   │                 collect bar, shield icon by the rival bar while they're in the story, end banner; bars ease, the clock
+│   │                 ring drains, GO! bursts a ring, the banner has faction badges and petals fall in the winner's colour),
+│   │               UiBuild (shared uGUI helpers + cached UiSprites; Accent green, TitleCard/AnimateTitle for the PeaHeads title;
+│   │                 Rim = crisp border for see-through panels — Outline would tint their fill),
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
 │   │                 nearest Sporelight glows, no key row), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
 │   │               StoryIntro (uGUI built in code: 5 player-paced slides (SPACE next, ESC skips to the lobby; same hint on every slide; no mouse): lore, plant, dodge,
 │   │                 aim (closing one eye = faster, straight pea), role + scoring; animated drawings with control prompts lit in sync; played by
-│   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
+│   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs; keycap hints,
+│   │                 slides drift in/out, grassy ground; a blank camera keeps the display while the arena camera rests),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
 │   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave, with a Controls panel on the right; sets PlayerInput.Paused; during the
-│   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
+│   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit; panels ease in, drifting spores,
+│   │                 footer, hover sound (UiHover); the story's end opens the lobby in the same frame, no arena flash)
 │   │               LobbyView (added by GameMenu: after the story, real plants stand in LobbyStage slots (owner
 │   │                 teleports itself, PlayerInput.LobbyMode = head + face only, own head visible, player camera off),
 │   │                 mirrored view (RawImage uvRect), PeaHeads title card (UiBuild.TitleCard, as on the start menu),
 │   │                 slot names, the HUD's TrackerPanel, host START → MatchManager.StartMatch; static IsOpen / HidesGame),
-│   │               TrackerPanel (plain class shared by PlayerHUD + LobbyView: "Press C to Calibrate" over a transparent
-│   │                 16:9 box with centre lines + head dot, red camera icon when not tracking),
+│   │               TrackerPanel (plain class shared by PlayerHUD + LobbyView: "Press C to Calibrate" over a rounded see-through
+│   │                 16:9 box with centre lines + eased glowing head dot, pulsing red camera icon when not tracking),
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
 │   │               HeadTrackingInput (local Player: raw input × movement multiplier × per-axis gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, max 4 players (connection approval, "Lobby full"), status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
 │                   plant/face-flag vars, random spawn teleport, Respawn(), faction tint of Head+Snout+eyelid, re-applied on TeamsChanged); SpawnPoint (_team 0/1,
-│                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
+│                   GetRandom avoids last point); OverviewCamera (connect-screen camera, slow side-to-side pan); Test/ (NetTest proof)
 ├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests, KillSitePlannerTests, MatchTeamsTests, UiSpritesTests, LobbyTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);

@@ -1,15 +1,18 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 namespace PeaHeads
 {
     // Killcam. The killer sees only their own face (FaceFeed) around the kill: it starts the moment the kill lands,
     // trailing real time by a second so the frames already exist, slows down over the hit and runs on past it.
     // The victim gets the killer's view (ViewRecorder) and face sent over the network (PlayerShooting.SendKillcam)
-    // and sees the shot and the face side by side full screen over the death screen, shrinking to the corner once they respawn.
-    // Frames are decoded one at a time as they're shown, so playback never hitches. Added by GameMenu.
+    // and sees the shot and the face side by side full screen over the death screen, shrinking to the corner once they
+    // respawn. Smooth playback: frames are decoded a little ahead of the playhead under a per-frame time budget, and in
+    // slow motion consecutive frames crossfade so it glides instead of stepping. Added by GameMenu.
     public class KillcamView : MonoBehaviour
     {
         public const ulong NoVictim = ulong.MaxValue;
@@ -18,6 +21,12 @@ namespace PeaHeads
         private const float CompactScale = 0.42f;
         // Victim clip: what the killer records and sends.
         private const float ClipBefore = 1.5f, ClipAfter = 1.5f;
+        // Decode this far ahead of the playhead, spending at most this much main-thread time per frame on it.
+        private const float Lookahead = 0.6f;
+        private const float DecodeBudgetMs = 4f;
+        // The victim's clip starts once this much of it is decoded (or all of it).
+        private const float Prebuffer = 0.5f;
+        private const float SlowZoom = 1.07f;
         private static readonly Timeline VictimTimeline = new(-ClipBefore, ClipAfter, -0.4f, 0.4f, 0.4f);
         private static readonly Timeline KillerTimeline = new(-1f, 1.6f, -0.3f, 0.5f, 0.5f);
         private static readonly Vector2 PanelSize = new(540f, 304f);
@@ -70,40 +79,131 @@ namespace PeaHeads
                 if (r < Normal1 + Slow) return SlowFrom + (r - Normal1) * SlowSpeed;
                 return Mathf.Min(End, SlowTo + (r - Normal1 - Slow));
             }
-        }
 
-        // One panel's frames, decoded into a single reused texture only when the shown frame changes.
-        private sealed class Track
-        {
-            public RawImage Image;
-            public List<ClipFrame> Frames = new();
-            private Texture2D _texture;
-            private ClipFrame _shown;
-
-            public bool HasFrames => Frames.Count > 0;
-
-            public void Show(float clipTime)
+            // 0 outside the slow section, easing up to 1 in its middle (drives the slow-motion zoom).
+            public float SlowAmount(float clipTime)
             {
-                if (Frames.Count == 0) return;
-                int best = 0;
-                for (int i = 0; i < Frames.Count; i++)
-                    if (Frames[i].Time <= clipTime) best = i;
-                ClipFrame frame = Frames[best];
-                if (frame.Jpeg == _shown.Jpeg) return;
-                _shown = frame;
-                if (!_texture) _texture = new Texture2D(2, 2, TextureFormat.RGB24, false) { filterMode = FilterMode.Bilinear };
-                if (frame.Jpeg != null && frame.Jpeg.Length > 0 && _texture.LoadImage(frame.Jpeg)) Image.texture = _texture;
+                if (clipTime <= SlowFrom || clipTime >= SlowTo) return 0f;
+                return Mathf.Sin((clipTime - SlowFrom) / (SlowTo - SlowFrom) * Mathf.PI);
             }
 
+            // How much consecutive frames crossfade: fully in slow motion (each frame is held for several screen
+            // frames), none at normal speed (fast camera moves would ghost), easing over 0.1 s of clip time between.
+            public float Smoothing(float clipTime)
+            {
+                float outside = Mathf.Max(SlowFrom - clipTime, clipTime - SlowTo, 0f);
+                return Mathf.Clamp01(1f - outside / 0.1f);
+            }
+        }
+
+        // One panel's frames. JPEGs are decoded into pooled textures just ahead of the playhead and dropped behind
+        // it; the panel shows the frame at the playhead with the next one crossfaded on top.
+        private sealed class Track
+        {
+            public RawImage Back;
+            public RawImage Front;
+            private List<ClipFrame> _frames = new();
+            private readonly Dictionary<int, Texture2D> _decoded = new();
+            private readonly Stack<Texture2D> _pool = new();
+            private readonly List<int> _drop = new();
+
+            public bool HasFrames => _frames.Count > 0;
+
+            // New clip: every decoded texture goes back to the pool.
             public void Reset(List<ClipFrame> frames)
             {
-                Frames = frames;
-                _shown = default;
+                foreach (Texture2D texture in _decoded.Values) _pool.Push(texture);
+                _decoded.Clear();
+                _frames = frames;
+                if (Front) Front.enabled = false;
+            }
+
+            // Live clip (killer): the window only grows at the end, so decoded indices stay valid.
+            public void Refresh(List<ClipFrame> frames) => _frames = frames;
+
+            // Decodes frames covering [clipTime, clipTime + ahead] in order; false once the budget runs out.
+            public bool Prefetch(float clipTime, float ahead, Stopwatch budget)
+            {
+                int first = Index(clipTime);
+                for (int i = first; i < _frames.Count && _frames[i].Time <= clipTime + ahead; i++)
+                {
+                    if (_decoded.ContainsKey(i)) continue;
+                    if (budget.Elapsed.TotalMilliseconds > DecodeBudgetMs) return false;
+                    Decode(i);
+                }
+                return true;
+            }
+
+            // Decoded up to clipTime + ahead (or to the end of the clip).
+            public bool Buffered(float clipTime, float ahead)
+            {
+                for (int i = Index(clipTime); i < _frames.Count && _frames[i].Time <= clipTime + ahead; i++)
+                    if (!_decoded.ContainsKey(i)) return false;
+                return true;
+            }
+
+            public void Show(float clipTime, float zoom, float smoothing)
+            {
+                if (_frames.Count == 0) return;
+                int i = Index(clipTime);
+                if (!_decoded.ContainsKey(i)) Decode(i); // only if the budget fell behind: never show a blank
+                Back.texture = _decoded[i];
+                int j = i + 1;
+                float blend = 0f;
+                if (j < _frames.Count && _decoded.TryGetValue(j, out Texture2D next))
+                {
+                    float span = _frames[j].Time - _frames[i].Time;
+                    float fraction = span > 0.0001f ? Mathf.Clamp01((clipTime - _frames[i].Time) / span) : 0f;
+                    blend = Mathf.Lerp(fraction >= 0.5f ? 1f : 0f, fraction, smoothing);
+                    Front.texture = next;
+                }
+                Front.color = new Color(1f, 1f, 1f, blend);
+                Front.enabled = blend > 0.001f;
+                Rect uv = Zoomed(zoom);
+                Back.uvRect = uv;
+                Front.uvRect = uv;
+
+                // Behind the playhead: back to the pool.
+                _drop.Clear();
+                foreach (int index in _decoded.Keys)
+                    if (index < i - 1) _drop.Add(index);
+                foreach (int index in _drop)
+                {
+                    _pool.Push(_decoded[index]);
+                    _decoded.Remove(index);
+                }
             }
 
             public void Dispose()
             {
-                if (_texture) Destroy(_texture);
+                foreach (Texture2D texture in _decoded.Values) Destroy(texture);
+                foreach (Texture2D texture in _pool) Destroy(texture);
+                _decoded.Clear();
+                _pool.Clear();
+            }
+
+            // Last frame at or before clipTime (the first one before the clip starts).
+            private int Index(float clipTime)
+            {
+                int best = 0;
+                for (int i = 0; i < _frames.Count && _frames[i].Time <= clipTime; i++) best = i;
+                return best;
+            }
+
+            private void Decode(int index)
+            {
+                Texture2D texture = _pool.Count > 0
+                    ? _pool.Pop()
+                    : new Texture2D(2, 2, TextureFormat.RGB24, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                byte[] jpeg = _frames[index].Jpeg;
+                if (jpeg != null && jpeg.Length > 0) texture.LoadImage(jpeg);
+                _decoded[index] = texture;
+            }
+
+            private static Rect Zoomed(float zoom)
+            {
+                float size = 1f / zoom;
+                return new Rect((1f - size) * 0.5f, (1f - size) * 0.5f, size, size);
             }
         }
 
@@ -115,23 +215,26 @@ namespace PeaHeads
             public float StartedAt = float.NegativeInfinity;
 
             public bool Playing(float now) => now - StartedAt < Timeline.Duration + FadeTime;
-            public float ClipTime(float now) => Timeline.ClipTime(now - StartedAt);
+            public float ClipTime(float now) => Timeline.ClipTime(Mathf.Max(0f, now - StartedAt));
 
-            // Fade at the end.
+            // Fade in at the start, out at the end.
             public void Animate(float now)
             {
                 float r = now - StartedAt;
-                Group.alpha = Mathf.Clamp01((Timeline.Duration + FadeTime - r) / FadeTime);
+                Group.alpha = Mathf.Clamp01(Mathf.Min(r / 0.2f, (Timeline.Duration + FadeTime - r) / FadeTime));
             }
         }
 
         private readonly ClipAssembler _assembler = new();
+        private readonly Stopwatch _budget = new();
         private int _nextClipId;
         private readonly Playback _killer = new() { Timeline = KillerTimeline };
         private readonly Playback _victim = new() { Timeline = VictimTimeline };
         private readonly Track _killerFace = new();
         private readonly Track _victimView = new(), _victimFace = new();
         private double _killAt;
+        // A received clip waiting for its first frames to decode.
+        private bool _victimBuffering;
         private bool _victimSlowPlayed;
         private bool _wasDead;
         private float _diedAt = float.NegativeInfinity;
@@ -172,7 +275,7 @@ namespace PeaHeads
             if (feed && feed.Live)
             {
                 _killAt = kill;
-                _killerFace.Reset(new List<ClipFrame>());
+                _killerFace.Reset(feed.Window(kill, -KillerTimeline.Start, KillerTimeline.End));
                 _killer.StartedAt = Time.unscaledTime;
             }
 
@@ -202,15 +305,16 @@ namespace PeaHeads
             if (!_canvas) Build();
             _victimView.Reset(clip.View);
             _victimFace.Reset(clip.Face);
-            _victim.StartedAt = Time.unscaledTime;
+            _victimBuffering = true;
+            _victim.StartedAt = float.NegativeInfinity;
             _victimSlowPlayed = false;
             Color killer = Faction.Color(clip.KillerTeam);
             _victimBadge.sprite = clip.KillerTeam == 0 ? UiBuild.Flower : UiBuild.Thorn;
             _victimBadge.color = killer;
             bool hasFace = _victimFace.HasFrames;
-            _victimFace.Image.enabled = hasFace;
+            _victimFace.Back.enabled = hasFace;
             _victimBadge.enabled = !hasFace;
-            _victimView.Image.enabled = _victimView.HasFrames;
+            _victimView.Back.enabled = _victimView.HasFrames;
         }
 
         // ---------- Update ----------
@@ -225,6 +329,9 @@ namespace PeaHeads
             _wasDead = dead;
 
             float now = Time.unscaledTime;
+            _budget.Restart();
+            if (_victimBuffering) Buffer(now);
+
             bool story = LobbyView.HidesGame;
             bool victimPlaying = _victim.Playing(now);
             bool waiting = dead && !victimPlaying && now - _diedAt < (health ? health.RespawnDelay : 0f);
@@ -242,14 +349,27 @@ namespace PeaHeads
             UpdateKiller(now, _killer.Playing(now) && !story && !dead);
         }
 
+        // Decode the opening of a received clip, then start it.
+        private void Buffer(float now)
+        {
+            float start = VictimTimeline.Start;
+            _victimView.Prefetch(start, Prebuffer, _budget);
+            _victimFace.Prefetch(start, Prebuffer, _budget);
+            if (!_victimView.Buffered(start, Prebuffer) || !_victimFace.Buffered(start, Prebuffer)) return;
+            _victimBuffering = false;
+            _victim.StartedAt = now;
+        }
+
         private void UpdateKiller(float now, bool show)
         {
             _killer.Root.gameObject.SetActive(show);
             if (!show) return;
             // Frames arrive live; the playback trails real time, so the ones it needs are already here.
             FaceFeed feed = FaceFeed.Instance;
-            if (feed) _killerFace.Frames = feed.Window(_killAt, -KillerTimeline.Start, KillerTimeline.End);
-            _killerFace.Show(_killer.ClipTime(now));
+            if (feed) _killerFace.Refresh(feed.Window(_killAt, -KillerTimeline.Start, KillerTimeline.End));
+            float t = _killer.ClipTime(now);
+            _killerFace.Prefetch(t, Lookahead, _budget);
+            _killerFace.Show(t, 1f + (SlowZoom - 1f) * KillerTimeline.SlowAmount(t), KillerTimeline.Smoothing(t));
             _killer.Animate(now);
         }
 
@@ -269,8 +389,12 @@ namespace PeaHeads
             _victim.Root.anchoredPosition = Vector2.Lerp(new Vector2(0f, 0f), corner, k);
 
             float t = _victim.ClipTime(now);
-            _victimView.Show(t);
-            _victimFace.Show(t);
+            _victimView.Prefetch(t, Lookahead, _budget);
+            _victimFace.Prefetch(t, Lookahead, _budget);
+            float zoom = 1f + (SlowZoom - 1f) * VictimTimeline.SlowAmount(t);
+            float smoothing = VictimTimeline.Smoothing(t);
+            _victimView.Show(t, zoom, smoothing);
+            _victimFace.Show(t, 1f, smoothing);
             if (t >= VictimTimeline.SlowFrom && !_victimSlowPlayed)
             {
                 _victimSlowPlayed = true;
@@ -287,9 +411,8 @@ namespace PeaHeads
 
             // Victim: two panels, title, progress.
             BuildRoot(_victim, VictimSize, 210f);
-            _victimView.Image = Panel(_victim.Root, new Vector2(-PanelSize.x * 0.5f - 10f, -6f), PanelSize, out _);
-            _victimFace.Image = Panel(_victim.Root, new Vector2(PanelSize.x * 0.5f + 10f, -6f), PanelSize,
-                out RectTransform facePanel);
+            Panel(_victim.Root, new Vector2(-PanelSize.x * 0.5f - 10f, -6f), PanelSize, _victimView, out _);
+            Panel(_victim.Root, new Vector2(PanelSize.x * 0.5f + 10f, -6f), PanelSize, _victimFace, out RectTransform facePanel);
             _victimBadge = UiBuild.Image(facePanel, UiBuild.Flower, new Vector2(0f, 16f), new Vector2(96f, 96f), Color.white);
 
             // Killer: one face panel in the bottom-right corner.
@@ -297,8 +420,7 @@ namespace PeaHeads
             BuildRoot(_killer, killerSize, killerSize.y * 0.5f - 18f);
             _killer.Root.anchorMin = _killer.Root.anchorMax = _killer.Root.pivot = new Vector2(1f, 0f);
             _killer.Root.anchoredPosition = new Vector2(-20f, 20f);
-            _killerFace.Image = Panel(_killer.Root, new Vector2(0f, -4f), KillerPanelSize, out _);
-
+            Panel(_killer.Root, new Vector2(0f, -4f), KillerPanelSize, _killerFace, out _);
         }
 
         private void BuildRoot(Playback playback, Vector2 size, float titleY)
@@ -315,14 +437,17 @@ namespace PeaHeads
             playback.Root.gameObject.SetActive(false);
         }
 
-        private static RawImage Panel(RectTransform root, Vector2 pos, Vector2 size, out RectTransform panel)
+        // Rounded glass frame with two stacked image layers (frame and the next one crossfading over it).
+        private static void Panel(RectTransform root, Vector2 pos, Vector2 size, Track track, out RectTransform panel)
         {
             Image frame = UiBuild.Panel(root, new Vector2(0.5f, 0.5f), pos, size + new Vector2(10f, 10f), UiBuild.Glass, 0.6f);
-            UiBuild.Outline(frame, new Color(1f, 1f, 1f, 0.25f));
+            UiBuild.Rim(frame, new Color(1f, 1f, 1f, 0.3f));
             panel = frame.rectTransform;
-            RawImage image = UiBuild.Node(panel, "Frames", Vector2.zero, size).gameObject.AddComponent<RawImage>();
-            image.raycastTarget = false;
-            return image;
+            track.Back = UiBuild.Node(panel, "Frames", Vector2.zero, size).gameObject.AddComponent<RawImage>();
+            track.Back.raycastTarget = false;
+            track.Front = UiBuild.Node(panel, "Next", Vector2.zero, size).gameObject.AddComponent<RawImage>();
+            track.Front.raycastTarget = false;
+            track.Front.enabled = false;
         }
     }
 }

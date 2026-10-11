@@ -68,6 +68,10 @@ namespace PeaHeads
         private Text _pauseStatus;
         private bool _pauseOpen;
         private MenuScreen? _shown;
+        private float _shownAt;
+        private RectTransform[] _spores;
+        private float[] _sporeSpeed;
+        private const int SporeCount = 26;
 
         public static MenuScreen ScreenFor(bool sessionActive, bool connected, bool pauseOpen, bool lobby = false)
         {
@@ -99,6 +103,7 @@ namespace PeaHeads
             if (!TryGetComponent(out WorldPolish _)) gameObject.AddComponent<WorldPolish>();
             EnsureEventSystem();
             BuildCanvas();
+            GameAudio.Preload();
         }
 
         private void Update()
@@ -120,15 +125,16 @@ namespace PeaHeads
                      (!FindFirstObjectByType<MatchManager>() || MatchManager.HasTeam(nm.LocalClientId)))
             {
                 _storyStarted = true;
-                _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(),
-                    () => _storyDone = true);
+                _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(), () =>
+                {
+                    _storyDone = true;
+                    // Same frame as the story closing, so the arena never shows for a frame in between.
+                    if (NetworkManager.Singleton) UpdateLobby(NetworkManager.Singleton);
+                });
             }
 
             bool story = StoryIntro.IsPlaying;
-            MatchManager match = MatchManager.Instance;
-            bool lobby = connected &&
-                         LobbyView.ShouldOpen(_storyDone, match && match.IsLobby, MatchManager.IsWaiting(nm.LocalClientId));
-            _lobby.SetOpen(lobby);
+            bool lobby = UpdateLobby(nm);
 
             Keyboard kb = Keyboard.current;
             if (connected && !story && kb != null && kb.escapeKey.wasPressedThisFrame) _pauseOpen = !_pauseOpen;
@@ -144,10 +150,30 @@ namespace PeaHeads
             Animate(screen);
         }
 
+        // Opens or closes the lobby for the current session state; returns whether it's open.
+        private bool UpdateLobby(NetworkManager nm)
+        {
+            MatchManager match = MatchManager.Instance;
+            bool lobby = (nm.IsHost || nm.IsConnectedClient) &&
+                         LobbyView.ShouldOpen(_storyDone, match && match.IsLobby, MatchManager.IsWaiting(nm.LocalClientId));
+            _lobby.SetOpen(lobby);
+            return lobby;
+        }
+
         // Title breathes and the faction badges sway on the start screen; the spinner turns while connecting.
         private void Animate(MenuScreen screen)
         {
             float t = Time.unscaledTime;
+            // Panels open with a quick ease-out scale and fade.
+            float open = Mathf.Clamp01((t - _shownAt) / 0.28f);
+            float ease = 1f - (1f - open) * (1f - open) * (1f - open);
+            foreach (GameObject panel in new[] { _startPanel, _connectingPanel, _pausePanel, _controlsPanel })
+            {
+                if (!panel.activeSelf) continue;
+                panel.transform.localScale = Vector3.one * Mathf.Lerp(0.94f, 1f, ease);
+                panel.GetComponent<CanvasGroup>().alpha = ease;
+            }
+            if (_backdrop.activeSelf) DriftSpores(t);
             if (screen == MenuScreen.Start && _title)
             {
                 UiBuild.AnimateTitle(_title, _bloomBadge, _blightBadge, t);
@@ -159,6 +185,7 @@ namespace PeaHeads
         {
             bool wasOverlay = _shown is MenuScreen.Pause or MenuScreen.Story or MenuScreen.Lobby;
             _shown = screen;
+            _shownAt = Time.unscaledTime;
             _backdrop.SetActive(screen is not (MenuScreen.None or MenuScreen.Story or MenuScreen.Lobby));
             _backdrop.GetComponent<Image>().color = screen == MenuScreen.Pause ? _backdropColor : _startBackdropColor;
             _startPanel.SetActive(screen == MenuScreen.Start);
@@ -207,6 +234,21 @@ namespace PeaHeads
                         : $"Connected to {_session.Address}:{_session.Port}";
                     _pauseStatus.text = _session.Status;
                     break;
+            }
+        }
+
+        // Golden spores rising slowly over the menu backdrop.
+        private void DriftSpores(float time)
+        {
+            Rect area = ((RectTransform)_backdrop.transform).rect;
+            float dt = Time.unscaledDeltaTime;
+            for (int i = 0; i < SporeCount; i++)
+            {
+                Vector2 p = _spores[i].anchoredPosition;
+                p.y += _sporeSpeed[i] * dt;
+                p.x += Mathf.Sin(time * 0.6f + i * 1.9f) * 10f * dt;
+                if (p.y > area.yMax + 20f) p = new Vector2(Random.Range(area.xMin, area.xMax), area.yMin - 20f);
+                _spores[i].anchoredPosition = p;
             }
         }
 
@@ -274,6 +316,21 @@ namespace PeaHeads
             _backdrop.GetComponent<Image>().color = _backdropColor;
             Image vignette = UiBuild.Image(_backdrop.transform, UiBuild.Vignette, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.6f));
             UiBuild.Stretch(vignette.rectTransform);
+            _spores = new RectTransform[SporeCount];
+            _sporeSpeed = new float[SporeCount];
+            for (int i = 0; i < SporeCount; i++)
+            {
+                float size = Random.Range(5f, 13f);
+                Image spore = UiBuild.Image(_backdrop.transform, UiBuild.Glow,
+                    new Vector2(Random.Range(-640f, 640f), Random.Range(-360f, 360f)), new Vector2(size, size),
+                    UiBuild.WithAlpha(new Color(1f, 0.86f, 0.5f), Random.Range(0.25f, 0.6f)));
+                _spores[i] = spore.rectTransform;
+                _sporeSpeed[i] = Random.Range(12f, 36f);
+            }
+            Text footer = UiBuild.Label(_backdrop.transform, "KnightHacks 2026  ·  Bloom vs Blight", 15,
+                new Color(1f, 1f, 1f, 0.45f), TextAnchor.MiddleCenter, new Vector2(0.5f, 0f), new Vector2(0f, 18f),
+                new Vector2(600f, 24f), FontStyle.Normal);
+            footer.font = UiBuild.DisplayFont;
 
             _startPanel = AddPanel("Start");
             AddTitle(_startPanel);
@@ -322,7 +379,7 @@ namespace PeaHeads
         private GameObject AddPanel(string name)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup),
-                typeof(ContentSizeFitter));
+                typeof(ContentSizeFitter), typeof(CanvasGroup));
             go.transform.SetParent(_backdrop.transform, false);
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);

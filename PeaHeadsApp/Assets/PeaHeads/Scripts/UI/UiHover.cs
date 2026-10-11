@@ -26,7 +26,11 @@ namespace PeaHeads
             transform.localScale = Vector3.one * scale;
         }
 
-        public void OnPointerEnter(PointerEventData eventData) => _over = true;
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            _over = true;
+            GameAudio.Play(Sfx.Hover, 0.35f, 0.05f);
+        }
         public void OnPointerExit(PointerEventData eventData) => _over = _down = false;
         public void OnPointerDown(PointerEventData eventData) => _down = true;
         public void OnPointerUp(PointerEventData eventData) => _down = false;

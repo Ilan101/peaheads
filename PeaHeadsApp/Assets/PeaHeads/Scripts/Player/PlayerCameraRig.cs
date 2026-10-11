@@ -25,6 +25,17 @@ namespace PeaHeads
         [Header("Shake")]
         [SerializeField, Range(0f, 10f)] private float _shakeDegrees = 2.5f;
 
+        [Header("Walk (local camera)")]
+        [Tooltip("Hop height of the camera per step at full speed, metres.")]
+        [SerializeField, Range(0f, 0.15f)] private float _bobHeight = 0.04f;
+        [SerializeField, Range(0f, 0.1f)] private float _bobSway = 0.022f;
+        [SerializeField, Range(0f, 5f)] private float _bobRoll = 0.8f;
+        [Tooltip("Steps per second at full speed.")]
+        [SerializeField, Range(0.5f, 5f)] private float _stepRate = 2.2f;
+        [Tooltip("Extra field of view at full speed, degrees.")]
+        [SerializeField, Range(0f, 15f)] private float _runFov = 4f;
+        [SerializeField, Range(0f, 1f)] private float _stepVolume = 0.3f;
+
         [Header("Zoom")]
         [SerializeField, Range(1f, 4f)] private float _zoomFactor = 1.5f;
         [SerializeField, Range(1f, 30f)] private float _zoomSpeed = 12f;
@@ -45,6 +56,11 @@ namespace PeaHeads
         private bool _isLocal;
         private float _shake;
         private Quaternion _cameraRest;
+        private Vector3 _cameraRestPosition;
+        private PlayerMovement _movement;
+        private float _walk;
+        private float _stepPhase;
+        private bool _firstPerson = true;
 
         private void Awake()
         {
@@ -53,6 +69,8 @@ namespace PeaHeads
             _pivotBase = _headPivot.localPosition;
             _baseFov = _camera.fieldOfView;
             _cameraRest = _camera.transform.localRotation;
+            _cameraRestPosition = _camera.transform.localPosition;
+            _movement = GetComponent<PlayerMovement>();
         }
 
         public void SetLocal(bool isLocal)
@@ -66,9 +84,19 @@ namespace PeaHeads
         // renders and its first-person camera rests.
         public void SetFirstPerson(bool on)
         {
+            _firstPerson = on;
             ShadowCastingMode mode = on ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
             foreach (Renderer r in _hiddenInFirstPerson) r.shadowCastingMode = mode;
-            _camera.enabled = on;
+            _camera.enabled = on && !StoryIntro.IsPlaying;
+        }
+
+        // The story covers the whole screen, so the arena isn't rendered under it. After Update, so the frame the
+        // story ends in already has the camera back.
+        private void LateUpdate()
+        {
+            if (!_isLocal) return;
+            bool render = _firstPerson && !StoryIntro.IsPlaying;
+            if (_camera.enabled != render) _camera.enabled = render;
         }
 
         // Remote copies: targets come from the network instead of local input.
@@ -87,11 +115,13 @@ namespace PeaHeads
                 transform.Rotate(0f, input.Look.x, 0f);
                 _pitch = Mathf.Clamp(_pitch - input.Look.y, _pitchLimits.x, _pitchLimits.y);
                 IsZoomed = input.ZoomHeld;
-                float fov = IsZoomed ? _baseFov / _zoomFactor : _baseFov;
+                float speed = _movement ? _movement.Speed01 : 0f;
+                _walk = Mathf.MoveTowards(_walk, speed, Time.deltaTime * 5f);
+                float fov = (_baseFov + _runFov * _walk) / (IsZoomed ? _zoomFactor : 1f);
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_zoomSpeed * Time.deltaTime));
                 _head = Vector2.Lerp(_head, input.Head, blend);
                 HeadOffset = ClampedOffset();
-                ApplyShake();
+                ApplyWalkAndShake(speed);
             }
             else
             {
@@ -107,14 +137,28 @@ namespace PeaHeads
         // Local camera only: 0..1 trauma, decays on its own (shot kick, getting hit, knockouts).
         public void AddShake(float amount) => _shake = Mathf.Min(1f, _shake + amount);
 
-        private void ApplyShake()
+        // Walking: a little hop per step with sway and roll, a soft step sound at the bottom of each hop. The bob fades
+        // out within ~0.2 s of stopping, long before planting finishes, so it never moves the aim.
+        private void ApplyWalkAndShake(float speed)
         {
-            _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 2.5f);
+            float dt = Time.deltaTime;
+            float previous = _stepPhase;
+            if (_walk > 0.01f) _stepPhase += dt * _stepRate * Mathf.Lerp(0.6f, 1f, speed);
+            else _stepPhase = Mathf.Round(_stepPhase); // settle at a step boundary, ready for the next walk
+            if (Mathf.Floor(_stepPhase) > Mathf.Floor(previous) && speed > 0.3f)
+                GameAudio.Play(Sfx.Step, _stepVolume * speed, 0.12f);
+
+            float hop = Mathf.Sin(_stepPhase * Mathf.PI); // 0 at each footfall, ±1 mid-step (alternating feet)
+            float side = hop; // sways left on one step, right on the next
+            Vector3 bob = new(side * _bobSway, (Mathf.Abs(hop) - 0.6f) * _bobHeight, 0f);
+            _camera.transform.localPosition = _cameraRestPosition + bob * _walk;
+
+            _shake = Mathf.MoveTowards(_shake, 0f, dt * 2.5f);
             float s = _shake * _shake * _shakeDegrees;
             float t = Time.time * 25f;
             _camera.transform.localRotation = _cameraRest * Quaternion.Euler(
                 (Mathf.PerlinNoise(t, 0.3f) - 0.5f) * 2f * s, (Mathf.PerlinNoise(0.7f, t) - 0.5f) * 2f * s,
-                (Mathf.PerlinNoise(t, t) - 0.5f) * s);
+                (Mathf.PerlinNoise(t, t) - 0.5f) * s - side * _bobRoll * _walk);
         }
 
         // Rest position sinks with the planted body.

@@ -135,6 +135,19 @@ namespace PeaHeads
             return sprite;
         }
 
+        // Just the rim of RoundedRect (same 9-slice borders), `thickness` source pixels wide.
+        public static Sprite RoundedBorder(int size = 64, int radius = 16, float thickness = 3f)
+        {
+            float r = radius / (size * 0.5f), t = thickness / (size * 0.5f);
+            return Make(size, p =>
+            {
+                // Signed distance to the rounded rectangle's edge, negative inside.
+                Vector2 q = new(Mathf.Abs(p.x) - (1f - r), Mathf.Abs(p.y) - (1f - r));
+                float d = new Vector2(Mathf.Max(q.x, 0f), Mathf.Max(q.y, 0f)).magnitude + Mathf.Min(Mathf.Max(q.x, q.y), 0f) - r;
+                return d <= 0f && d > -t ? 1f : 0f;
+            }, Samples, new Vector4(radius, radius, radius, radius));
+        }
+
         private static Sprite Make(int size, Func<Vector2, float> coverage, int samples = Samples,
             Vector4 border = default)
         {

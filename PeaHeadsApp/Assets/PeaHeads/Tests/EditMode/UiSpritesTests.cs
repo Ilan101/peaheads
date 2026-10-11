@@ -30,6 +30,16 @@ namespace PeaHeads.Tests
         }
 
         [Test]
+        public void RoundedBorder_IsOnlyTheRim()
+        {
+            Sprite border = UiSprites.RoundedBorder();
+            AssertEmpty(border, 0f, 0f);
+            AssertFilled(border, 0f, 0.97f);
+            AssertFilled(border, -0.97f, 0f);
+            AssertEmpty(border, -0.99f, -0.99f);
+        }
+
+        [Test]
         public void Thorn_HasCoreAndSpikes()
         {
             Sprite thorn = UiSprites.Thorn();

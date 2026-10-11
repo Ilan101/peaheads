@@ -65,12 +65,16 @@ namespace PeaHeads.Net
                 case PlantState.Planting:
                     GameAudio.PlayAt(Sfx.Plant, transform.position, 0.9f);
                     WorldPolish.PlantBurst(transform.position, false);
+                    if (IsOwner) _rig.AddShake(0.12f);
                     break;
                 case PlantState.Unplanting:
                     GameAudio.PlayAt(Sfx.Unplant, transform.position, 0.9f);
                     WorldPolish.PlantBurst(transform.position, true);
                     break;
-                case PlantState.Planted when IsOwner: GameAudio.Play(Sfx.Ready, 0.55f); break;
+                case PlantState.Planted when IsOwner:
+                    GameAudio.Play(Sfx.Ready, 0.55f);
+                    _rig.AddShake(0.22f);
+                    break;
             }
         }
 

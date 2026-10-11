@@ -8,6 +8,7 @@ namespace PeaHeads
     // Visual polish layered on top of the scene and AtmosphereController (which owns sky, fog and sun): a global
     // post-processing volume (bloom, grading, vignette) with SMAA on the game cameras, drifting spores over the arena,
     // light beams + ground rings on active Sporelights, glowing peas with trails, and dirt bursts for planting.
+    // Watches the frame time too: on a GPU that can't keep up (integrated laptop graphics) it steps quality down.
     // Visual only, local. Added by GameMenu.
     public class WorldPolish : MonoBehaviour
     {
@@ -31,6 +32,11 @@ namespace PeaHeads
         [SerializeField, Range(0, 400)] private int _spores = 180;
         [SerializeField, Range(0f, 15f)] private float _beamHeight = 8f;
 
+        [Header("Performance")]
+        [Tooltip("While the median arena frame takes longer than this (ms), quality steps down one tier: cheaper bloom, " +
+                 "then FXAA and 85% then 75% render scale with FSR upscaling. It never steps back up.")]
+        [SerializeField, Range(10f, 50f)] private float _targetFrameMs = 21f;
+
         private static WorldPolish _instance;
         private static Material _particleBase;
         private static Texture2D _softDot, _beamTexture, _ringTexture;
@@ -39,15 +45,39 @@ namespace PeaHeads
         private ParticleSystem _dust;
         private float _nextCameraCheck;
 
+        private const int MaxTier = 3;
+        private const int SampleFrames = 90;
+        private readonly List<float> _frameMs = new(SampleFrames);
+        private Bloom _bloom;
+        private int _tier;
+        private float _measureAfter;
+        private AntialiasingMode _antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+        private AntialiasingQuality _antialiasingQuality = AntialiasingQuality.High;
+        // Render scale lives on the pipeline asset: changed in memory only (never marked dirty, so never saved) and put
+        // back in OnDestroy, which also runs when play mode stops.
+        private UniversalRenderPipelineAsset _pipeline;
+        private float _baseRenderScale = 1f;
+        private UpscalingFilterSelection _baseUpscaling;
+
         private void Awake() => _instance = this;
 
         private void OnDestroy()
         {
             if (_instance == this) _instance = null;
+            if (!_pipeline) return;
+            _pipeline.renderScale = _baseRenderScale;
+            _pipeline.upscalingFilter = _baseUpscaling;
         }
 
         private void Start()
         {
+            _pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            if (_pipeline)
+            {
+                _baseRenderScale = _pipeline.renderScale;
+                _baseUpscaling = _pipeline.upscalingFilter;
+            }
+            _measureAfter = Time.unscaledTime + 3f; // loading hitches aren't the GPU's fault
             BuildVolume();
             BuildSpores();
             BuildBeacons();
@@ -62,6 +92,46 @@ namespace PeaHeads
                 EnablePostProcessing();
             }
             UpdateBeacons();
+            MeasureFrames();
+        }
+
+        // ---------- Performance ----------
+
+        // Median of 90 arena frames (the story and lobby cover the arena and cost little, so they don't count); one
+        // tier down each time it's over target, judged again a second after the change has settled.
+        private void MeasureFrames()
+        {
+            if (_tier >= MaxTier) return;
+            if (LobbyView.HidesGame || Time.unscaledTime < _measureAfter)
+            {
+                _frameMs.Clear();
+                return;
+            }
+            _frameMs.Add(Time.unscaledDeltaTime * 1000f);
+            if (_frameMs.Count < SampleFrames) return;
+            _frameMs.Sort();
+            float median = _frameMs[SampleFrames / 2];
+            _frameMs.Clear();
+            if (median <= _targetFrameMs) return;
+            SetTier(_tier + 1);
+            _measureAfter = Time.unscaledTime + 1f;
+        }
+
+        // 0 full quality; 1 quarter-resolution bloom, medium SMAA; 2 FXAA, 85% render scale; 3 75%.
+        private void SetTier(int tier)
+        {
+            _tier = tier;
+            if (_bloom)
+            {
+                _bloom.highQualityFiltering.value = tier == 0;
+                _bloom.downscale.value = tier == 0 ? BloomDownscaleMode.Half : BloomDownscaleMode.Quarter;
+            }
+            _antialiasing = tier >= 2 ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            _antialiasingQuality = tier == 0 ? AntialiasingQuality.High : AntialiasingQuality.Medium;
+            EnablePostProcessing();
+            if (!_pipeline) return;
+            _pipeline.renderScale = tier >= 3 ? 0.75f : tier == 2 ? 0.85f : _baseRenderScale;
+            _pipeline.upscalingFilter = tier >= 2 ? UpscalingFilterSelection.FSR : _baseUpscaling;
         }
 
         // ---------- Post-processing ----------
@@ -69,11 +139,12 @@ namespace PeaHeads
         private void BuildVolume()
         {
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            Bloom bloom = profile.Add<Bloom>(true);
+            Bloom bloom = _bloom = profile.Add<Bloom>(true);
             bloom.intensity.value = _bloomIntensity;
             bloom.threshold.value = _bloomThreshold;
             bloom.scatter.value = 0.65f;
             bloom.highQualityFiltering.value = true;
+            bloom.downscale.overrideState = true;
             Tonemapping tonemapping = profile.Add<Tonemapping>(true);
             tonemapping.mode.value = TonemappingMode.Neutral;
             ColorAdjustments grading = profile.Add<ColorAdjustments>(true);
@@ -92,17 +163,18 @@ namespace PeaHeads
             volume.profile = profile;
         }
 
-        // Screen cameras only (render-texture cameras like the killcam capture stay cheap).
-        private static void EnablePostProcessing()
+        // Screen cameras only (render-texture cameras like the killcam capture stay cheap, blank ones draw nothing).
+        private void EnablePostProcessing()
         {
             foreach (Camera cam in Camera.allCameras)
             {
-                if (cam.targetTexture) continue;
+                if (cam.targetTexture || cam.cullingMask == 0) continue;
                 UniversalAdditionalCameraData data = cam.GetUniversalAdditionalCameraData();
-                if (data.renderPostProcessing && data.antialiasing == AntialiasingMode.SubpixelMorphologicalAntiAliasing) continue;
+                if (data.renderPostProcessing && data.antialiasing == _antialiasing &&
+                    data.antialiasingQuality == _antialiasingQuality) continue;
                 data.renderPostProcessing = true;
-                data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-                data.antialiasingQuality = AntialiasingQuality.High;
+                data.antialiasing = _antialiasing;
+                data.antialiasingQuality = _antialiasingQuality;
             }
         }
 
@@ -187,7 +259,15 @@ namespace PeaHeads
                     if (to.sqrMagnitude > 0.01f) beam.rotation = Quaternion.LookRotation(-to.normalized, Vector3.up);
                 }
                 float pulse = 0.75f + 0.25f * Mathf.Sin(t * 2.5f + spot.Index);
-                SetColor(beamMat, SporelightGlow * (1.8f * pulse));
+                // Thin out as the camera walks into the shaft, so collecting doesn't fill the screen with glow.
+                float near = 1f;
+                if (cam)
+                {
+                    Vector3 offset = cam.transform.position - beam.position;
+                    offset.y = 0f;
+                    near = Mathf.Lerp(0.12f, 1f, Mathf.InverseLerp(1.2f, 4.5f, offset.magnitude));
+                }
+                SetColor(beamMat, SporelightGlow * (1.8f * pulse * near));
                 SetColor(ringMat, SporelightGlow * (2f * pulse));
                 ring.localRotation = Quaternion.Euler(90f, t * 25f, 0f);
             }

@@ -26,6 +26,8 @@ namespace PeaHeads
         private static readonly Color Warn = new(1f, 0.78f, 0.3f);
         private static readonly Color Bad = new(1f, 0.36f, 0.32f);
         private static readonly Color HeartRed = new(0.92f, 0.17f, 0.24f);
+        private static readonly Color HealGreen = new(0.55f, 1f, 0.55f);
+        private static readonly Color DotOff = new(1f, 1f, 1f, 0.25f);
 
         [SerializeField, Range(16f, 96f)] private float _heartSize = 48f;
         [Tooltip("Webcam view width; height follows the tracker's 16:9 rectangle.")]
@@ -61,7 +63,12 @@ namespace PeaHeads
         private bool _markerKill;
         private float _blockedAt = float.NegativeInfinity;
         private float _toastAt = float.NegativeInfinity;
+        private float _firedAt = float.NegativeInfinity;
+        private float _stateAt = float.NegativeInfinity;
+        private float _dial;
+        private string _lastState;
         private float[] _heartLostAt = new float[0];
+        private float[] _heartGainedAt = new float[0];
 
         // Draw order: HUD 40 < killcam 42 < minimap 50 < scope vignette 51 < crosshair 52, so the scope darkens the
         // minimap and killcam but never the crosshair.
@@ -76,6 +83,7 @@ namespace PeaHeads
         private Text _stateText;
         private Image[] _hearts = new Image[0];
         private RectTransform _crosshair;
+        private float _crosshairBase = 1f;
         private Image _ring, _centerDot, _marker;
         private Text _blockedText;
         private CanvasGroup _death;
@@ -103,6 +111,7 @@ namespace PeaHeads
             if (!_shooting) return;
             _shooting.HitConfirmed += OnHitConfirmed;
             _shooting.FireBlocked += OnFireBlocked;
+            _shooting.Fired += OnFired;
         }
 
         private void OnDisable()
@@ -112,14 +121,15 @@ namespace PeaHeads
             if (!_shooting) return;
             _shooting.HitConfirmed -= OnHitConfirmed;
             _shooting.FireBlocked -= OnFireBlocked;
+            _shooting.Fired -= OnFired;
         }
 
+        // Canvases may already be gone when the scene unloads (quit, leave), so check each one.
         private void OnDestroy()
         {
-            if (!_canvas) return;
-            Destroy(_canvas.gameObject);
-            Destroy(_scopeCanvas.gameObject);
-            Destroy(_crosshairCanvas.gameObject);
+            if (_canvas) Destroy(_canvas.gameObject);
+            if (_scopeCanvas) Destroy(_scopeCanvas.gameObject);
+            if (_crosshairCanvas) Destroy(_crosshairCanvas.gameObject);
         }
 
         private void SetCanvasesActive(bool active)
@@ -143,6 +153,8 @@ namespace PeaHeads
 
         private void OnFireBlocked() => _blockedAt = Time.time;
 
+        private void OnFired() => _firedAt = Time.time;
+
         private void Update()
         {
             TrackHealth();
@@ -156,15 +168,17 @@ namespace PeaHeads
 
             Color faction = Faction.Color(Team);
             bool status = !Scoped && !dead;
+            // Nothing to aim at once the round is decided; the crosshair would sit on the end banner.
+            bool aiming = !dead && !(MatchManager.Instance && MatchManager.Instance.IsEnded);
             _tracker.Root.gameObject.SetActive(status);
             _status.gameObject.SetActive(status);
-            _crosshair.gameObject.SetActive(!dead);
+            _crosshair.gameObject.SetActive(aiming);
             if (status)
             {
                 _tracker.Refresh(_tracking);
                 UpdateStatus();
             }
-            if (!dead) UpdateCrosshair(faction);
+            if (aiming) UpdateCrosshair(faction);
             UpdateOverlays(dead);
         }
 
@@ -185,6 +199,12 @@ namespace PeaHeads
                 else GameAudio.Play(Sfx.Hurt, 0.8f, 0.05f);
             }
             else if (hp > 0 && _lastHealth <= 0) GameAudio.Play(Sfx.Respawn, 0.8f);
+            else if (hp > _lastHealth)
+            {
+                // A Sporelight grew a heart back.
+                for (int i = Mathf.Max(_lastHealth, 0); i < Mathf.Min(hp, _heartGainedAt.Length); i++) _heartGainedAt[i] = Time.time;
+                GameAudio.Play(Sfx.Heal, 0.7f);
+            }
             _lastHealth = hp;
         }
 
@@ -196,8 +216,10 @@ namespace PeaHeads
             _badge.sprite = team == 0 ? UiBuild.Flower : UiBuild.Thorn;
             _badge.color = Faction.Color(team);
 
-            int lit = Mathf.RoundToInt(_planting.Progress * PlantDots);
-            for (int i = 0; i < PlantDots; i++) _plantDots[i].color = i < lit ? PlantGreen : new Color(1f, 1f, 1f, 0.25f);
+            // Smooth fill: the dot at the front fades in as progress passes it.
+            _dial = Mathf.MoveTowards(_dial, _planting.Progress, Time.deltaTime * 3f);
+            float filled = _dial * PlantDots;
+            for (int i = 0; i < PlantDots; i++) _plantDots[i].color = Color.Lerp(DotOff, PlantGreen, Mathf.Clamp01(filled - i));
             bool ready = _planting.CanShoot && (!_shooting || _shooting.CooldownProgress >= 1f);
             _sprout.color = _planting.CanShoot ? PlantGreen : new Color(0.75f, 0.75f, 0.75f);
             _sprout.rectTransform.localScale = Vector3.one * (ready ? 1f + 0.06f * Mathf.Sin(Time.time * 5f) : 1f);
@@ -215,9 +237,11 @@ namespace PeaHeads
             {
                 bool full = i < hp;
                 float lost = Time.time - _heartLostAt[i];
-                float scale = full ? 1f : UiBuild.Pop(lost, 0.35f, 0.6f);
-                if (full && hp == 1) scale = 1f + 0.1f * Mathf.Abs(Mathf.Sin(Time.time * 4f)); // last heart beats
-                _hearts[i].color = full ? HeartRed : lost < 0.35f ? Color.white : new Color(0.2f, 0.2f, 0.2f, 0.6f);
+                float gained = Time.time - _heartGainedAt[i];
+                float scale = full ? UiBuild.Pop(gained, 0.5f, 0.7f) : UiBuild.Pop(lost, 0.35f, 0.6f);
+                if (full && hp == 1 && gained > 0.5f) scale = 1f + 0.1f * Mathf.Abs(Mathf.Sin(Time.time * 4f)); // last heart beats
+                Color heart = gained < 0.6f ? Color.Lerp(HealGreen, HeartRed, gained / 0.6f) : HeartRed;
+                _hearts[i].color = full ? heart : lost < 0.35f ? Color.white : new Color(0.2f, 0.2f, 0.2f, 0.6f);
                 _hearts[i].rectTransform.localScale = Vector3.one * scale;
             }
 
@@ -227,8 +251,14 @@ namespace PeaHeads
 
         private void SetState(string state, Color color)
         {
+            if (state != _lastState)
+            {
+                _lastState = state;
+                _stateAt = Time.time;
+            }
             _stateText.text = state;
-            _stateText.color = color;
+            _stateText.color = Color.Lerp(_stateText.color, color, 1f - Mathf.Exp(-12f * Time.deltaTime));
+            _stateText.rectTransform.localScale = Vector3.one * UiBuild.Pop(Time.time - _stateAt, 0.25f, 0.18f);
         }
 
         // ---------- Crosshair ----------
@@ -239,10 +269,15 @@ namespace PeaHeads
             float marker = Time.time - _markerAt;
             bool showMarker = marker < _hitMarkerTime;
             bool killRed = showMarker && _markerKill;
-            _crosshair.localScale = Vector3.one * Mathf.Lerp(_crosshair.localScale.x, _rig.IsZoomed ? 1.3f : 1f,
-                1f - Mathf.Exp(-14f * Time.deltaTime));
-            _ring.color = killRed ? Bad : canShoot ? new Color(1f, 1f, 1f, 0.95f) : new Color(1f, 1f, 1f, 0.35f);
-            _centerDot.color = killRed ? Bad : canShoot ? faction : new Color(1f, 1f, 1f, 0.5f);
+            float k = 1f - Mathf.Exp(-14f * Time.deltaTime);
+            // Base size eases to the zoom size; a spit kicks the ring open for a moment.
+            _crosshairBase = Mathf.Lerp(_crosshairBase, _rig.IsZoomed ? 1.3f : 1f, k);
+            float kick = Mathf.Clamp01(1f - (Time.time - _firedAt) / 0.18f);
+            _crosshair.localScale = Vector3.one * (_crosshairBase * (1f + 0.45f * kick * kick));
+            Color ring = killRed ? Bad : canShoot ? new Color(1f, 1f, 1f, 0.95f) : new Color(1f, 1f, 1f, 0.35f);
+            Color dot = killRed ? Bad : canShoot ? faction : new Color(1f, 1f, 1f, 0.5f);
+            _ring.color = killRed ? ring : Color.Lerp(_ring.color, ring, k);
+            _centerDot.color = killRed ? dot : Color.Lerp(_centerDot.color, dot, k);
 
             _marker.enabled = showMarker;
             if (showMarker)
@@ -286,11 +321,6 @@ namespace PeaHeads
                 bool ended = _match && _match.IsEnded; // the end banner says the rest
                 _deathImage.color = _deathTint;
                 _deathTitle.enabled = _deathBy.enabled = _deathCount.enabled = !ended;
-                // The victim's killcam takes the middle of the screen: title above it, countdown below.
-                bool killcam = KillcamView.FullscreenActive;
-                _deathTitle.rectTransform.anchoredPosition = new Vector2(0f, killcam ? 286f : 40f);
-                _deathBy.rectTransform.anchoredPosition = new Vector2(0f, killcam ? 246f : -18f);
-                _deathCount.rectTransform.anchoredPosition = new Vector2(0f, killcam ? -300f : -58f);
                 int rival = 1 - Team;
                 _deathBy.text = $"{Faction.Name(rival)} got you";
                 _deathBy.color = Faction.Color(rival);
@@ -396,9 +426,11 @@ namespace PeaHeads
 
             _hearts = new Image[count];
             _heartLostAt = new float[count];
+            _heartGainedAt = new float[count];
             for (int i = 0; i < count; i++)
             {
                 _heartLostAt[i] = float.NegativeInfinity;
+                _heartGainedAt[i] = float.NegativeInfinity;
                 _hearts[i] = UiBuild.Image(_status, UiBuild.Heart, BottomLeft, new Vector2(i * (_heartSize + 6f), 0f),
                     new Vector2(_heartSize, _heartSize), HeartRed);
                 AddShadow(_hearts[i]);

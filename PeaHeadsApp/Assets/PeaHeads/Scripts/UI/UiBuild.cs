@@ -12,12 +12,13 @@ namespace PeaHeads
         public static readonly Color Accent = new(0.65f, 0.95f, 0.35f, 1f);
 
         private static Font _font, _display;
-        private static Sprite _rounded, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom, _flower, _thorn, _sprout, _scope, _shield;
+        private static Sprite _rounded, _border, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom, _flower, _thorn, _sprout, _scope, _shield;
 
         public static Font Font => _font ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         // Chewy (Resources/Fonts, Apache 2.0): the game's bubbly display face for titles, numbers and callouts.
         public static Font DisplayFont => _display ? _display : _display = Resources.Load<Font>("Fonts/Chewy-Regular") ?? Font;
         public static Sprite Rounded => _rounded ? _rounded : _rounded = UiSprites.RoundedRect();
+        public static Sprite Border => _border ? _border : _border = UiSprites.RoundedBorder();
         public static Sprite Circle => _circle ? _circle : _circle = UiSprites.Circle();
         public static Sprite Ring => _ring ? _ring : _ring = UiSprites.Ring(96, 0.12f);
         public static Sprite Glow => _glow ? _glow : _glow = UiSprites.Glow();
@@ -113,6 +114,17 @@ namespace PeaHeads
                 label.fontStyle = FontStyle.Normal;
                 label.fontSize = Mathf.RoundToInt(label.fontSize * 1.08f);
             }
+        }
+
+        // Crisp rim along a rounded panel's edge. Use this, not Outline, on see-through panels: Outline draws offset
+        // copies of the whole panel underneath, which tint its fill.
+        public static Image Rim(Image panel, Color color)
+        {
+            Image rim = Image(panel.transform, Border, Vector2.zero, Vector2.zero, color);
+            rim.type = UnityEngine.UI.Image.Type.Sliced;
+            rim.pixelsPerUnitMultiplier = panel.pixelsPerUnitMultiplier;
+            Stretch(rim.rectTransform);
+            return rim;
         }
 
         public static Outline Outline(Graphic graphic, Color color, float distance = 1.5f)

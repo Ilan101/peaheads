@@ -51,7 +51,11 @@ namespace PeaHeads
             _canvas.gameObject.SetActive(open);
             _stage.SetRendering(open);
             _appliedSlot = -1;
-            if (open) return;
+            if (open)
+            {
+                Refresh(); // now, not in the next Update: the first frame shows the full lobby, not a blank one
+                return;
+            }
 
             NetworkObject player = _modePlayer;
             if (player) SetPlayerMode(player, false);
@@ -71,7 +75,11 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (!IsOpen) return;
+            if (IsOpen) Refresh();
+        }
+
+        private void Refresh()
+        {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -112,6 +120,7 @@ namespace PeaHeads
                 Pose pose = _stage.Slot(i);
                 label.rectTransform.anchoredPosition = CanvasPoint(pose.position + Vector3.down * 0.35f);
                 bool present = i < members.Count && StandsAt(plants, members[i], pose.position);
+                _stage.SetSlot(i, present, present ? Faction.Color(MatchManager.TeamOf(members[i])) : Color.white);
                 if (present)
                 {
                     ulong id = members[i];

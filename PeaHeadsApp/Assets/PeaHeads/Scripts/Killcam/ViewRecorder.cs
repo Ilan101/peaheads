@@ -1,26 +1,32 @@
 using System;
-using System.Buffers;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 namespace PeaHeads
 {
     // Rolling few seconds of the local player's view for the killcam. A small capture camera rides on the player's
-    // camera (no HUD, no shadows) and renders into a ring of RenderTextures a few times per second. Collect() gathers
-    // the frames around a kill, including the ones still to come, reads them back asynchronously and JPEG-encodes a
-    // few per frame so nothing hitches. Added by GameMenu.
+    // camera (no HUD, no shadows) and renders into a ring of RenderTextures. Collect() gathers the frames around a
+    // kill, including the ones still to come: they're read back asynchronously and JPEG-encoded on worker threads,
+    // so a kill never costs the killer a frame. Added by GameMenu.
     public class ViewRecorder : MonoBehaviour
     {
-        [SerializeField, Range(5, 30)] private int _fps = 20;
+        // Raw frames being read back or encoded at once (allocated up front), and new readbacks started per frame:
+        // a kill asks for ~40 frames at once, and doing them all in one frame is a visible hitch.
+        private const int RawBuffers = 12;
+        private const int ReadbacksPerFrame = 6;
+
+        [SerializeField, Range(5, 30)] private int _fps = 25;
         [SerializeField, Range(2f, 6f)] private float _keepSeconds = 3.5f;
         [SerializeField] private Vector2Int _size = new(480, 270);
-        [SerializeField, Range(10, 100)] private int _jpegQuality = 70;
-        [SerializeField, Range(1, 8)] private int _encodesPerFrame = 3;
+        [SerializeField, Range(10, 100)] private int _jpegQuality = 72;
         [Tooltip("Flip captured frames if the replay shows upside down on this graphics API.")]
         [SerializeField] private bool _flipVertical;
 
@@ -35,18 +41,26 @@ namespace PeaHeads
         }
 
         private readonly List<Job> _jobs = new();
-        private readonly Queue<(Job job, float time, byte[] raw, int length)> _toEncode = new();
+        // Encoded on worker threads, handed back here so jobs and the buffer pool are only touched on the main thread.
+        private readonly ConcurrentQueue<(Job job, float time, byte[] jpeg, byte[] raw)> _encoded = new();
+        private readonly Stack<byte[]> _rawPool = new();
+        private readonly Queue<(Job job, int index, float time)> _queued = new();
         private RenderTexture[] _ring;
         private double[] _times;
         private int _next;
         private RenderTexture _target;
         private Camera _capture;
         private Camera _source;
-        private Texture2D _encoder;
         private double _nextCapture;
         private bool _rendering;
 
-        private void Awake() => Instance = this;
+        private int RawSize => _size.x * _size.y * 4;
+
+        private void Awake()
+        {
+            Instance = this;
+            for (int i = 0; i < RawBuffers; i++) _rawPool.Push(new byte[RawSize]);
+        }
 
         private void OnEnable() => StartCoroutine(AfterRender());
 
@@ -58,7 +72,6 @@ namespace PeaHeads
                     if (rt) rt.Release();
             if (_target) _target.Release();
             if (_capture) Destroy(_capture.gameObject);
-            if (_encoder) Destroy(_encoder);
         }
 
         // Frames in [kill - before, kill + after], times relative to the kill. Calls done on the main thread once the
@@ -84,7 +97,17 @@ namespace PeaHeads
                 _rendering = true;
             }
 
-            for (int i = 0; i < _encodesPerFrame && _toEncode.Count > 0; i++) Encode(_toEncode.Dequeue());
+            while (_encoded.TryDequeue(out (Job job, float time, byte[] jpeg, byte[] raw) item))
+            {
+                if (item.jpeg != null) item.job.Frames.Add(new ClipFrame(item.time, item.jpeg));
+                item.job.Pending--;
+                _rawPool.Push(item.raw);
+            }
+            for (int n = 0; n < ReadbacksPerFrame && _queued.Count > 0 && _rawPool.Count > 0; n++)
+            {
+                (Job job, int index, float time) = _queued.Dequeue();
+                ReadBack(job, index, time, _rawPool.Pop());
+            }
             for (int i = _jobs.Count - 1; i >= 0; i--)
             {
                 Job job = _jobs[i];
@@ -112,8 +135,11 @@ namespace PeaHeads
         private void Store()
         {
             EnsureRing();
+            // Blit leaves the ring texture active; hand the screen back so nothing else reads a 480×270 target.
+            RenderTexture previous = RenderTexture.active;
             if (_flipVertical) Graphics.Blit(_target, _ring[_next], new Vector2(1f, -1f), new Vector2(0f, 1f));
             else Graphics.Blit(_target, _ring[_next]);
+            RenderTexture.active = previous;
             double now = KillClip.Now;
             _times[_next] = now;
             foreach (Job job in _jobs)
@@ -121,32 +147,38 @@ namespace PeaHeads
             _next = (_next + 1) % _ring.Length;
         }
 
+        // Queued; Update starts a few readbacks per frame. The ring slot is read long before it's overwritten.
         private void Request(Job job, int index)
         {
             job.Pending++;
-            float time = (float)(_times[index] - job.Kill);
+            _queued.Enqueue((job, index, (float)(_times[index] - job.Kill)));
+        }
+
+        private void ReadBack(Job job, int index, float time, byte[] raw)
+        {
+            int width = _size.x, height = _size.y, quality = _jpegQuality;
             AsyncGPUReadback.Request(_ring[index], 0, TextureFormat.RGBA32, request =>
             {
                 if (request.hasError)
                 {
-                    job.Pending--;
+                    _encoded.Enqueue((job, time, null, raw));
                     return;
                 }
                 NativeArray<byte> data = request.GetData<byte>();
-                byte[] raw = ArrayPool<byte>.Shared.Rent(data.Length);
-                NativeArray<byte>.Copy(data, raw, data.Length);
-                _toEncode.Enqueue((job, time, raw, data.Length));
+                NativeArray<byte>.Copy(data, raw, Mathf.Min(data.Length, raw.Length));
+                // ImageConversion's array encoders are thread safe: the JPEG work never touches the main thread.
+                Task.Run(() =>
+                {
+                    byte[] jpeg = null;
+                    try
+                    {
+                        jpeg = ImageConversion.EncodeArrayToJPG(raw, GraphicsFormat.R8G8B8A8_SRGB, (uint)width,
+                            (uint)height, (uint)(width * 4), quality);
+                    }
+                    catch (Exception) { /* dropped frame */ }
+                    _encoded.Enqueue((job, time, jpeg, raw));
+                });
             });
-        }
-
-        private void Encode((Job job, float time, byte[] raw, int length) item)
-        {
-            if (!_encoder) _encoder = new Texture2D(_size.x, _size.y, TextureFormat.RGBA32, false);
-            NativeArray<byte> pixels = _encoder.GetRawTextureData<byte>();
-            NativeArray<byte>.Copy(item.raw, pixels, Mathf.Min(item.length, pixels.Length));
-            item.job.Frames.Add(new ClipFrame(item.time, _encoder.EncodeToJPG(_jpegQuality)));
-            ArrayPool<byte>.Shared.Return(item.raw);
-            item.job.Pending--;
         }
 
         private static Camera LocalCamera()
@@ -174,6 +206,7 @@ namespace PeaHeads
             _capture.CopyFrom(source);
             _capture.targetTexture = _target;
             _capture.depth = source.depth - 1f;
+            _capture.allowHDR = false; // no post-processing on the capture, so HDR would only add a copy
             _capture.enabled = false;
             UniversalAdditionalCameraData data = _capture.GetUniversalAdditionalCameraData();
             data.renderShadows = false;

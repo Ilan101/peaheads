@@ -84,7 +84,8 @@ namespace PeaHeads
             int team = MatchManager.TeamOf(nm.LocalClientId);
             if (team != _bakedTeam) Bake(team);
 
-            bool show = !LobbyView.HidesGame; // stays visible over the scope vignette
+            // Stays visible over the scope vignette; steps aside for the victim's full-screen killcam.
+            bool show = !LobbyView.HidesGame && !KillcamView.FullscreenActive;
             if (_canvas.activeSelf != show) _canvas.SetActive(show);
             if (!show) return;
 

@@ -41,8 +41,17 @@ namespace PeaHeads
         private int _lastSecond = -1;
         private float _goAt = float.NegativeInfinity, _warnAt = float.NegativeInfinity, _endedAt;
 
+        private const int PetalCount = 40;
+
         private RectTransform _canvas;
         private float _barWidth;
+        private readonly float[] _shownFill = new float[2];
+        private Image _clockFill;
+        private Image _goRing;
+        private Image _bannerBadgeLeft, _bannerBadgeRight;
+        private RectTransform[] _petals;
+        private Image[] _petalImages;
+        private Vector3[] _petalMotion; // x drift speed, fall speed, spin
         private readonly Text[] _names = new Text[2], _scores = new Text[2], _popups = new Text[2];
         private readonly Image[] _fills = new Image[2];
         private Image _clockRing;
@@ -165,8 +174,10 @@ namespace PeaHeads
                 _scores[team].text = score.ToString();
                 _scores[team].rectTransform.localScale = Vector3.one * UiBuild.Pop(now - _scoredAt[team], 0.35f, 0.5f);
                 float fill = Mathf.Clamp01(score / (float)_match.TargetScore);
-                _fills[team].enabled = fill > 0f;
-                _fills[team].rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, _barWidth * fill), 10f);
+                _shownFill[team] = fill < _shownFill[team] ? fill
+                    : Mathf.Lerp(_shownFill[team], fill, 1f - Mathf.Exp(-6f * Time.unscaledDeltaTime));
+                _fills[team].enabled = _shownFill[team] > 0.001f;
+                _fills[team].rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, _barWidth * _shownFill[team]), 10f);
                 _fills[team].color = color;
 
                 float since = now - _scoredAt[team];
@@ -184,7 +195,9 @@ namespace PeaHeads
             _clock.text = $"{seconds / 60}:{seconds % 60:00}";
             _clock.color = warning ? Bad : Color.white;
             _clock.rectTransform.localScale = Vector3.one * (warning ? 1f + 0.12f * Mathf.Abs(Mathf.Sin(now * Mathf.PI)) : 1f);
-            _clockRing.color = warning ? UiBuild.WithAlpha(Bad, 0.9f) : new Color(1f, 1f, 1f, 0.25f);
+            _clockRing.color = new Color(1f, 1f, 1f, 0.12f);
+            _clockFill.fillAmount = _match.MatchDuration > 0f ? Mathf.Clamp01(_match.TimeRemaining / _match.MatchDuration) : 0f;
+            _clockFill.color = warning ? UiBuild.WithAlpha(Bad, 0.95f) : UiBuild.WithAlpha(Faction.Color(local), 0.9f);
             // Just the timer; "WAITING" only while the clock waits for the intro story.
             _clockSub.text = waiting ? "WAITING" : "";
             _clock.rectTransform.anchoredPosition = new Vector2(0f, waiting ? 7f : 0f);
@@ -250,6 +263,13 @@ namespace PeaHeads
                 _goSub.color = UiBuild.WithAlpha(Color.white, alpha);
                 _go.rectTransform.localScale = Vector3.one * UiBuild.Pop(go, 0.35f, 0.7f);
             }
+            float burst = Mathf.Clamp01(go / 0.7f);
+            _goRing.enabled = go < 0.7f;
+            if (_goRing.enabled)
+            {
+                _goRing.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.4f, 3.2f, 1f - (1f - burst) * (1f - burst));
+                _goRing.color = UiBuild.WithAlpha(Faction.Color(local), 0.85f * (1f - burst));
+            }
 
             float warn = Time.unscaledTime - _warnAt;
             _warn.enabled = warn < 1.8f;
@@ -265,6 +285,7 @@ namespace PeaHeads
             bool ended = _match.IsEnded;
             _banner.alpha = Mathf.MoveTowards(_banner.alpha, ended ? 1f : 0f, Time.unscaledDeltaTime * 3f);
             _banner.gameObject.SetActive(_banner.alpha > 0f);
+            foreach (Image petal in _petalImages) petal.enabled = ended;
             if (!ended) return;
 
             int winner = _match.Winner;
@@ -274,6 +295,20 @@ namespace PeaHeads
             _bannerTitle.text = draw ? "DRAW" : $"{Faction.Name(winner)} WINS";
             _bannerTitle.color = color;
             _bannerTitle.rectTransform.localScale = Vector3.one * UiBuild.Pop(Time.unscaledTime - _endedAt, 0.45f, 0.5f);
+            _bannerBadgeLeft.enabled = _bannerBadgeRight.enabled = !draw;
+            if (!draw)
+            {
+                Sprite badge = winner == 0 ? UiBuild.Flower : UiBuild.Thorn;
+                float sway = Mathf.Sin(Time.unscaledTime * 2f) * 10f;
+                foreach (Image image in new[] { _bannerBadgeLeft, _bannerBadgeRight })
+                {
+                    image.sprite = badge;
+                    image.color = color;
+                }
+                _bannerBadgeLeft.rectTransform.localRotation = Quaternion.Euler(0f, 0f, sway);
+                _bannerBadgeRight.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -sway);
+            }
+            UpdatePetals(color);
             _bannerLine.text = draw ? "Neither side prevails. The Grove hangs in the balance." : Faction.WinLine(winner);
             _bannerResult.text = draw ? "TIED ON POINTS" : winner == local ? "YOU WIN!" : "YOU LOSE";
             _bannerResult.color = draw ? Color.white : winner == local ? Live : Bad;
@@ -292,7 +327,7 @@ namespace PeaHeads
 
             Image panel = UiBuild.Panel(_canvas, Top, new Vector2(0f, -12f), new Vector2(_panelWidth, 74f), UiBuild.Glass);
             _scoreboard = panel.rectTransform;
-            UiBuild.Outline(panel, new Color(1f, 1f, 1f, 0.12f));
+            UiBuild.Rim(panel, new Color(1f, 1f, 1f, 0.16f));
             Transform p = panel.transform;
             for (int team = 0; team < 2; team++)
             {
@@ -319,6 +354,11 @@ namespace PeaHeads
             Image badge = UiBuild.Image(p, UiBuild.Circle, new Vector2(0f, -6f), new Vector2(86f, 86f),
                 new Color(0.05f, 0.08f, 0.06f, 0.96f));
             _clockRing = UiBuild.Image(badge.transform, UiBuild.Ring, Vector2.zero, new Vector2(86f, 86f), Color.white);
+            _clockFill = UiBuild.Image(badge.transform, UiBuild.Ring, Vector2.zero, new Vector2(86f, 86f), Color.white);
+            _clockFill.type = Image.Type.Filled;
+            _clockFill.fillMethod = Image.FillMethod.Radial360;
+            _clockFill.fillOrigin = (int)Image.Origin360.Top;
+            _clockFill.fillClockwise = false;
             _clock = UiBuild.Label(badge.transform, "", 24, Color.white, TextAnchor.MiddleCenter, Centre,
                 new Vector2(0f, 7f), new Vector2(86f, 30f));
             _clockSub = UiBuild.Label(badge.transform, "", 9, Dim, TextAnchor.MiddleCenter, Centre,
@@ -329,7 +369,7 @@ namespace PeaHeads
                 new Vector2(70f, 14f));
 
             _collectPanel = UiBuild.Panel(_canvas, Bottom, new Vector2(0f, 150f), new Vector2(320f, 56f), UiBuild.Glass);
-            UiBuild.Outline(_collectPanel, UiBuild.WithAlpha(_collectColor, 0.6f));
+            UiBuild.Rim(_collectPanel, UiBuild.WithAlpha(_collectColor, 0.7f));
             Transform c = _collectPanel.transform;
             UiBuild.Image(c, UiBuild.Glow, MidLeft, new Vector2(2f, 0f), new Vector2(56f, 56f), UiBuild.WithAlpha(_collectColor, 0.5f));
             UiBuild.Image(c, UiBuild.Mushroom, MidLeft, new Vector2(14f, 0f), new Vector2(32f, 32f), _collectColor);
@@ -340,6 +380,8 @@ namespace PeaHeads
             _collectFill = UiBuild.Panel(collectTrack.transform, MidLeft, Vector2.zero, new Vector2(10f, 10f), _collectColor, 0.3f);
             _collectPanel.gameObject.SetActive(false);
 
+            _goRing = UiBuild.Image(_canvas, UiBuild.Ring, new Vector2(0f, 70f), new Vector2(160f, 160f), Color.clear);
+            _goRing.enabled = false;
             _go = UiBuild.Label(_canvas, "GO!", 96, Color.white, TextAnchor.MiddleCenter, Centre, new Vector2(0f, 70f),
                 new Vector2(800f, 110f));
             UiBuild.Outline(_go, new Color(0f, 0f, 0f, 0.6f), 3f);
@@ -381,7 +423,48 @@ namespace PeaHeads
                 new Vector2(1000f, 24f));
             _bannerNext = UiBuild.Label(band, "", 15, Dim, TextAnchor.MiddleCenter, Centre, new Vector2(0f, -94f),
                 new Vector2(1000f, 22f), FontStyle.Normal);
+            _bannerBadgeLeft = UiBuild.Image(band, UiBuild.Flower, new Vector2(-380f, 58f), new Vector2(78f, 78f), Color.white);
+            _bannerBadgeRight = UiBuild.Image(band, UiBuild.Flower, new Vector2(380f, 58f), new Vector2(78f, 78f), Color.white);
+            foreach (Image badge in new[] { _bannerBadgeLeft, _bannerBadgeRight })
+            {
+                Shadow shadow = badge.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+                shadow.effectDistance = new Vector2(2f, -3f);
+            }
             band.gameObject.SetActive(false);
+
+            _petals = new RectTransform[PetalCount];
+            _petalImages = new Image[PetalCount];
+            _petalMotion = new Vector3[PetalCount];
+            for (int i = 0; i < PetalCount; i++)
+            {
+                var pos = new Vector2(Random.Range(-660f, 660f), Random.Range(-380f, 380f));
+                _petalImages[i] = UiBuild.Image(_canvas, UiBuild.Circle, pos, new Vector2(Random.Range(9f, 16f), Random.Range(5f, 9f)),
+                    Color.clear);
+                _petals[i] = _petalImages[i].rectTransform;
+                _petals[i].localRotation = Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
+                _petalMotion[i] = new Vector3(Random.Range(-25f, 25f), Random.Range(60f, 130f), Random.Range(-160f, 160f));
+                _petalImages[i].enabled = false;
+            }
+        }
+
+        // Petals drift down over the winner's banner, in the winner's colour (white for a draw).
+        private void UpdatePetals(Color color)
+        {
+            Rect area = _canvas.rect;
+            float dt = Time.unscaledDeltaTime;
+            for (int i = 0; i < PetalCount; i++)
+            {
+                RectTransform petal = _petals[i];
+                Vector3 motion = _petalMotion[i];
+                Vector2 p = petal.anchoredPosition;
+                p += new Vector2(motion.x + Mathf.Sin(Time.unscaledTime * 1.7f + i) * 30f, -motion.y) * dt;
+                if (p.y < area.yMin - 30f) p = new Vector2(Random.Range(area.xMin, area.xMax), area.yMax + 30f);
+                petal.anchoredPosition = p;
+                petal.localRotation = Quaternion.Euler(0f, 0f, petal.localEulerAngles.z + motion.z * dt);
+                float shade = 0.75f + 0.25f * Mathf.Sin(i * 1.3f);
+                _petalImages[i].color = new Color(color.r * shade, color.g * shade, color.b * shade, 0.9f);
+            }
         }
 
         // Full-width 4-unit stripe on the band's top (y = 1) or bottom (y = 0) edge.

@@ -24,6 +24,12 @@ namespace PeaHeads
         public Camera Camera { get; private set; }
         public RenderTexture Texture { get; private set; }
 
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
+        private static readonly Color EmptyGlow = new(0.35f, 0.4f, 0.35f);
+        private readonly Light[] _spots = new Light[SlotCount];
+        private readonly Material[] _rims = new Material[SlotCount];
+
         // Draws nothing; it only keeps one camera on the display while the player camera is off (else Unity shows
         // "No cameras rendering" over the lobby UI).
         private Camera _screen;
@@ -48,7 +54,9 @@ namespace PeaHeads
             floor.transform.SetParent(transform, false);
             floor.transform.localPosition = new Vector3(0f, -0.1f, 0f);
             floor.transform.localScale = new Vector3(SlotCount * _slotSpacing + 6f, 0.2f, 8f);
-            floor.GetComponent<Renderer>().material.color = _soil;
+            floor.GetComponent<Renderer>().sharedMaterial = Lit(_soil);
+
+            BuildStage();
 
             var lightGo = new GameObject("Light", typeof(Light));
             lightGo.transform.SetParent(transform, false);
@@ -68,6 +76,7 @@ namespace PeaHeads
             Camera.fieldOfView = _fieldOfView;
             Camera.nearClipPlane = 0.3f;
             Camera.farClipPlane = 60f;
+            Camera.allowHDR = false; // no post-processing here, so HDR would only add an intermediate copy
             Camera.enabled = false;
 
             _screen = new GameObject("ScreenCamera", typeof(Camera)).GetComponent<Camera>();
@@ -76,6 +85,79 @@ namespace PeaHeads
             _screen.clearFlags = CameraClearFlags.SolidColor;
             _screen.backgroundColor = Color.black;
             _screen.enabled = false;
+        }
+
+        // Slot look: a spotlight and pedestal rim in the pea's team colour once someone stands there, dim when empty.
+        public void SetSlot(int index, bool occupied, Color color)
+        {
+            if (index < 0 || index >= SlotCount || !_spots[index]) return;
+            Light spot = _spots[index];
+            spot.color = Color.Lerp(spot.color, occupied ? color : Color.white, 0.2f);
+            spot.intensity = Mathf.Lerp(spot.intensity, occupied ? 26f : 6f, 0.2f);
+            Material rim = _rims[index];
+            if (!rim) return;
+            Color glow = occupied ? color * (2.2f + 0.4f * Mathf.Sin(Time.unscaledTime * 3f + index)) : EmptyGlow;
+            rim.SetColor(EmissionId, glow);
+            rim.SetColor(BaseColorId, occupied ? color : EmptyGlow);
+        }
+
+        // Back wall, a pedestal with a glowing rim under each slot, and a spotlight over each.
+        private void BuildStage()
+        {
+            GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.name = "BackWall";
+            Destroy(wall.GetComponent<Collider>());
+            wall.transform.SetParent(transform, false);
+            wall.transform.localPosition = new Vector3(0f, 4f, 4.5f);
+            wall.transform.localScale = new Vector3(SlotCount * _slotSpacing + 14f, 9f, 0.2f);
+            wall.GetComponent<Renderer>().sharedMaterial = Lit(new Color(0.1f, 0.2f, 0.12f));
+
+            Material glow = Resources.Load<Material>("KillSites/KillSiteGlow");
+            for (int i = 0; i < SlotCount; i++)
+            {
+                Vector3 local = Slot(i).position - Origin;
+                GameObject pedestal = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                pedestal.name = $"Pedestal{i}";
+                Destroy(pedestal.GetComponent<Collider>());
+                pedestal.transform.SetParent(transform, false);
+                pedestal.transform.localPosition = local + new Vector3(0f, 0.02f, 0f);
+                pedestal.transform.localScale = new Vector3(1.6f, 0.03f, 1.6f);
+                pedestal.GetComponent<Renderer>().sharedMaterial = Lit(new Color(0.17f, 0.11f, 0.07f));
+
+                GameObject rim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                rim.name = $"Rim{i}";
+                Destroy(rim.GetComponent<Collider>());
+                rim.transform.SetParent(transform, false);
+                rim.transform.localPosition = local + new Vector3(0f, 0.012f, 0f);
+                rim.transform.localScale = new Vector3(1.85f, 0.012f, 1.85f);
+                Renderer rimRenderer = rim.GetComponent<Renderer>();
+                _rims[i] = glow ? new Material(glow) : Lit(EmptyGlow);
+                rimRenderer.sharedMaterial = _rims[i];
+
+                var spotGo = new GameObject($"Spot{i}", typeof(Light));
+                spotGo.transform.SetParent(transform, false);
+                spotGo.transform.localPosition = local + new Vector3(0f, 5f, -2.2f);
+                spotGo.transform.LookAt(Slot(i).position + Vector3.up * 1.1f);
+                Light spot = spotGo.GetComponent<Light>();
+                spot.type = LightType.Spot;
+                spot.spotAngle = 34f;
+                spot.innerSpotAngle = 18f;
+                spot.range = 10f;
+                spot.intensity = 6f;
+                spot.shadows = LightShadows.None;
+                _spots[i] = spot;
+                SetSlot(i, false, Color.white);
+            }
+        }
+
+        // Shipped URP Lit material (Resources) in a colour. Primitives' built-in default material renders magenta
+        // in player builds.
+        private static Material Lit(Color color)
+        {
+            Material source = Resources.Load<Material>("KillSites/KillSiteLit");
+            var material = source ? new Material(source) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.color = color;
+            return material;
         }
 
         // The texture follows the screen size; call every frame while the lobby is open.
