@@ -14,6 +14,10 @@ namespace PeaHeads.Net
         [SerializeField] private string _defaultAddress = "127.0.0.1";
         [SerializeField] private int _maxConnectAttempts = 10;
 
+        // Every player is a pea in one of the lobby's four slots.
+        public const int MaxPlayers = 4;
+        public const string LobbyFullReason = "Lobby full";
+
         public string Address { get; set; }
         public string LocalIps { get; private set; }
         public ushort Port => _port;
@@ -35,6 +39,9 @@ namespace PeaHeads.Net
             var nm = NetworkManager.Singleton;
             nm.OnClientDisconnectCallback += OnClientDisconnect;
             nm.OnClientConnectedCallback += OnClientConnected;
+            // Host and client must agree on this flag (it is part of the config hash), so it is set for both.
+            nm.NetworkConfig.ConnectionApproval = true;
+            nm.ConnectionApprovalCallback = Approve;
         }
 
         private void OnDestroy()
@@ -43,6 +50,20 @@ namespace PeaHeads.Net
             if (nm == null) return;
             nm.OnClientDisconnectCallback -= OnClientDisconnect;
             nm.OnClientConnectedCallback -= OnClientConnected;
+            nm.ConnectionApprovalCallback = null;
+        }
+
+        public static bool CanJoin(int connectedCount) => connectedCount < MaxPlayers;
+
+        // Host side, also for the host's own connection.
+        // ponytail: counts connected clients only, so two joins racing at 3 players could both pass; fine on a LAN.
+        private static void Approve(NetworkManager.ConnectionApprovalRequest request,
+            NetworkManager.ConnectionApprovalResponse response)
+        {
+            bool approved = CanJoin(NetworkManager.Singleton.ConnectedClientsIds.Count);
+            response.Approved = approved;
+            response.CreatePlayerObject = approved;
+            response.Reason = approved ? null : LobbyFullReason;
         }
 
         public void Host()
@@ -81,16 +102,18 @@ namespace PeaHeads.Net
         {
             var nm = NetworkManager.Singleton;
             bool remoteClientLeft = nm.IsServer && clientId != nm.LocalClientId;
-            string status = DisconnectStatus(_leaving, remoteClientLeft, clientId, _wasConnected, nm.DisconnectEvent);
+            string status = DisconnectStatus(_leaving, remoteClientLeft, clientId, _wasConnected, nm.DisconnectEvent,
+                nm.DisconnectReason);
             if (status != null) Status = status;
             if (!remoteClientLeft) _wasConnected = false;
         }
 
         // null = keep the current status. NGO's DisconnectReason is a debug string, so map the event instead.
         public static string DisconnectStatus(bool leaving, bool remoteClientLeft, ulong clientId, bool wasConnected,
-            NetworkTransport.DisconnectEvents disconnectEvent)
+            NetworkTransport.DisconnectEvents disconnectEvent, string reason = null)
         {
             if (leaving) return null;
+            if (reason == LobbyFullReason) return $"Lobby full ({MaxPlayers} peas).";
             if (remoteClientLeft) return $"Player {clientId} left.";
             if (!wasConnected) return "Could not reach host. Same Wi-Fi? Firewall?";
             return disconnectEvent == NetworkTransport.DisconnectEvents.ProtocolTimeout

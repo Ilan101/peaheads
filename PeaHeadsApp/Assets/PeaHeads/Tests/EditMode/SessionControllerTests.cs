@@ -37,5 +37,16 @@ namespace PeaHeads.Tests
         public void NeverConnected_SaysCouldNotReachHost(NetworkTransport.DisconnectEvents disconnectEvent) =>
             Assert.AreEqual("Could not reach host. Same Wi-Fi? Firewall?",
                 SessionController.DisconnectStatus(false, false, 1, false, disconnectEvent));
+
+        [Test]
+        public void RejectedAsFull_SaysLobbyFull() =>
+            Assert.AreEqual("Lobby full (4 peas).",
+                SessionController.DisconnectStatus(false, false, 0, false, Remote, SessionController.LobbyFullReason));
+
+        [TestCase(0, ExpectedResult = true)]
+        [TestCase(3, ExpectedResult = true)]
+        [TestCase(4, ExpectedResult = false)]
+        [TestCase(5, ExpectedResult = false)]
+        public bool CanJoin_UpToFourPlayers(int connected) => SessionController.CanJoin(connected);
     }
 }
