@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using PeaHeads.Net;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace PeaHeads.EditorTools
 {
@@ -51,6 +52,45 @@ namespace PeaHeads.EditorTools
             BuildPrefab(DummyPath, parts, false);
             AssetDatabase.SaveAssets();
             Debug.Log("PlantBodyBuilder: rebuilt Player and TargetDummy bodies.");
+        }
+
+        private const string KillSitesDir = "Assets/PeaHeads/Resources/KillSites";
+
+        // Shared materials for KillSites (loaded via Resources so the shaders ship in builds).
+        [MenuItem("PeaHeads/Build Kill Site Materials")]
+        public static void BuildKillSiteMaterials()
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/PeaHeads/Resources")) AssetDatabase.CreateFolder("Assets/PeaHeads", "Resources");
+            if (!AssetDatabase.IsValidFolder(KillSitesDir)) AssetDatabase.CreateFolder("Assets/PeaHeads/Resources", "KillSites");
+
+            Material lit = LoadOrCreateMaterial($"{KillSitesDir}/KillSiteLit.mat", "Universal Render Pipeline/Lit");
+            lit.SetColor("_BaseColor", Color.white);
+            lit.SetFloat("_Smoothness", 0.2f);
+            lit.enableInstancing = true;
+
+            Material particle = LoadOrCreateMaterial($"{KillSitesDir}/KillSiteParticle.mat",
+                "Universal Render Pipeline/Particles/Unlit");
+            particle.SetFloat("_Surface", 1f);
+            particle.SetFloat("_Blend", 0f);
+            particle.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            particle.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            particle.SetFloat("_ZWrite", 0f);
+            particle.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            particle.renderQueue = (int)RenderQueue.Transparent;
+
+            EditorUtility.SetDirty(lit);
+            EditorUtility.SetDirty(particle);
+            AssetDatabase.SaveAssets();
+            Debug.Log("PlantBodyBuilder: KillSite materials written.");
+        }
+
+        private static Material LoadOrCreateMaterial(string path, string shaderName)
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material) return material;
+            material = new Material(Shader.Find(shaderName));
+            AssetDatabase.CreateAsset(material, path);
+            return material;
         }
 
         private static void BuildPrefab(string path, Parts parts, bool isPlayer)

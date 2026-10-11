@@ -31,6 +31,8 @@ namespace PeaHeads
         // Declared before _state so clients already have the winner when the state callback runs.
         private readonly NetworkVariable<sbyte> _winner = new(-1);
         private readonly NetworkVariable<byte> _state = new();
+        // Bumped by the host at every restart so every machine knows a new round began (state can stay Playing).
+        private readonly NetworkVariable<int> _round = new();
         // Client ids per team, shuffled by the host at every match start. Allocated in Awake (native memory).
         private NetworkList<ulong> _team0;
         private NetworkList<ulong> _team1;
@@ -39,6 +41,8 @@ namespace PeaHeads
         public static MatchManager Instance { get; private set; }
         // Raised on every machine when the team lists change.
         public static event Action TeamsChanged;
+        // Raised on every machine when a new round starts (kill-site patches clear).
+        public static event Action RoundReset;
 
         // Server only.
         public event Action RoundStarted;
@@ -90,6 +94,7 @@ namespace PeaHeads
             _team1 = new NetworkList<ulong>();
             // Evening light + team-tinted fog; added here so older scenes get it without an edit.
             if (!TryGetComponent(out AtmosphereController _)) gameObject.AddComponent<AtmosphereController>();
+            if (!TryGetComponent(out KillSites _)) gameObject.AddComponent<KillSites>();
         }
 
         public override void OnNetworkSpawn()
@@ -98,6 +103,7 @@ namespace PeaHeads
             _team0.OnListChanged += OnTeamsChanged;
             _team1.OnListChanged += OnTeamsChanged;
             _state.OnValueChanged += OnStateChanged;
+            _round.OnValueChanged += OnRoundChanged;
             if (!IsServer) return;
             ShuffleTeams();
             // In-scene object: values survive a previous host session, so start clean.
@@ -117,6 +123,7 @@ namespace PeaHeads
             _team0.OnListChanged -= OnTeamsChanged;
             _team1.OnListChanged -= OnTeamsChanged;
             _state.OnValueChanged -= OnStateChanged;
+            _round.OnValueChanged -= OnRoundChanged;
             PlayerHealth.Killed -= OnKilled;
             if (NetworkManager)
             {
@@ -202,6 +209,8 @@ namespace PeaHeads
 
         private void OnTeamsChanged(NetworkListEvent<ulong> _) => TeamsChanged?.Invoke();
 
+        private void OnRoundChanged(int previous, int current) => RoundReset?.Invoke();
+
         // Host's menu button. Also cancels the automatic restart if the match had already ended.
         public void RestartNow()
         {
@@ -226,6 +235,7 @@ namespace PeaHeads
                     sync.RespawnOnSideRpc((byte)TeamOf(client.ClientId));
             ArmClock();
             _state.Value = (byte)MatchState.Playing;
+            _round.Value++;
         }
 
         private void OnStateChanged(byte previous, byte current)
