@@ -206,4 +206,4 @@ Feature freeze when 1–6 work. Never trade webcam reliability for content.
 - C#: `PascalCase` types/methods, `_camelCase` private fields, `[SerializeField] private` over public fields. One `MonoBehaviour` per file, filename = class.
 - Minimal comments. No debug `Debug.Log` spam left in commits (use a single `[SerializeField] bool debug`).
 - Commits: conventional (`feat:`, `fix:`, ...). Commit `.meta` files with their assets.
-- Python tracker: `head_tracker.py` at repo root. Deps in `requirements.txt` (mediapipe pinned 0.10.21 for `mp.solutions`). Setup once: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Run: `.venv/bin/python head_tracker.py` (webcam 0).
+- Python tracker: `head_tracker.py` at repo root. Deps in `requirements.txt` (mediapipe pinned 0.10.21 for `mp.solutions`). Setup once: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`. Run: `.venv/bin/python head_tracker.py` (picks the camera with the highest resolution, e.g. a USB webcam over the built-in one; `--camera N` to force one).
