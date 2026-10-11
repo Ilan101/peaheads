@@ -36,10 +36,11 @@ three others) facing them, move only their heads, frame and calibrate their webc
 - `LobbyStage` (runtime-built, added by GameMenu like Minimap/WorldPolish), placed far outside the arena (a fixed
   offset, e.g. 400 m along +X, out of sight of the arena and minimap bounds).
 - 4 slots in a row, ~3 m apart, each a small dirt mound + floor collider; slots face the lobby camera.
-- Local lobby camera (not networked), framing all 4 slots head-on. Clear = solid colour matching the story slide
-  background. **Mirrored horizontally** (flipped projection + inverted culling via URP camera callbacks) so leaning
-  right moves your pea right on screen.
-- Slot index = rank of the owner's client id among players currently in the lobby (pure helper `LobbySlot`).
+- Local lobby camera (not networked), framing all 4 slots head-on, rendering into a RenderTexture. Clear = solid
+  colour matching the story slide background. **Mirrored horizontally** by showing the texture in a full-screen
+  RawImage with a flipped `uvRect`, so leaning right moves your pea right on screen.
+- Slot index = rank of the owner's client id in `MatchManager.LobbyMembers()` (both teams while in `Lobby`, else
+  `_waiting`; sorted, max 4). Players still in the story keep their slot reserved (shown as "waiting for a pea…").
 - Arena players never see the stage (distance); minimap ignores players inside the lobby bounds.
 
 ## Players while in the lobby
@@ -61,7 +62,7 @@ three others) facing them, move only their heads, frame and calibrate their webc
 - Top: title ("THE GROVE GATHERS") + subtitle "Waiting for peas · N/4".
 - Under each slot: "YOU" / "PEA 2..4" label in team colour; empty slots show a dim "waiting for a pea…" outline.
 - Bottom-left: framing window — latest face JPEG from `FaceFeed` (5053) with the tracker box + head dot (as PlayerHUD's
-  webcam panel); "no face" state when the feed is not live. **CALIBRATE** button → `HeadTrackingInput.Recenter()`
+  webcam panel); "no face" state when the feed is not live. **CALIBRATE** button → `HeadTrackingInput.Calibrate()`
   (same as C).
 - Bottom-centre: **START** (host only, works with 1 player). Clients: "Waiting for host to start…". Late joiner:
   "Next round starts when this match ends".
@@ -75,7 +76,8 @@ three others) facing them, move only their heads, frame and calibrate their webc
 
 ## Testing
 
-EditMode (pure logic only): `LobbySlot` ranking, `SmallerTeam`, `GameMenu.ScreenFor` with the lobby screen.
+EditMode (pure logic only): `LobbyMembers` ranking, `SmallerTeam`, `LobbyView.ShouldOpen`, `LobbyStage.Contains`,
+`GameMenu.ScreenFor` with the lobby screen, `SessionController.CanJoin` + lobby-full status.
 Everything else verified by playtest: 1-player host START, 2–4 player lobby head motion, mirror, calibrate, late
 joiner during a match, 5th player rejected.
 
