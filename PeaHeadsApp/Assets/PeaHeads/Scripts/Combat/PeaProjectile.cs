@@ -14,6 +14,8 @@ namespace PeaHeads
         [SerializeField, Range(0f, 50f)] private float _dropAfter = 5f;
         [Tooltip("Metres the pea flies straight before gravity kicks in when fired zoomed.")]
         [SerializeField, Range(0f, 50f)] private float _zoomedDropAfter = 10f;
+        [Tooltip("Launch speed multiplier when fired zoomed.")]
+        [SerializeField, Range(1f, 3f)] private float _zoomedSpeedMultiplier = 1.25f;
         [Tooltip("Downward acceleration (m/s²) once past the drop distance.")]
         [SerializeField, Range(0f, 50f)] private float _gravity = 9.81f;
 
@@ -42,7 +44,7 @@ namespace PeaHeads
         // there to the spawn point is checked first, so a mouth poking through a wall can't fire through it.
         public void Launch(Transform owner, Vector3 sweepFrom, bool zoomed)
         {
-            _velocity = transform.forward * _speed;
+            _velocity = transform.forward * (zoomed ? _speed * _zoomedSpeedMultiplier : _speed);
             _straightLeft = zoomed ? _zoomedDropAfter : _dropAfter;
             _owner = owner;
             _attacker = owner.GetComponent<NetworkObject>().OwnerClientId;
@@ -64,7 +66,7 @@ namespace PeaHeads
             }
 
             float dt = Time.deltaTime;
-            if (_straightLeft > 0f) _straightLeft -= _speed * dt;
+            if (_straightLeft > 0f) _straightLeft -= _velocity.magnitude * dt;
             else _velocity += Vector3.down * (_gravity * dt);
 
             float step = _velocity.magnitude * dt;

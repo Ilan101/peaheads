@@ -138,7 +138,7 @@ MonoBehaviour:
   _lifetime: 4
   _damage: 1
   _dropAfter: 3
-  _zoomedDropAfter: 10
+  _zoomedDropAfter: 12
   _gravity: 9.81
 --- !u!114 &2689078331182434659
 MonoBehaviour:
