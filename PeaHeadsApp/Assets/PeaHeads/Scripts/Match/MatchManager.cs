@@ -100,6 +100,8 @@ namespace PeaHeads
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            // Patches from a previous session in this (persisting) scene.
+            if (KillSites.Instance) KillSites.Instance.Clear();
             _team0.OnListChanged += OnTeamsChanged;
             _team1.OnListChanged += OnTeamsChanged;
             _state.OnValueChanged += OnStateChanged;
@@ -120,6 +122,7 @@ namespace PeaHeads
         public override void OnNetworkDespawn()
         {
             if (Instance == this) Instance = null;
+            if (KillSites.Instance) KillSites.Instance.Clear();
             _team0.OnListChanged -= OnTeamsChanged;
             _team1.OnListChanged -= OnTeamsChanged;
             _state.OnValueChanged -= OnStateChanged;

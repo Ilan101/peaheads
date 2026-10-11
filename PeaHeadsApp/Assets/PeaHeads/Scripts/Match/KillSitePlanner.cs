@@ -55,6 +55,18 @@ namespace PeaHeads
             return result;
         }
 
+        // A raycast hit belongs to the ground the plant died on: near its height (not a wall top, cover top or a drop
+        // off a ledge) and flat enough to grow on.
+        public static bool IsGroundHit(float deathY, float hitY, float normalY) =>
+            Mathf.Abs(hitY - deathY) <= 0.75f && normalY >= 0.7f;
+
+        // Lightness multiplier in [0.92, 1.08], snapped to `steps` values so patches share a few cached materials.
+        public static float Shade(float random01, int steps)
+        {
+            int step = Mathf.Min(steps - 1, Mathf.FloorToInt(random01 * steps));
+            return Mathf.Lerp(0.92f, 1.08f, step / (float)(steps - 1));
+        }
+
         // Oldest patches to drop so one more fits under the cap.
         public static int OverCap(int count, int cap) => Mathf.Max(0, count + 1 - cap);
     }

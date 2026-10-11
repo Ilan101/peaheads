@@ -37,7 +37,8 @@ namespace PeaHeads
         private Mesh _capsule;
         private Material _lit;
         private Material _particle;
-        private MaterialPropertyBlock _block;
+        // One material per colour (blob shades are quantised), so the patches stay SRP-batcher friendly.
+        private readonly Dictionary<Color, Material> _materials = new();
 
         private void Awake()
         {
@@ -55,7 +56,6 @@ namespace PeaHeads
             var rng = new System.Random(1234);
             _blobs = new Mesh[BlobVariants];
             for (int i = 0; i < BlobVariants; i++) _blobs[i] = BlobMesh(rng);
-            _block = new MaterialPropertyBlock();
             MatchManager.RoundReset += Clear;
         }
 
@@ -63,6 +63,19 @@ namespace PeaHeads
         {
             MatchManager.RoundReset -= Clear;
             if (Instance == this) Instance = null;
+            foreach (Material material in _materials.Values) Destroy(material);
+        }
+
+        // Burst + patch after `delay` (the dying plant's tint). Owned here, not by the plant, so a plant that despawns
+        // mid-tint still leaves the same patch on every machine; Clear() cancels pending ones.
+        public void Schedule(float delay, Vector3 position, int killerTeam) =>
+            StartCoroutine(CleanseAfter(delay, position, killerTeam));
+
+        private IEnumerator CleanseAfter(float delay, Vector3 position, int killerTeam)
+        {
+            yield return new WaitForSeconds(delay);
+            Burst(position + Vector3.up, killerTeam);
+            Cleanse(position, killerTeam);
         }
 
         // A patch of the killer's ground at `position`; takes over the other team's overlapping patches.
@@ -85,7 +98,7 @@ namespace PeaHeads
             for (int i = 0; i < blobs.Length; i++)
             {
                 if (!FindGround(position, blobs[i], out Vector3 point, out Vector3 normal)) continue;
-                Color colour = ground * Mathf.Lerp(0.92f, 1.08f, (float)rng.NextDouble());
+                Color colour = ground * KillSitePlanner.Shade((float)rng.NextDouble(), 5);
                 colour.a = 1f;
                 float size = Mathf.Lerp(0.7f, 1f, (float)rng.NextDouble());
                 Transform blob = Part(root, _blobs[rng.Next(BlobVariants)], colour,
@@ -154,6 +167,7 @@ namespace PeaHeads
 
         public void Clear()
         {
+            StopAllCoroutines(); // pending scheduled patches and growth
             foreach (GameObject root in _roots)
                 if (root) Destroy(root);
             _roots.Clear();
@@ -172,21 +186,23 @@ namespace PeaHeads
         {
             point = default;
             normal = Vector3.up;
-            Vector3 from = centre + new Vector3(offset.x, 3f, offset.y);
-            int count = Physics.RaycastNonAlloc(from, Vector3.down, _hits, 6f, ~0, QueryTriggerInteraction.Ignore);
+            // From 1 m above the death point: starts inside nearby logs/rocks (rays miss colliders they start in) and
+            // below the boundary wall tops; hits far from the death height are rejected.
+            Vector3 from = centre + new Vector3(offset.x, 1f, offset.y);
+            int count = Physics.RaycastNonAlloc(from, Vector3.down, _hits, 2.5f, ~0, QueryTriggerInteraction.Ignore);
             float best = float.MaxValue;
             bool found = false;
             for (int i = 0; i < count; i++)
             {
                 RaycastHit hit = _hits[i];
                 if (hit.collider.GetComponentInParent<PlayerHealth>()) continue;
-                if (hit.distance >= best) continue;
+                if (!KillSitePlanner.IsGroundHit(centre.y, hit.point.y, hit.normal.y) || hit.distance >= best) continue;
                 best = hit.distance;
                 point = hit.point;
                 normal = hit.normal;
                 found = true;
             }
-            return found && normal.y >= 0.7f;
+            return found;
         }
 
         private Transform Flower(Transform root)
@@ -197,8 +213,8 @@ namespace PeaHeads
             Color petal = Faction.Color(0);
             for (int k = 0; k < 5; k++)
                 Part(flower, _leaf, petal, new Vector3(0f, 0.31f, 0f),
-                    Quaternion.Euler(0f, k * 72f, 0f) * Quaternion.Euler(-20f, 0f, 0f), Vector3.one, true);
-            Part(flower, _sphere, FlowerCentre, new Vector3(0f, 0.32f, 0f), Quaternion.identity, Vector3.one * 0.07f, true);
+                    Quaternion.Euler(0f, k * 72f, 0f) * Quaternion.Euler(-20f, 0f, 0f), Vector3.one, false);
+            Part(flower, _sphere, FlowerCentre, new Vector3(0f, 0.32f, 0f), Quaternion.identity, Vector3.one * 0.07f, false);
             return flower;
         }
 
@@ -235,11 +251,18 @@ namespace PeaHeads
             go.transform.localScale = localScale;
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
             var meshRenderer = go.GetComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = _lit;
+            meshRenderer.sharedMaterial = MaterialFor(colour);
             meshRenderer.shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
-            _block.SetColor(BaseColor, colour);
-            meshRenderer.SetPropertyBlock(_block);
             return go.transform;
+        }
+
+        private Material MaterialFor(Color colour)
+        {
+            if (_materials.TryGetValue(colour, out Material material)) return material;
+            material = new Material(_lit);
+            material.SetColor(BaseColor, colour);
+            _materials[colour] = material;
+            return material;
         }
 
         // Outward ripple: each part scales 0 → full after its delay. Parts removed mid-growth are skipped.

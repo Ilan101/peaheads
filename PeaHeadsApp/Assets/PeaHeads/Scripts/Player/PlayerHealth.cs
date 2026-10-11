@@ -36,6 +36,7 @@ namespace PeaHeads
         public const float CleanseTime = 0.3f;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private Coroutine _hide;
+        private Coroutine _cleanse;
 
         public override void OnNetworkSpawn()
         {
@@ -105,6 +106,12 @@ namespace PeaHeads
             }
             if (alive)
             {
+                // A revive inside the tint window (restart right after a kill) must not keep the killer's colour.
+                if (_cleanse != null)
+                {
+                    StopCoroutine(_cleanse);
+                    _cleanse = null;
+                }
                 foreach (Renderer r in GetComponentsInChildren<Renderer>(true)) r.SetPropertyBlock(null);
                 ShowRenderers(true);
             }
@@ -125,10 +132,14 @@ namespace PeaHeads
         }
 
         [Rpc(SendTo.ClientsAndHost)]
-        private void CleansedRpc(byte killerTeam, Vector3 position) => StartCoroutine(Cleanse(killerTeam, position));
+        private void CleansedRpc(byte killerTeam, Vector3 position)
+        {
+            if (KillSites.Instance) KillSites.Instance.Schedule(CleanseTime, position, killerTeam);
+            _cleanse = StartCoroutine(Cleanse(killerTeam));
+        }
 
-        // Tint every visible part toward the killer's colour, then burst and leave the killer's ground behind.
-        private IEnumerator Cleanse(int killerTeam, Vector3 position)
+        // Tint every visible part toward the killer's colour (KillSites does the burst and patch right after).
+        private IEnumerator Cleanse(int killerTeam)
         {
             Color target = Faction.Color(killerTeam);
             Renderer[] renderers = GetComponentsInChildren<Renderer>();
@@ -151,11 +162,7 @@ namespace PeaHeads
                 }
                 yield return null;
             }
-
-            KillSites sites = KillSites.Instance;
-            if (!sites) yield break;
-            sites.Burst(position + Vector3.up, killerTeam);
-            sites.Cleanse(position, killerTeam);
+            _cleanse = null;
         }
 
         // Original color captured only by the first of overlapping flashes, so red never sticks.

@@ -53,6 +53,29 @@ namespace PeaHeads.Tests
         public void ToReplace_OnlyOtherTeamInsideRadiusOnXZ() =>
             CollectionAssert.AreEqual(new[] { 0, 1 }, KillSitePlanner.ToReplace(Sites, Vector3.zero, 0, 1.5f));
 
+        [TestCase(0.08f, 0.02f, 1f, ExpectedResult = true)]    // flat ground under the plant
+        [TestCase(0.08f, 3.0f, 1f, ExpectedResult = false)]    // top of a 3 m boundary wall
+        [TestCase(0.08f, 1.3f, 1f, ExpectedResult = false)]    // top of a log beside the plant
+        [TestCase(1.38f, 1.3f, 1f, ExpectedResult = true)]     // plant died standing on the log
+        [TestCase(0.08f, -0.5f, 0.9f, ExpectedResult = true)]  // gentle dip
+        [TestCase(0.08f, -1.2f, 1f, ExpectedResult = false)]   // off a ledge
+        [TestCase(0.08f, 0.1f, 0.5f, ExpectedResult = false)]  // too steep
+        public bool IsGroundHit_OnlyNearDeathHeightAndFlat(float deathY, float hitY, float normalY) =>
+            KillSitePlanner.IsGroundHit(deathY, hitY, normalY);
+
+        [Test]
+        public void Shade_QuantisedWithinRange()
+        {
+            var seen = new HashSet<float>();
+            for (int i = 0; i <= 100; i++)
+            {
+                float shade = KillSitePlanner.Shade(i / 100f, 5);
+                Assert.That(shade, Is.InRange(0.92f, 1.08f));
+                seen.Add(shade);
+            }
+            Assert.AreEqual(5, seen.Count);
+        }
+
         [TestCase(5, 20, ExpectedResult = 0)]
         [TestCase(19, 20, ExpectedResult = 0)]
         [TestCase(20, 20, ExpectedResult = 1)]
