@@ -18,13 +18,56 @@ SHOOT_FRAMES = 2         # frames mouth must stay open before shoot = True
 BOX_FRAC = 0.30          # active box half-width as a fraction of the frame width (box edge = full deflection +-1)
                          # frame-relative, so camera mode / zoom can't shrink it; height follows 16:9
 
+MAX_CAMERAS = 5         # camera indices probed when no --camera is given
+
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(0)  # DSHOW is Windows-only
-# MJPG first: most webcams only manage ~10 fps at 720p uncompressed (YUYV), 30 fps compressed.
-cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-cap.set(cv2.CAP_PROP_FPS, 30)
+
+
+def open_camera(index, width, height):
+    """Opens a camera asking for width x height MJPG; None if it can't deliver a frame."""
+    cam = cv2.VideoCapture(index, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(index)  # DSHOW is Windows-only
+    if not cam.isOpened():
+        return None
+    # MJPG first: most webcams only manage ~10 fps at 720p uncompressed (YUYV), 30 fps compressed.
+    cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cam.set(cv2.CAP_PROP_FPS, 30)
+    ok, frame = cam.read()
+    if not ok or frame is None:
+        cam.release()
+        return None
+    return cam
+
+
+def pick_camera():
+    """--camera N wins. Otherwise the best camera: the one that goes highest when asked for 1080p (a USB webcam
+    beats a 720p laptop one); on a tie the higher index, since the built-in camera is usually 0.
+    Tracking itself runs at 720p either way (30 fps, same tuning)."""
+    if "--camera" in sys.argv:
+        index = int(sys.argv[sys.argv.index("--camera") + 1])
+    else:
+        best, best_pixels = None, -1
+        for i in range(MAX_CAMERAS):
+            cam = open_camera(i, 1920, 1080)
+            if cam is None:
+                continue
+            w, h = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cam.release()
+            print(f"Found camera {i}: up to {w}x{h}")
+            if w * h >= best_pixels:
+                best, best_pixels = i, w * h
+        if best is None:
+            sys.exit("No camera found.")
+        index = best
+    cam = open_camera(index, 1280, 720)
+    if cam is None:
+        sys.exit(f"Camera {index} isn't available.")
+    return cam, index
+
+
+cap, camera_index = pick_camera()
+print(f"Using camera {camera_index} (run with --camera N to choose another).")
 
 face_mesh = mp.solutions.face_mesh.FaceMesh(
     max_num_faces=1,
