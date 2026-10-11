@@ -28,7 +28,6 @@ namespace PeaHeads
             ("Open Mouth", "Spit"),
             ("Close One Eye", "Aim: fast, straight pea"),
             ("C", "Recenter Head"),
-            ("M", "Big Map"),
             ("Esc", "Menu"),
         };
 
@@ -279,8 +278,6 @@ namespace PeaHeads
             AddButton(_startPanel, "Join", OnJoin);
             AddButton(_startPanel, "Host", OnHost);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
-            AddLabel(_startPanel, "Start head_tracker.py first: your face is the controller.", 14, new Color(1f, 1f, 1f, 0.55f),
-                FontStyle.Italic);
 
             _connectingPanel = AddPanel("Connecting");
             _spinner = AddSpinner(_connectingPanel);

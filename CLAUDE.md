@@ -84,12 +84,12 @@ Assets/PeaHeads/
 │   │                 plant dial (sprout, ring of progress dots) + status line + hearts; crosshair with cooldown ring + hit
 │   │                 marker, red on a kill; round scope view; damage vignette; "SPAT OUT!" death screen; kill toast; sounds;
 │   │                 static Scoped hides HUD/ScoreHUD/Minimap while zoomed),
-│   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks,
+│   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks, rising Sporelight charge loop (pitch = collect progress),
 │   │                 collect bar, shield icon by the rival bar while they're in the story, end banner),
 │   │               UiBuild (shared uGUI helpers + cached UiSprites),
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
-│   │                 nearest Sporelight glows, no key row; M enlarges), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
+│   │                 nearest Sporelight glows, no key row), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
 │   │               StoryIntro (uGUI built in code: 5 player-paced slides (SPACE next, ESC skip; no mouse): lore, plant, dodge,
 │   │                 aim (closing one eye = faster, straight pea), role + scoring; animated drawings with control prompts lit in sync; played by
 │   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),

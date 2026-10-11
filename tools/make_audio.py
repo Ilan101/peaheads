@@ -604,6 +604,14 @@ def sfx_chord(notes, spacing, length, voice=bell, shimmer=0.0, gains=None):
     return out
 
 
+def sfx_charge():
+    """Sporelight charge: seamless 1 s loop (whole-hertz partials) of a pulsing D5 shimmer. Unity raises its pitch an
+    octave with collect progress, so it lands on the D6 'collect' chord."""
+    t = time_axis(1.0, SFX_SR)
+    tone = sum(g * np.sin(2 * np.pi * f * t) for f, g in ((587, 1.0), (880, 0.25), (1174, 0.35), (1761, 0.12)))
+    return tone * (0.65 + 0.35 * np.sin(2 * np.pi * 10 * t))
+
+
 def sfx_tick(freq):
     sr = SFX_SR
     t = time_axis(0.12, sr)
@@ -707,6 +715,7 @@ def make_sfx():
         'unplant': normalize(sfx_unplant(), 0.8),
         'ready': normalize(sfx_root_lock(), 0.55),
         'collect': normalize(sfx_chord([86, 90, 93, 98], 0.07, 1.2, bell, shimmer=0.15), 0.8),
+        'charge': sfx_charge() / np.max(np.abs(sfx_charge())) * 0.6,  # no normalize(): its fade breaks the loop
         'appear': normalize(sfx_chord([93, 100], 0.12, 1.0, bell, shimmer=0.08), 0.5),
         'hitmarker': normalize(sfx_hitmarker(), 0.6),
         'kill': normalize(sfx_chord([88, 95, 100], 0.09, 0.9, bell, shimmer=0.1), 0.8),

@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using PeaHeads.Net;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace PeaHeads
@@ -28,8 +27,6 @@ namespace PeaHeads
         [SerializeField] private float _worldHalfSize = 20.5f;
         [SerializeField] private Vector2 _worldCentre = Vector2.zero;
         [SerializeField, Range(120f, 360f)] private float _mapSize = 210f;
-        [SerializeField, Range(1f, 2.5f)] private float _expandedScale = 1.7f;
-        [SerializeField] private Key _toggleKey = Key.M;
 
         private sealed class PlayerIcon
         {
@@ -62,8 +59,6 @@ namespace PeaHeads
         private float _nextScan;
         private int _bakedTeam = -1;
         private float _rotation;
-        private bool _expanded;
-        private float _scale = 1f;
 
         private GameObject _canvas;
         private RectTransform _root;
@@ -92,12 +87,6 @@ namespace PeaHeads
             bool show = !StoryIntro.IsPlaying; // stays visible over the scope vignette
             if (_canvas.activeSelf != show) _canvas.SetActive(show);
             if (!show) return;
-
-            Keyboard kb = Keyboard.current;
-            bool paused = local.TryGetComponent(out PlayerInput input) && input.Paused;
-            if (kb != null && !paused && kb[_toggleKey].wasPressedThisFrame) _expanded = !_expanded;
-            _scale = Mathf.Lerp(_scale, _expanded ? _expandedScale : 1f, 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
-            _root.localScale = Vector3.one * _scale;
 
             UpdatePlayers();
             UpdateMushrooms(local.transform.position);

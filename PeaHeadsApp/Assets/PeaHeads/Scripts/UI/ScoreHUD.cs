@@ -26,9 +26,11 @@ namespace PeaHeads
         [SerializeField] private Color _collectColor = new(1f, 0.42f, 0.26f);
         [Tooltip("Ticks and a warning in the last seconds of the clock.")]
         [SerializeField, Range(0, 30)] private int _warningSeconds = 10;
+        [SerializeField, Range(0f, 1f)] private float _chargeVolume = 0.45f;
 
         private MatchManager _match;
         private MushroomSpawner _mushrooms;
+        private AudioSource _charge;
         private bool _rivalShielded;
         private float _nextRivalCheck;
 
@@ -70,6 +72,7 @@ namespace PeaHeads
             if (!_match.IsSpawned || NetworkManager.Singleton == null)
             {
                 if (_canvas) _canvas.gameObject.SetActive(false);
+                if (_charge) _charge.Stop();
                 _initialised = false;
                 return;
             }
@@ -78,6 +81,7 @@ namespace PeaHeads
             if (!_initialised) Initialise();
             TrackEvents();
             CheckRival();
+            UpdateChargeSound(local);
 
             bool show = !StoryIntro.IsPlaying;
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
@@ -203,6 +207,33 @@ namespace PeaHeads
             if (!show) return;
             _collectFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(10f, 230f * progress), 10f);
             _collectFill.color = Color.Lerp(_collectColor, Color.white, 0.25f * Mathf.Sin(Time.unscaledTime * 8f) + 0.25f);
+        }
+
+        // Rising loop while the local team collects a Sporelight; the spot's Collect chord takes over at the top.
+        private void UpdateChargeSound(int local)
+        {
+            float progress = _mushrooms ? _mushrooms.CollectProgress(local) : 0f;
+            bool collecting = progress > 0f && !_match.IsEnded;
+            if (!_charge)
+            {
+                AudioClip clip = collecting ? GameAudio.Clip(Sfx.Charge) : null;
+                if (!clip) return;
+                _charge = gameObject.AddComponent<AudioSource>();
+                _charge.clip = clip;
+                _charge.loop = true;
+                _charge.playOnAwake = false;
+                _charge.spatialBlend = 0f;
+            }
+            float dt = Time.unscaledDeltaTime;
+            if (collecting && !_charge.isPlaying)
+            {
+                _charge.volume = 0f;
+                _charge.pitch = 1f;
+                _charge.Play();
+            }
+            _charge.volume = Mathf.MoveTowards(_charge.volume, collecting ? _chargeVolume : 0f, dt * (collecting ? 4f : 12f));
+            if (collecting) _charge.pitch = Mathf.Lerp(_charge.pitch, 1f + progress, 1f - Mathf.Exp(-15f * dt));
+            else if (_charge.volume <= 0f) _charge.Stop();
         }
 
         // ---------- GO! and countdown warning ----------
