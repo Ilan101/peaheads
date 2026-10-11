@@ -32,6 +32,10 @@ namespace PeaHeads
 
         private bool _flashing;
         private Color _flashOriginal;
+        // Death tint to the killer's colour; renderers hide right after it (colliders go off immediately).
+        public const float CleanseTime = 0.3f;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private Coroutine _hide;
 
         public override void OnNetworkSpawn()
         {
@@ -51,6 +55,8 @@ namespace PeaHeads
 
             Died?.Invoke(this);
             Killed?.Invoke(this, attackerClientId);
+            // Host position: every machine seeds the same patch layout from it.
+            CleansedRpc((byte)MatchManager.TeamOf(attackerClientId), transform.position);
             if (_respawnDelay > 0f) Invoke(nameof(ResetHealth), _respawnDelay);
             return true;
         }
@@ -89,9 +95,67 @@ namespace PeaHeads
 
         private void SetAlive(bool alive)
         {
-            foreach (Renderer r in GetComponentsInChildren<Renderer>(true)) r.enabled = alive;
             foreach (Collider c in GetComponentsInChildren<Collider>(true))
                 if (c is not CharacterController) c.enabled = alive;
+
+            if (_hide != null)
+            {
+                StopCoroutine(_hide);
+                _hide = null;
+            }
+            if (alive)
+            {
+                foreach (Renderer r in GetComponentsInChildren<Renderer>(true)) r.SetPropertyBlock(null);
+                ShowRenderers(true);
+            }
+            else if (isActiveAndEnabled) _hide = StartCoroutine(HideAfterCleanse());
+            else ShowRenderers(false);
+        }
+
+        private IEnumerator HideAfterCleanse()
+        {
+            yield return new WaitForSeconds(CleanseTime + 0.05f);
+            ShowRenderers(false);
+            _hide = null;
+        }
+
+        private void ShowRenderers(bool visible)
+        {
+            foreach (Renderer r in GetComponentsInChildren<Renderer>(true)) r.enabled = visible;
+        }
+
+        [Rpc(SendTo.ClientsAndHost)]
+        private void CleansedRpc(byte killerTeam, Vector3 position) => StartCoroutine(Cleanse(killerTeam, position));
+
+        // Tint every visible part toward the killer's colour, then burst and leave the killer's ground behind.
+        private IEnumerator Cleanse(int killerTeam, Vector3 position)
+        {
+            Color target = Faction.Color(killerTeam);
+            Renderer[] renderers = GetComponentsInChildren<Renderer>();
+            var from = new Color[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Material material = renderers[i].sharedMaterial;
+                from[i] = material && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.clear;
+            }
+
+            var block = new MaterialPropertyBlock();
+            for (float t = 0f; t < CleanseTime; t += Time.deltaTime)
+            {
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    if (!renderers[i] || from[i] == Color.clear) continue;
+                    renderers[i].GetPropertyBlock(block);
+                    block.SetColor(BaseColorId, Color.Lerp(from[i], target, t / CleanseTime));
+                    renderers[i].SetPropertyBlock(block);
+                }
+                yield return null;
+            }
+
+            KillSites sites = KillSites.Instance;
+            if (!sites) yield break;
+            sites.Burst(position + Vector3.up, killerTeam);
+            sites.Cleanse(position, killerTeam);
         }
 
         // Original color captured only by the first of overlapping flashes, so red never sticks.
