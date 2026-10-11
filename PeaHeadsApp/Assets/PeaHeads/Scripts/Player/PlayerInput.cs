@@ -34,6 +34,8 @@ namespace PeaHeads
         public bool Frozen { get; set; }
         // Set by GameMenu while the pause menu is open: input reads as nothing and the menu owns the cursor.
         public bool Paused { get; set; }
+        // Set by LobbyView: only the head, face (mouth, wink) and recenter pass; no clicks lock the cursor.
+        public bool LobbyMode { get; set; }
 
         private Vector2 _trackerHead;
         private bool _trackerAim;
@@ -89,10 +91,23 @@ namespace PeaHeads
                 return;
             }
 
+            bool trackerFresh = Time.time - _trackerTime < _trackerTimeout;
+            if (LobbyMode)
+            {
+                Current = new PlayerInputFrame
+                {
+                    Head = trackerFresh ? _trackerHead : Vector2.zero,
+                    ZoomHeld = trackerFresh && _trackerAim,
+                    MouthOpen = trackerFresh && _trackerShootPrevious,
+                    RecenterPressed = kb.cKey.wasPressedThisFrame,
+                };
+                _trackerFirePending = false;
+                return;
+            }
+
             if (mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
                 SetCursorLocked(true);
             bool locked = Cursor.lockState == CursorLockMode.Locked;
-            bool trackerFresh = Time.time - _trackerTime < _trackerTimeout;
             if (Frozen)
             {
                 Current = default;

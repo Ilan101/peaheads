@@ -62,6 +62,15 @@ namespace PeaHeads
             foreach (Renderer r in _hiddenInFirstPerson) r.shadowCastingMode = mode;
         }
 
+        // Local plant only. Off in the lobby: the lobby camera films this plant from the front, so its own head
+        // renders and its first-person camera rests.
+        public void SetFirstPerson(bool on)
+        {
+            ShadowCastingMode mode = on ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
+            foreach (Renderer r in _hiddenInFirstPerson) r.shadowCastingMode = mode;
+            _camera.enabled = on;
+        }
+
         // Remote copies: targets come from the network instead of local input.
         public void ApplyRemote(Vector3 headOffset, float pitch)
         {

@@ -19,12 +19,19 @@ namespace PeaHeads
         // Received a frame within the last second.
         public bool Live => KillClip.Now - _lastFrame < 1.0;
 
+        // Newest frame (null before the first), for the lobby's framing window.
+        public byte[] Latest
+        {
+            get { lock (_lock) return _latest; }
+        }
+
         private readonly object _lock = new();
         private readonly Queue<(double time, byte[] jpeg)> _frames = new();
         private UdpClient _client;
         private Thread _thread;
         private volatile bool _running;
         private double _lastFrame = double.NegativeInfinity;
+        private byte[] _latest;
 
         private void Awake() => Instance = this;
 
@@ -68,6 +75,7 @@ namespace PeaHeads
                         _frames.Enqueue((now, jpeg));
                         while (_frames.Count > 0 && now - _frames.Peek().time > _keepSeconds) _frames.Dequeue();
                         _lastFrame = now;
+                        _latest = jpeg;
                     }
                 }
                 catch (SocketException) { break; }

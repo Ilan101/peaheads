@@ -136,6 +136,14 @@ namespace PeaHeads.Net
             MoveToSpawn(team);
         }
 
+        // Owner only: stand in a lobby slot facing the lobby camera, unplanted.
+        public void MoveToLobby(Vector3 position, Quaternion rotation)
+        {
+            if (!IsOwner) return;
+            _planting.ResetState();
+            _movement.Teleport(position, rotation);
+        }
+
         private void OnRevived() => Respawn();
 
         // Random point on the team's side each time, never the previous one.
