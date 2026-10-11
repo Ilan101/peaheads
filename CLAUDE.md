@@ -61,10 +61,11 @@ Assets/PeaHeads/
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
 │   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
-│   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived)
+│   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived; on death the host sends CleansedRpc(killerTeam, position): 0.3 s tint to the killer's colour via property blocks, renderers hide 0.35 s after death (colliders at once), tint cleared on revive)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
-│   ├── Match/      AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog colour + thickness build as the leader nears the win, 30% → full at 90% of the target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
-│   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
+│   ├── Match/      KillSitePlanner (pure: seeded scatter, takeover, cap, ground filter, shade steps), KillSites (added by MatchManager: cleanse burst + killer-ground patches — blobs + flowers/rot placed by raycast near the death height — takeover of the other team's patches, cap 20, shared per-colour materials, cleared on RoundReset and session start/end; materials in Resources/KillSites via PeaHeads > Build Kill Site Materials),
+│   │               AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog colour + thickness build as the leader nears the win, 30% → full at 90% of the target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
+│   │               auto-restart, fresh match when a client connects; team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start; _round counter → static RoundReset on every machine), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
 │   │               MushroomSpot (stationary pickup visual: glow pulse + sparkles)
 │   ├── Killcam/    FaceFeed (UDP 5053 → 5 s ring of timestamped face JPEGs), ViewRecorder (capture camera on the player
 │   │                 camera, no HUD/shadows, 20 fps 480×270 RT ring; Collect() includes post-kill frames, AsyncGPUReadback,
@@ -100,7 +101,7 @@ Assets/PeaHeads/
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/
 │                   plant/face-flag vars, random spawn teleport, Respawn(), faction tint of Head+Snout+eyelid, re-applied on TeamsChanged); SpawnPoint (_team 0/1,
 │                   GetRandom avoids last point); OverviewCamera; Test/ (NetTest proof)
-├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests, MatchTeamsTests, UiSpritesTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
+├── Tests/EditMode/ PlantingControllerTests, StemBenderTests, PlantVisualsTests, HeadTrackingInputTests, GameMenuTests, SessionControllerTests, PlantMeshesTests, PlantFaceTests, FactionTests, KillSitePlannerTests, MatchTeamsTests, UiSpritesTests (headless: Unity -batchmode -runTests -testPlatform EditMode)
 ├── Art/Arena/      CC0 Kenney Nature Kit FBX (CREDITS.md); Terrain/ and Materials/ are generated
 ├── Prefabs/        Player, Pea, TargetDummy, VFX/ (hand-edited); MushroomPickup (generated once, then hand-editable);
 │                   NetTest/ (generated)
