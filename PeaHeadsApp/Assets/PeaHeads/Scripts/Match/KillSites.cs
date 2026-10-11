@@ -5,23 +5,29 @@ using UnityEngine.Rendering;
 
 namespace PeaHeads
 {
-    // Ground patches where plants were cleansed: the killer's ground blobs plus flowers (Bloom) or rot (Blight),
-    // placed by downward raycasts so they hug the ground. Same layout on every machine (seeded from the position the
+    // Ground patches where plants were cleansed: one puddle of the killer's ground draped over the terrain, plus flowers
+    // (Bloom) or glowing purple mushrooms (Blight), placed by downward raycasts so they hug the ground. Same layout on every machine (seeded from the position the
     // host sends). Cleared each round. Added to the Match object by MatchManager.
     public class KillSites : MonoBehaviour
     {
-        private const int BlobVariants = 6;
+        private const int PuddleSegments = 32;
+        private const int PuddleRings = 5;
+        private const float PuddleLift = 0.02f;
         private static readonly Color BloomGround = new(0.55f, 0.8f, 0.25f);
         private static readonly Color BlightGround = new(0.22f, 0.1f, 0.25f);
         private static readonly Color StemGreen = new(0.3f, 0.6f, 0.2f);
         private static readonly Color FlowerCentre = new(0.95f, 0.55f, 0.15f);
-        private static readonly Color RotPurple = new(0.35f, 0.12f, 0.4f);
-        private static readonly Color WiltBrown = new(0.45f, 0.35f, 0.18f);
+        private static readonly Color MushroomStem = new(0.82f, 0.74f, 0.9f);
+        private static readonly Color MushroomCap = new(0.55f, 0.2f, 0.75f);
+        private static readonly Color MushroomGlow = new(0.45f, 0.12f, 0.65f);
+        private static readonly Color MushroomGills = new(0.2f, 0.07f, 0.25f);
+        private static readonly Color MushroomSpot = new(0.92f, 0.8f, 1f);
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
+        private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
         private static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
 
         [SerializeField, Range(0.5f, 4f)] private float _radius = 1.5f;
-        [SerializeField, Range(4, 32)] private int _blobCount = 14;
         [SerializeField, Range(0, 20)] private int _propCount = 8;
         [SerializeField, Range(0.1f, 3f)] private float _growTime = 1f;
         [SerializeField, Range(1, 60)] private int _cap = 20;
@@ -30,20 +36,25 @@ namespace PeaHeads
 
         private readonly List<(Vector3 centre, int team)> _sites = new();
         private readonly List<GameObject> _roots = new();
+        // Puddle meshes per patch (generated per kill, destroyed with the patch).
+        private readonly List<Mesh[]> _rootMeshes = new();
         private readonly RaycastHit[] _hits = new RaycastHit[8];
-        private Mesh[] _blobs;
         private Mesh _leaf;
+        private Mesh _dome;
+        private Mesh _disc;
         private Mesh _sphere;
         private Mesh _capsule;
         private Material _lit;
+        private Material _glow;
         private Material _particle;
-        // One material per colour (blob shades are quantised), so the patches stay SRP-batcher friendly.
-        private readonly Dictionary<Color, Material> _materials = new();
+        // One material per look, so the patches stay SRP-batcher friendly.
+        private readonly Dictionary<(Color colour, float smoothness, Color glow), Material> _materials = new();
 
         private void Awake()
         {
             Instance = this;
             _lit = Resources.Load<Material>("KillSites/KillSiteLit");
+            _glow = Resources.Load<Material>("KillSites/KillSiteGlow");
             var particle = Resources.Load<Material>("KillSites/KillSiteParticle");
             if (particle)
             {
@@ -51,11 +62,10 @@ namespace PeaHeads
                 _particle.SetTexture(BaseMap, UiSprites.Glow().texture);
             }
             _leaf = PlantMeshes.Leaf(0.22f, 0.1f, 0.05f, 6);
+            _dome = PlantMeshes.Dome(1f, 16, 6);
+            _disc = PlantMeshes.Disc(1f, 16);
             _sphere = Resources.GetBuiltinResource<Mesh>("New-Sphere.fbx");
             _capsule = Resources.GetBuiltinResource<Mesh>("New-Capsule.fbx");
-            var rng = new System.Random(1234);
-            _blobs = new Mesh[BlobVariants];
-            for (int i = 0; i < BlobVariants; i++) _blobs[i] = BlobMesh(rng);
             MatchManager.RoundReset += Clear;
         }
 
@@ -92,26 +102,25 @@ namespace PeaHeads
             root.SetParent(transform, true);
             root.SetPositionAndRotation(position, Quaternion.identity);
             var growing = new List<(Transform part, Vector3 scale, float delay)>();
-            Color ground = killerTeam == 0 ? BloomGround : BlightGround;
+            bool bloom = killerTeam == 0;
+            Color ground = bloom ? BloomGround : BlightGround;
+            float gloss = bloom ? 0.15f : 0.75f; // Blight rot looks wet
 
-            Vector2[] blobs = KillSitePlanner.Scatter(_blobCount, _radius, seed);
-            for (int i = 0; i < blobs.Length; i++)
-            {
-                if (!FindGround(position, blobs[i], out Vector3 point, out Vector3 normal)) continue;
-                Color colour = ground * KillSitePlanner.Shade((float)rng.NextDouble(), 5);
-                colour.a = 1f;
-                float size = Mathf.Lerp(0.7f, 1f, (float)rng.NextDouble());
-                Transform blob = Part(root, _blobs[rng.Next(BlobVariants)], colour,
-                    point + normal * (0.01f + 0.002f * i) - position,
-                    Quaternion.FromToRotation(Vector3.forward, normal), Vector3.one * size, false);
-                growing.Add((blob, blob.localScale, blobs[i].magnitude / _radius * _growTime * 0.5f));
-            }
+            // Outer puddle plus a smaller, darker inner one for depth; both spread out from the centre.
+            Mesh outer = Puddle(position, _radius, KillSitePlanner.PuddleOutline(PuddleSegments, seed), PuddleLift,
+                out Vector3[] outerShape);
+            Mesh inner = Puddle(position, _radius * 0.6f, KillSitePlanner.PuddleOutline(PuddleSegments, seed + 2),
+                PuddleLift + 0.01f, out Vector3[] innerShape);
+            Part(root, outer, ground, Vector3.zero, Quaternion.identity, Vector3.one, false, gloss);
+            Part(root, inner, ground * 0.8f, Vector3.zero, Quaternion.identity, Vector3.one, false, gloss);
+            StartCoroutine(Spread(outer, outerShape, 0f));
+            StartCoroutine(Spread(inner, innerShape, _growTime * 0.25f));
 
             Vector2[] props = KillSitePlanner.Scatter(_propCount, _radius * 0.8f, seed + 1);
             for (int i = 0; i < props.Length; i++)
             {
                 if (!FindGround(position, props[i], out Vector3 point, out Vector3 normal)) continue;
-                Transform prop = killerTeam == 0 ? Flower(root) : i % 2 == 0 ? Tendril(root) : Wilt(root);
+                Transform prop = bloom ? Flower(root) : Mushroom(root, rng);
                 prop.localPosition = point - position;
                 prop.localRotation = Quaternion.FromToRotation(Vector3.up, normal) *
                                      Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
@@ -121,6 +130,7 @@ namespace PeaHeads
 
             _sites.Add((position, killerTeam));
             _roots.Add(root.gameObject);
+            _rootMeshes.Add(new[] { outer, inner });
             StartCoroutine(Grow(growing));
         }
 
@@ -170,14 +180,19 @@ namespace PeaHeads
             StopAllCoroutines(); // pending scheduled patches and growth
             foreach (GameObject root in _roots)
                 if (root) Destroy(root);
+            foreach (Mesh[] meshes in _rootMeshes)
+                foreach (Mesh mesh in meshes) Destroy(mesh);
             _roots.Clear();
+            _rootMeshes.Clear();
             _sites.Clear();
         }
 
         private void RemoveAt(int index)
         {
             if (_roots[index]) Destroy(_roots[index]);
+            foreach (Mesh mesh in _rootMeshes[index]) Destroy(mesh);
             _roots.RemoveAt(index);
+            _rootMeshes.RemoveAt(index);
             _sites.RemoveAt(index);
         }
 
@@ -218,21 +233,27 @@ namespace PeaHeads
             return flower;
         }
 
-        private Transform Tendril(Transform root)
+        // Glowing purple toadstool: lavender stem, domed cap with dark gills and two pale spots. 15-40 cm tall.
+        private Transform Mushroom(Transform root, System.Random rng)
         {
-            Transform tendril = Group(root, "Tendril");
-            Part(tendril, _leaf, RotPurple, Vector3.zero, Quaternion.Euler(-80f, 0f, 0f), new Vector3(1f, 1f, 1.6f), true);
-            Part(tendril, _leaf, RotPurple * 0.8f, Vector3.zero, Quaternion.Euler(-65f, 120f, 0f),
-                new Vector3(0.8f, 0.8f, 1.2f), true);
-            return tendril;
-        }
-
-        private Transform Wilt(Transform root)
-        {
-            Transform wilt = Group(root, "Wilt");
-            for (int k = 0; k < 3; k++)
-                Part(wilt, _leaf, WiltBrown, new Vector3(0f, 0.02f, 0f), Quaternion.Euler(15f, k * 120f, 0f), Vector3.one, true);
-            return wilt;
+            Transform mushroom = Group(root, "Mushroom");
+            float height = Mathf.Lerp(0.15f, 0.4f, (float)rng.NextDouble());
+            float cap = height * 0.6f;
+            Part(mushroom, _capsule, MushroomStem, new Vector3(0f, height * 0.5f, 0f), Quaternion.identity,
+                new Vector3(cap * 0.35f, height * 0.5f, cap * 0.35f), true);
+            Part(mushroom, _dome, MushroomCap, new Vector3(0f, height, 0f), Quaternion.Euler(-90f, 0f, 0f),
+                new Vector3(cap, cap, cap * 0.7f), true, 0.5f, MushroomGlow);
+            Part(mushroom, _disc, MushroomGills, new Vector3(0f, height + 0.002f, 0f), Quaternion.Euler(90f, 0f, 0f),
+                Vector3.one * cap * 0.98f, false);
+            for (int k = 0; k < 2; k++)
+            {
+                float yaw = (float)rng.NextDouble() * 360f, rise = Mathf.Lerp(35f, 60f, (float)rng.NextDouble());
+                Vector3 onCap = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(-rise, 0f, 0f) * Vector3.forward;
+                onCap = new Vector3(onCap.x * cap, onCap.y * cap * 0.7f, onCap.z * cap);
+                Part(mushroom, _sphere, MushroomSpot, new Vector3(0f, height, 0f) + onCap, Quaternion.identity,
+                    Vector3.one * cap * 0.22f, false, 0.5f, MushroomGlow * 0.5f);
+            }
+            return mushroom;
         }
 
         private static Transform Group(Transform parent, string name)
@@ -243,7 +264,7 @@ namespace PeaHeads
         }
 
         private Transform Part(Transform parent, Mesh mesh, Color colour, Vector3 localPosition, Quaternion localRotation,
-            Vector3 localScale, bool shadows)
+            Vector3 localScale, bool shadows, float smoothness = 0.2f, Color glow = default)
         {
             var go = new GameObject("Part", typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(parent, false);
@@ -251,17 +272,24 @@ namespace PeaHeads
             go.transform.localScale = localScale;
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
             var meshRenderer = go.GetComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = MaterialFor(colour);
+            meshRenderer.sharedMaterial = MaterialFor(colour, smoothness, glow);
             meshRenderer.shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
             return go.transform;
         }
 
-        private Material MaterialFor(Color colour)
+        private Material MaterialFor(Color colour, float smoothness, Color glow)
         {
-            if (_materials.TryGetValue(colour, out Material material)) return material;
-            material = new Material(_lit);
+            if (_materials.TryGetValue((colour, smoothness, glow), out Material material)) return material;
+            bool glows = glow != default;
+            material = new Material(glows && _glow ? _glow : _lit);
             material.SetColor(BaseColor, colour);
-            _materials[colour] = material;
+            material.SetFloat(Smoothness, smoothness);
+            if (glows)
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor(EmissionColor, glow);
+            }
+            _materials[(colour, smoothness, glow)] = material;
             return material;
         }
 
@@ -287,29 +315,68 @@ namespace PeaHeads
                 if (p.part) p.part.localScale = p.scale;
         }
 
-        // Irregular ten-sided disc facing +Z (radius 0.35–0.5 m).
-        private static Mesh BlobMesh(System.Random rng)
+        // One draped puddle: a centre vertex plus rings x outline points, each dropped onto the ground by a short ray
+        // (death height where there is no valid ground). Vertices are relative to the death point; facing up.
+        private Mesh Puddle(Vector3 centre, float radius, float[] outline, float lift, out Vector3[] shape)
         {
-            const int sides = 10;
-            var vertices = new Vector3[sides + 1];
-            vertices[0] = Vector3.zero;
-            for (int j = 0; j < sides; j++)
+            int segments = outline.Length;
+            shape = new Vector3[1 + PuddleRings * segments];
+            shape[0] = new Vector3(0f, GroundY(centre, Vector2.zero) - centre.y + lift, 0f);
+            for (int ring = 1; ring <= PuddleRings; ring++)
+            for (int j = 0; j < segments; j++)
             {
-                float angle = j * 2f * Mathf.PI / sides;
-                float r = Mathf.Lerp(0.35f, 0.5f, (float)rng.NextDouble());
-                vertices[j + 1] = new Vector3(Mathf.Cos(angle) * r, Mathf.Sin(angle) * r, 0f);
+                float angle = j * 2f * Mathf.PI / segments;
+                Vector2 offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * (radius * outline[j] * ring / PuddleRings);
+                shape[1 + (ring - 1) * segments + j] =
+                    new Vector3(offset.x, GroundY(centre, offset) - centre.y + lift, offset.y);
             }
-            var triangles = new int[sides * 3];
-            for (int j = 0; j < sides; j++)
+
+            var triangles = new List<int>(segments * 3 * (2 * PuddleRings - 1));
+            for (int j = 0; j < segments; j++)
             {
-                triangles[j * 3] = 0;
-                triangles[j * 3 + 1] = j + 1;
-                triangles[j * 3 + 2] = j + 2 > sides ? 1 : j + 2;
+                int next = (j + 1) % segments;
+                triangles.Add(0);
+                triangles.Add(1 + next);
+                triangles.Add(1 + j);
             }
-            var mesh = new Mesh { name = "KillSiteBlob", vertices = vertices, triangles = triangles };
+            for (int ring = 1; ring < PuddleRings; ring++)
+            for (int j = 0; j < segments; j++)
+            {
+                int next = (j + 1) % segments;
+                int a = 1 + (ring - 1) * segments + j, b = 1 + (ring - 1) * segments + next;
+                int c = a + segments, d = b + segments;
+                triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                triangles.Add(b); triangles.Add(d); triangles.Add(c);
+            }
+
+            var mesh = new Mesh { name = "KillSitePuddle" };
+            mesh.MarkDynamic();
+            mesh.vertices = shape;
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        private float GroundY(Vector3 centre, Vector2 offset) =>
+            FindGround(centre, offset, out Vector3 point, out _) ? point.y : centre.y;
+
+        // The puddle spreads like liquid: its outline pushes out from the centre (ease-out), heights stay on the ground.
+        private IEnumerator Spread(Mesh mesh, Vector3[] shape, float delay)
+        {
+            var vertices = new Vector3[shape.Length];
+            float start = Time.time;
+            while (mesh)
+            {
+                float t = Mathf.Clamp01((Time.time - start - delay) / _growTime);
+                float reach = 1f - (1f - t) * (1f - t);
+                for (int i = 0; i < shape.Length; i++)
+                    vertices[i] = new Vector3(shape[i].x * reach, shape[i].y, shape[i].z * reach);
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+                if (t >= 1f) yield break;
+                yield return null;
+            }
         }
     }
 }

@@ -67,6 +67,27 @@ namespace PeaHeads
             return Mathf.Lerp(0.92f, 1.08f, step / (float)(steps - 1));
         }
 
+        // Wobbly puddle edge: radius multiplier per outline point in [0.75, 1], a sum of seeded low harmonics so it is
+        // smooth and closes without a seam.
+        public static float[] PuddleOutline(int segments, int seed)
+        {
+            var rng = new System.Random(seed);
+            int[] harmonics = { 2, 3, 5 };
+            float[] amplitudes = { 0.5f, 0.3f, 0.2f }; // sums to 1, so the sum stays in [-1, 1]
+            var phases = new float[harmonics.Length];
+            for (int k = 0; k < phases.Length; k++) phases[k] = (float)rng.NextDouble() * 2f * Mathf.PI;
+
+            var radii = new float[segments];
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = i * 2f * Mathf.PI / segments;
+                float wave = 0f;
+                for (int k = 0; k < harmonics.Length; k++) wave += amplitudes[k] * Mathf.Sin(harmonics[k] * angle + phases[k]);
+                radii[i] = 0.875f + 0.125f * wave;
+            }
+            return radii;
+        }
+
         // Oldest patches to drop so one more fits under the cap.
         public static int OverCap(int count, int cap) => Mathf.Max(0, count + 1 - cap);
     }

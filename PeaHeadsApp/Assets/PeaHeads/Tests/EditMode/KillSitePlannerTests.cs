@@ -76,6 +76,30 @@ namespace PeaHeads.Tests
             Assert.AreEqual(5, seen.Count);
         }
 
+        [Test]
+        public void PuddleOutline_WithinRangeAndSmooth()
+        {
+            for (int seed = 0; seed < 20; seed++)
+            {
+                float[] radii = KillSitePlanner.PuddleOutline(32, seed);
+                Assert.AreEqual(32, radii.Length);
+                for (int i = 0; i < radii.Length; i++)
+                {
+                    Assert.That(radii[i], Is.InRange(0.75f, 1f), $"seed {seed} point {i}");
+                    float next = radii[(i + 1) % radii.Length]; // wraps: the outline closes without a seam
+                    Assert.LessOrEqual(Mathf.Abs(next - radii[i]), 0.08f, $"seed {seed} step {i}");
+                }
+            }
+        }
+
+        [Test]
+        public void PuddleOutline_SameSeedSameShape() =>
+            Assert.AreEqual(KillSitePlanner.PuddleOutline(32, 7), KillSitePlanner.PuddleOutline(32, 7));
+
+        [Test]
+        public void PuddleOutline_DifferentSeedDifferentShape() =>
+            Assert.AreNotEqual(KillSitePlanner.PuddleOutline(32, 7), KillSitePlanner.PuddleOutline(32, 8));
+
         [TestCase(5, 20, ExpectedResult = 0)]
         [TestCase(19, 20, ExpectedResult = 0)]
         [TestCase(20, 20, ExpectedResult = 1)]

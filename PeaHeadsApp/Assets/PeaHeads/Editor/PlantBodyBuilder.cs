@@ -68,6 +68,16 @@ namespace PeaHeads.EditorTools
             lit.SetFloat("_Smoothness", 0.2f);
             lit.enableInstancing = true;
 
+            // Same Lit shader with emission on, so the glow variant is kept in builds (mushroom caps).
+            Material glow = LoadOrCreateMaterial($"{KillSitesDir}/KillSiteGlow.mat", "Universal Render Pipeline/Lit");
+            glow.SetColor("_BaseColor", Color.white);
+            glow.SetFloat("_Smoothness", 0.5f);
+            glow.EnableKeyword("_EMISSION");
+            glow.SetColor("_EmissionColor", Color.white);
+            glow.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            glow.enableInstancing = true;
+            EditorUtility.SetDirty(glow);
+
             Material particle = LoadOrCreateMaterial($"{KillSitesDir}/KillSiteParticle.mat",
                 "Universal Render Pipeline/Particles/Unlit");
             particle.SetFloat("_Surface", 1f);
