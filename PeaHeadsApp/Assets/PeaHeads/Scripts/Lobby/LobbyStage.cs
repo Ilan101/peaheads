@@ -24,6 +24,10 @@ namespace PeaHeads
         public Camera Camera { get; private set; }
         public RenderTexture Texture { get; private set; }
 
+        // Draws nothing; it only keeps one camera on the display while the player camera is off (else Unity shows
+        // "No cameras rendering" over the lobby UI).
+        private Camera _screen;
+
         public static bool Contains(Vector3 position) => (position - Origin).sqrMagnitude < Radius * Radius;
 
         // Slots fill from the middle out: centre-left, centre-right, then the two edges (columns counted from the left).
@@ -65,6 +69,13 @@ namespace PeaHeads
             Camera.nearClipPlane = 0.3f;
             Camera.farClipPlane = 60f;
             Camera.enabled = false;
+
+            _screen = new GameObject("ScreenCamera", typeof(Camera)).GetComponent<Camera>();
+            _screen.transform.SetParent(transform, false); // under LobbyStage, so AtmosphereController leaves it alone
+            _screen.cullingMask = 0;
+            _screen.clearFlags = CameraClearFlags.SolidColor;
+            _screen.backgroundColor = Color.black;
+            _screen.enabled = false;
         }
 
         // The texture follows the screen size; call every frame while the lobby is open.
@@ -78,6 +89,7 @@ namespace PeaHeads
                 Camera.targetTexture = Texture;
             }
             Camera.enabled = on;
+            _screen.enabled = on;
         }
 
         private void OnDestroy() => ReleaseTexture();
