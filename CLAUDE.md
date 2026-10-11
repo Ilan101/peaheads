@@ -64,7 +64,7 @@ Assets/PeaHeads/
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived; on death the host sends CleansedRpc(killerTeam, position): 0.3 s tint to the killer's colour via property blocks, renderers hide 0.35 s after death (colliders at once), tint cleared on revive)
 │   ├── Combat/     PeaProjectile (NetworkBehaviour, server-only sweep; Launch() after Spawn sweeps head→mouth first)
 │   ├── Lobby/      LobbyStage (runtime-built 3D set at (3000,0,0), out of every camera/minimap: soil strip, 4 slots
-│   │                 facing −Z, point light, local lobby camera → RenderTexture; Contains(pos))
+│   │                 filled middle-out, facing −Z, point light, local lobby camera → RenderTexture; Contains(pos))
 │   ├── Match/      KillSitePlanner (pure: seeded scatter, puddle outline, takeover, cap, ground filter, shade steps), KillSites (added by MatchManager: cleanse burst + killer-ground patches — one draped puddle (rings x wobbly PuddleOutline, each vertex raycast onto the ground, spreads out over 1 s) + flowers (Bloom) or glowing purple mushrooms (Blight) placed by raycast near the death height — takeover of the other team's patches, cap 20, shared per-colour materials, cleared on RoundReset and session start/end; materials (Lit, Glow with emission so the variant ships, Particle) in Resources/KillSites via PeaHeads > Build Kill Site Materials),
 │   │               AtmosphereController (daylight sun/ambient, generated cloudy skybox that drifts, fog colour + thickness build as the leader nears the win, 30% → full at 90% of the target), MatchManager (in-scene `Match` NetworkObject: scores, kill credit via PlayerHealth.Killed, win,
 │   │               Lobby state at session start (host START → first round, lobby teams kept), auto-restart, mid-round joiners go to the smaller team + a _waiting list (lobby until the next round); team lists (2× NetworkList) shuffled each match by pure AssignTeams; TeamOf/HasTeam/TeamsChanged read them; per-player RespawnOnSideRpc at round start; _round counter → static RoundReset on every machine), Faction (static: team names, colours, story lines; single source for head tint + score bars — Bloom yellow, Blight purple), MushroomSpawner (active-spot bitmask var, server collect check),
@@ -88,11 +88,11 @@ Assets/PeaHeads/
 │   │                 static Scoped hides HUD/ScoreHUD/Minimap while zoomed),
 │   │               ScoreHUD (uGUI built in code on Match: scoreboard + clock badge, +N pop-ups, GO!, last-10-s ticks, rising Sporelight charge loop (pitch = collect progress),
 │   │                 collect bar, shield icon by the rival bar while they're in the story, end banner),
-│   │               UiBuild (shared uGUI helpers + cached UiSprites),
+│   │               UiBuild (shared uGUI helpers + cached UiSprites; Accent green, TitleCard/AnimateTitle for the PeaHeads title),
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
 │   │                 nearest Sporelight glows, no key row), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
-│   │               StoryIntro (uGUI built in code: 5 player-paced slides (SPACE next, ESC skip; no mouse): lore, plant, dodge,
+│   │               StoryIntro (uGUI built in code: 5 player-paced slides (SPACE next, ESC skips to the lobby; same hint on every slide; no mouse): lore, plant, dodge,
 │   │                 aim (closing one eye = faster, straight pea), role + scoring; animated drawings with control prompts lit in sync; played by
 │   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
@@ -100,8 +100,10 @@ Assets/PeaHeads/
 │   │                 story also PlayerHealth.SetShielded(true) so the player can't be hit)
 │   │               LobbyView (added by GameMenu: after the story, real plants stand in LobbyStage slots (owner
 │   │                 teleports itself, PlayerInput.LobbyMode = head + face only, own head visible, player camera off),
-│   │                 mirrored view (RawImage uvRect), story-styled title/slot names, framing window (FaceFeed.Latest +
-│   │                 head dot) + CALIBRATE, host START → MatchManager.StartMatch; static IsOpen / HidesGame),
+│   │                 mirrored view (RawImage uvRect), PeaHeads title card (UiBuild.TitleCard, as on the start menu),
+│   │                 slot names, the HUD's TrackerPanel, host START → MatchManager.StartMatch; static IsOpen / HidesGame),
+│   │               TrackerPanel (plain class shared by PlayerHUD + LobbyView: "Press C to Calibrate" over a transparent
+│   │                 16:9 box with centre lines + head dot, red camera icon when not tracking),
 │   ├── HeadTracking/ HeadTrackingReceiver (Carlos; scene object, UDP 5052 → Instance.FaceVisible/Dx/Dy/Aim/Shoot),
 │   │               HeadTrackingInput (local Player: raw input × movement multiplier × per-axis gain → PlayerInput; C recenters)
 │   └── Net/        SessionController (Ilan; host / join-by-IP / leave, port 7777, max 4 players (connection approval, "Lobby full"), status line; no UI — ex-ConnectionUI, same GUID); PlayerNetSync (owner-write head/pitch/

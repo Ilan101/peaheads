@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace PeaHeads
 {
     // Intro cutscene played when a session starts: typewriter story slides over small animated drawings, ending on
-    // the local player's faction card. Built in code like GameMenu. Space/Enter advance, Esc skips to the end.
+    // the local player's faction card. Built in code like GameMenu. Space/Enter advance (the last slide continues to the lobby), Esc skips straight to it.
     public class StoryIntro : MonoBehaviour
     {
         private const float FadeTime = 0.35f;
@@ -150,7 +150,7 @@ namespace PeaHeads
             if (kb == null) return;
             if (kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame ||
                 kb.numpadEnterKey.wasPressedThisFrame) Advance();
-            else if (kb.escapeKey.wasPressedThisFrame) Skip();
+            else if (kb.escapeKey.wasPressedThisFrame) Finish();
         }
 
         private void ShowSlide(int index)
@@ -165,8 +165,6 @@ namespace PeaHeads
             _body.text = "";
             for (int i = _art.childCount - 1; i >= 0; i--) Destroy(_art.GetChild(i).gameObject);
             _animate = slide.Draw(_art);
-            _hint.text = index == Last ? "PRESS SPACE TO PLAY" : "SPACE: NEXT          ESC: SKIP";
-            _hint.fontSize = index == Last ? 24 : 16;
             _hint.color = new Color(1f, 1f, 1f, 0.6f);
             for (int i = 0; i < _dots.Length; i++)
             {
@@ -182,11 +180,6 @@ namespace PeaHeads
             if (_typed < _slides[_index].Body.Length) _typed = _slides[_index].Body.Length;
             else if (_index == Last) Finish();
             else _next = _index + 1;
-        }
-
-        private void Skip()
-        {
-            if (_index != Last) _next = Last;
         }
 
         private void Finish()
@@ -837,6 +830,7 @@ namespace PeaHeads
             _body.alignment = TextAnchor.MiddleCenter;
             _hint = Label(content, new Vector2(0f, -297f), new Vector2(900f, 34f), 16, FontStyle.Normal);
             _hint.font = UiBuild.DisplayFont;
+            _hint.text = "SPACE: NEXT          ESC: SKIP";
             _dots = new Image[SlideCount];
             for (int i = 0; i < SlideCount; i++)
                 _dots[i] = Shape(content, new Vector2((i - (SlideCount - 1) * 0.5f) * 34f, -334f), new Vector2(10f, 10f),
