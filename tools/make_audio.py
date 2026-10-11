@@ -384,84 +384,110 @@ def track_story():
 
 
 def track_game():
-    """'Sporelight Skirmish': driving folk-fantasy in E minor. 120 bpm, 24 bars, 48 s."""
-    sr, beat = MUSIC_SR, 0.5
+    """'Sporelight Skirmish': agitated folk-fantasy battle in E Phrygian. 150 bpm, 32 bars (~51 s).
+
+    A: galloping bass, war drums and a 16th-note harp ostinato. B: urgent flute melody on top. C: everything plus
+    octave bells, string stabs and busier drums. D: half-time war-drum breakdown with a low flute, then a riser and
+    a tom roll back into the loop.
+    """
+    sr, beat = MUSIC_SR, 60 / 150
     bar = 4 * beat
     step = beat / 4
-    tr = Track(24 * bar, tail=4.0)
-    chords = [  # one bar each
-        [40, 52, 55, 59],  # Em
-        [36, 52, 55, 60],  # C
-        [43, 50, 55, 59],  # G
-        [38, 50, 54, 57],  # D
-        [40, 52, 55, 59],  # Em
-        [36, 52, 55, 60],  # C
-        [45, 52, 57, 60],  # Am
-        [47, 51, 54, 59],  # B
+    bars = 32
+    tr = Track(bars * bar, tail=4.0)
+    chords = [  # one bar each: Em F Em D | C D B B7
+        [40, 52, 55, 59], [41, 53, 57, 60], [40, 52, 55, 59], [38, 50, 54, 57],
+        [36, 52, 55, 60], [38, 50, 54, 57], [47, 51, 54, 59], [47, 51, 54, 57],
     ]
     melody = [  # (bar, beat, midi, beats)
-        (0, 0, 76, 1), (0, 1, 79, 0.5), (0, 1.5, 81, 0.5), (0, 2, 83, 1.5), (0, 3.5, 81, 0.5),
-        (1, 0, 79, 1), (1, 1, 76, 1), (1, 2, 79, 0.5), (1, 2.5, 81, 0.5), (1, 3, 79, 1),
-        (2, 0, 74, 1.5), (2, 1.5, 76, 0.5), (2, 2, 79, 1), (2, 3, 83, 1),
-        (3, 0, 81, 2), (3, 2, 78, 1), (3, 3, 74, 1),
-        (4, 0, 76, 1), (4, 1, 79, 0.5), (4, 1.5, 81, 0.5), (4, 2, 83, 1), (4, 3, 86, 1),
-        (5, 0, 88, 1.5), (5, 1.5, 86, 0.5), (5, 2, 83, 1), (5, 3, 79, 1),
-        (6, 0, 81, 1), (6, 1, 84, 1), (6, 2, 83, 1), (6, 3, 81, 1),
-        (7, 0, 78, 1), (7, 1, 75, 1), (7, 2, 71, 2),
+        (0, 0, 71, .5), (0, .5, 76, .5), (0, 1, 77, .5), (0, 1.5, 79, .5), (0, 2, 77, .5), (0, 2.5, 76, .5), (0, 3, 71, 1),
+        (1, 0, 72, .5), (1, .5, 77, .5), (1, 1, 79, .5), (1, 1.5, 81, .5), (1, 2, 79, .5), (1, 2.5, 77, .5), (1, 3, 72, 1),
+        (2, 0, 76, .25), (2, .25, 76, .25), (2, .5, 76, .5), (2, 1, 79, .5), (2, 1.5, 83, 1), (2, 2.5, 81, .5),
+        (2, 3, 79, .5), (2, 3.5, 77, .5),
+        (3, 0, 78, 1.5), (3, 1.5, 76, .5), (3, 2, 74, 1), (3, 3, 69, 1),
+        (4, 0, 76, .5), (4, .5, 79, .5), (4, 1, 84, 1), (4, 2, 83, .5), (4, 2.5, 81, .5), (4, 3, 79, 1),
+        (5, 0, 78, .5), (5, .5, 81, .5), (5, 1, 86, 1), (5, 2, 84, .5), (5, 2.5, 81, .5), (5, 3, 78, 1),
+        (6, 0, 75, .5), (6, .5, 78, .5), (6, 1, 83, 1), (6, 2, 81, .5), (6, 2.5, 78, .5), (6, 3, 75, 1),
+        (7, 0, 83, .25), (7, .25, 81, .25), (7, .5, 78, .25), (7, .75, 75, .25), (7, 1, 71, 2),
     ]
-    r = rng(3)
-    kick_steps = [0, 6, 8, 11]
-    for b in range(24):
-        section = b // 8  # 0 intro groove, 1 melody, 2 melody + counter-melody
+    for b in range(bars):
+        section = b // 8  # 0 groove, 1 melody, 2 full, 3 breakdown
         chord = chords[b % 8]
-        t_bar = b * bar
         root = chord[0]
-        # Pad.
+        t_bar = b * bar
+        last_of_section = b % 8 == 7
+
+        # Low strings pad; short bright stabs on the off-beats in the full section.
         for m in chord[1:]:
-            tr.add(pad_note(m, bar, sr, attack=0.3, release=0.8, cutoff=1800), t_bar, gain=0.03, reverb=0.35)
+            tr.add(pad_note(m, bar, sr, attack=0.15, release=0.5, cutoff=2200), t_bar, gain=0.03, reverb=0.3)
+        if section == 2:
+            for s in (2, 6, 10, 14):
+                for m in chord[1:]:
+                    tr.add(pad_note(m + 12, step * 1.2, sr, attack=0.005, release=0.12, cutoff=4000),
+                           t_bar + s * step, gain=0.022, pan=0.25, reverb=0.25)
+
         # Drums.
+        half_time = section == 3
         for s in range(16):
-            t = t_bar + s * step + (0.012 if s % 2 else 0.0)
-            tr.add(shaker(sr, b * 16 + s), t, gain=0.05 if s % 4 == 2 else 0.025, pan=0.35, reverb=0.15)
-        for s in kick_steps:
-            tr.add(kick(sr, s), t_bar + s * step, gain=0.32, reverb=0.05)
-        for s in (4, 12):
-            tr.add(hand_drum(sr, b * 2 + s), t_bar + s * step, gain=0.22, pan=-0.2, reverb=0.25)
-            tr.add(clap(sr, b + s), t_bar + s * step, gain=0.06 + 0.04 * section, pan=0.1, reverb=0.3)
-        tr.add(hand_drum(sr, b + 77, 1.3), t_bar + 14 * step, gain=0.08, pan=-0.3, reverb=0.25)
-        if section > 0:
-            for s in (3, 10):
-                tr.add(woodblock(sr, 1050 if s == 3 else 1250), t_bar + s * step, gain=0.05, pan=0.5, reverb=0.25)
-        if b == 23:  # tom fill back into the loop
-            for k, s in enumerate((8, 10, 12, 13, 14, 15)):
-                tr.add(hand_drum(sr, 300 + k, 1.4 - 0.12 * k), t_bar + s * step, gain=0.18, pan=-0.5 + 0.2 * k)
-        # Bass.
-        pattern = [(0, 0, 3), (3, 0, 2), (6, 7, 2), (8, 0, 3), (11, 12, 2), (14, 7, 2)]
-        for s, interval, length in pattern:
-            m = root + interval
-            while m > 50:
-                m -= 12
-            tr.add(bass(m, length * step, sr), t_bar + s * step, gain=0.22, reverb=0.05)
-        # Harp arpeggio in sixteenths.
-        tones = chord[1:] + [m + 12 for m in chord[1:]]
-        arp = [0, 1, 2, 3, 4, 5, 4, 3, 1, 2, 3, 4, 5, 4, 3, 2]
-        for s, idx in enumerate(arp):
-            tr.add(harp(tones[idx] + 12, sr, 1.2, 1.0), t_bar + s * step, gain=0.045 + 0.02 * (s % 4 == 0),
-                   pan=0.4 if section < 2 else (0.4 if s % 2 else -0.4), reverb=0.3)
-        # Melody (flute) with bells doubling in the last section.
-        if section > 0:
+            t = t_bar + s * step + (0.008 if s % 2 else 0.0)
+            accent = s % 2 == 1
+            tr.add(shaker(sr, b * 16 + s), t, gain=0.055 if accent else 0.03, pan=0.35, reverb=0.12)
+        for s in ((0, 8) if half_time else (0, 4, 8, 12)):
+            tr.add(kick(sr, s), t_bar + s * step, gain=0.34, reverb=0.05)
+        if not half_time:
+            for s in (4, 12):
+                tr.add(clap(sr, b * 3 + s), t_bar + s * step, gain=0.11 + 0.03 * section, pan=0.1, reverb=0.28)
+            for s in (2, 6, 10, 14):
+                tr.add(hand_drum(sr, b * 5 + s, 1.25), t_bar + s * step, gain=0.1, pan=-0.3, reverb=0.2)
+            if section == 2:
+                for s in (3, 7, 11, 15):
+                    tr.add(hand_drum(sr, b * 7 + s, 1.5), t_bar + s * step, gain=0.05, pan=0.4, reverb=0.2)
+        taiko_steps = (0, 6, 8, 11) if half_time else (0,)
+        for s in taiko_steps:
+            tr.add(lowpass(hand_drum(sr, b * 11 + s, 0.45), 900, sr), t_bar + s * step, gain=0.32, reverb=0.35)
+        if last_of_section:  # descending tom fill into the next section
+            for k, s in enumerate(range(8, 16)):
+                tr.add(hand_drum(sr, 400 + b * 8 + k, 1.6 - 0.12 * k), t_bar + s * step, gain=0.14 + 0.01 * k,
+                       pan=-0.6 + 0.17 * k, reverb=0.25)
+
+        # Galloping bass: 8th + two 16ths on every beat, octave jump on beat 4.
+        bass_root = root
+        while bass_root > 47:
+            bass_root -= 12
+        for beat_index in range(4):
+            note = bass_root + (12 if beat_index == 3 else 0)
+            for offset, length in ((0, 2), (2, 1), (3, 1)):
+                tr.add(bass(note, length * step * 0.85, sr), t_bar + (beat_index * 4 + offset) * step, gain=0.2, reverb=0.04)
+
+        # Harp ostinato in 16ths (staccato), chord tones an octave up.
+        tones = [chord[1] + 12, chord[3] + 12, chord[1] + 24, chord[3] + 12]
+        for s in range(16):
+            tr.add(harp(tones[s % 4], sr, 0.45, 1.0), t_bar + s * step, gain=0.05 + 0.02 * (s % 4 == 0),
+                   pan=0.45 if s % 2 else -0.15, reverb=0.25)
+
+        # Melody: flute in B and C (bells an octave up in C), low and sparse in the breakdown.
+        if section in (1, 2, 3):
             for mb, bt, m, length in melody:
                 if mb != b % 8:
                     continue
+                if section == 3 and bt not in (0, 1, 2, 3):
+                    continue
                 t0 = t_bar + bt * beat
-                tr.add(flute(m, length * beat * 0.92, sr, b * 10 + int(bt * 2)), t0, gain=0.12, pan=-0.1,
-                       reverb=0.35, echo=0.12)
+                pitch = m - 12 if section == 3 else m
+                tr.add(flute(pitch, length * beat * 0.9, sr, b * 13 + int(bt * 4)), t0, gain=0.13, pan=-0.1,
+                       reverb=0.3, echo=0.1)
                 if section == 2:
-                    tr.add(bell(m + 12, sr, 1.6, 0.6), t0, gain=0.035, pan=0.35, reverb=0.45)
-        if section == 2:
-            tr.add(pad_note(chord[2] + 12, bar, sr, attack=0.6, release=1.0, cutoff=3000), t_bar, gain=0.03,
-                   reverb=0.5)
-    return master(tr.render(reverb_seconds=2.2, echo_time=beat * 0.75, echo_feedback=0.3, brightness=9000), -17.0)
+                    tr.add(bell(m + 12, sr, 1.2, 0.7), t0, gain=0.04, pan=0.3, reverb=0.4)
+
+        # Riser over the last two bars back into the loop.
+        if b == bars - 2:
+            n = int(2 * bar * sr)
+            tt = np.arange(n) / sr
+            rise = highpass(rng(500).standard_normal(n), 1500, sr) * (tt / tt[-1]) ** 2 * 0.25
+            sweep = np.sin(2 * np.pi * np.cumsum(200 + 700 * (tt / tt[-1]) ** 2) / sr) * (tt / tt[-1]) ** 2 * 0.08
+            tr.add(rise + sweep, t_bar, reverb=0.4)
+
+    return master(tr.render(reverb_seconds=2.0, echo_time=beat * 0.75, echo_feedback=0.3, brightness=9500), -15.0)
 
 
 # ---------------------------------------------------------------- sound effects (mono)
@@ -496,51 +522,71 @@ def sfx_splat(seed):
     return drop * 0.8 + squelch * 0.9 + thud * 0.6
 
 
-def soil_grains(seconds, seed, count, lo=250, hi=2600, swell=None):
+def grains_window(seconds, start, end, count, seed, lo, hi, rising=False):
+    """Soil grains (short noise bursts) scattered between start and end, band-limited to sound earthy."""
     sr = SFX_SR
-    t = time_axis(seconds, sr)
+    n_total = int(seconds * sr)
     r = rng(seed)
-    out = np.zeros_like(t)
+    out = np.zeros(n_total)
     for _ in range(count):
-        center = r.uniform(0.0, seconds * 0.9)
+        center = r.uniform(start, end)
         i = int(center * sr)
-        n = int(r.uniform(0.004, 0.02) * sr)
-        n = min(n, len(t) - i)
-        weight = swell(center) if swell else 1.0
-        out[i:i + n] += r.standard_normal(n) * np.hanning(n) * r.uniform(0.2, 1.0) * weight
+        n = min(int(r.uniform(0.004, 0.025) * sr), n_total - i)
+        if n <= 0:
+            continue
+        weight = (center - start) / max(end - start, 1e-6) if rising else 1.0
+        out[i:i + n] += r.standard_normal(n) * np.hanning(n) * r.uniform(0.3, 1.0) * (0.3 + 0.7 * weight)
     return bandpass(out, lo, hi, sr)
 
 
-def sfx_plant():
-    """Digging roots into soil: crunchy grains, a sinking whoomp, a leafy rustle and a settling thunk."""
+def thud(seconds, at, freq, decay, seed):
+    """Dull earth impact: a low sine knock plus a muffled noise puff."""
     sr = SFX_SR
-    seconds = 0.95
     t = time_axis(seconds, sr)
-    swell = lambda x: np.sin(np.pi * min(x / 0.8, 1.0)) ** 0.6
-    crunch = soil_grains(seconds, 11, 70, swell=swell)
-    f = 55 + 170 * np.exp(-t / 0.25)
-    whoomp = np.sin(2 * np.pi * np.cumsum(f) / sr) * np.sin(np.pi * np.clip(t / 0.8, 0, 1)) * 0.5
-    rustle = highpass(rng(12).standard_normal(len(t)), 3000, sr) * np.exp(-((t - 0.25) / 0.15) ** 2) * 0.25
-    thunk_t = np.clip(t - 0.78, 0, None)
-    thunk = np.sin(2 * np.pi * 85 * thunk_t) * np.exp(-thunk_t / 0.07) * (t >= 0.78) * 0.9
-    return crunch * 0.8 + whoomp + rustle + thunk
+    dt = np.clip(t - at, 0, None)
+    on = t >= at
+    knock = np.sin(2 * np.pi * np.cumsum(freq * (1 + 0.6 * np.exp(-dt / 0.02)) * on) / sr) * np.exp(-dt / decay)
+    puff = lowpass(rng(seed).standard_normal(len(t)), 320, sr) * np.exp(-dt / (decay * 0.5)) * 1.4
+    return (knock + puff) * on
+
+
+def sfx_plant():
+    """Roots driving into the soil: three heavy earthy crunches, a low rumble and a dull settling thud."""
+    sr = SFX_SR
+    seconds = 1.05
+    t = time_axis(seconds, sr)
+    out = np.zeros_like(t)
+    for k, (at, gain) in enumerate([(0.0, 0.7), (0.27, 0.85), (0.54, 1.0)]):
+        out += grains_window(seconds, at, at + 0.11, 34, 30 + k, 90, 1100) * gain
+        out += thud(seconds, at, 72, 0.05, 40 + k) * 0.45 * gain
+    rumble = lowpass(rng(13).standard_normal(len(t)), 140, sr) * np.sin(np.pi * np.clip(t / 0.95, 0, 1)) * 1.6
+    crumble = grains_window(seconds, 0.6, 1.0, 26, 14, 150, 800) * 0.35
+    settle = thud(seconds, 0.8, 48, 0.12, 15)
+    return out + rumble + crumble + settle
 
 
 def sfx_unplant():
-    """Pulling roots out: rustle and grains rising into a little uprooting pop."""
+    """Roots tearing out of the ground: a woody creak, crackling soil, then a heavy dull pull and falling earth."""
     sr = SFX_SR
-    seconds = 0.85
+    seconds = 0.95
     t = time_axis(seconds, sr)
-    swell = lambda x: min(1.0, x / 0.55)
-    crunch = soil_grains(seconds, 21, 55, 400, 3200, swell=swell)
-    f = 80 + 260 * (t / seconds) ** 2
-    shloop = np.sin(2 * np.pi * np.cumsum(f) / sr) * np.sin(np.pi * np.clip(t / 0.7, 0, 1)) ** 2 * 0.45
-    rustle = highpass(rng(22).standard_normal(len(t)), 3500, sr) * np.clip(t / 0.6, 0, 1) * np.exp(-t / 0.5) * 0.25
-    pop = np.zeros_like(t)
-    p = sfx_pop(210, 23)
-    i = int(0.62 * sr)
-    pop[i:i + len(p)] = p[:len(t) - i]
-    return crunch * 0.7 + shloop + rustle + pop * 0.8
+    r = rng(24)
+    f = 95 + 70 * (t / 0.6) + r.normal(0, 6, len(t)).cumsum() * 0.002
+    phase = 2 * np.pi * np.cumsum(f) / sr
+    stick_slip = (np.sin(2 * np.pi * 23 * t) > 0.2).astype(float)
+    creak = lowpass((np.sin(phase) + 0.6 * np.sin(2 * phase) + 0.3 * np.sin(3 * phase)) * stick_slip, 1200, sr)
+    creak *= np.clip(t / 0.15, 0, 1) * np.clip((0.66 - t) / 0.08, 0, 1) * 0.35
+    crackle = grains_window(seconds, 0.05, 0.66, 70, 25, 120, 1400, rising=True)
+    pull = thud(seconds, 0.62, 62, 0.11, 26) * 1.1
+    spill = grains_window(seconds, 0.64, 0.92, 40, 27, 100, 900) * 0.6
+    return creak + crackle + pull + spill
+
+
+def sfx_root_lock():
+    """'Ready': roots locked in. A soft low double knock with a little crumble (no bright chime)."""
+    seconds = 0.5
+    return (thud(seconds, 0.0, 66, 0.07, 50) + thud(seconds, 0.09, 58, 0.09, 51) * 0.8 +
+            grains_window(seconds, 0.02, 0.3, 14, 52, 120, 700) * 0.4)
 
 
 def sfx_chord(notes, spacing, length, voice=bell, shimmer=0.0, gains=None):
@@ -659,7 +705,7 @@ def make_sfx():
         'splat_1': normalize(sfx_splat(5), 0.8),
         'plant': normalize(sfx_plant(), 0.8),
         'unplant': normalize(sfx_unplant(), 0.8),
-        'ready': normalize(sfx_chord([88, 95], 0.06, 0.6, harp), 0.5),
+        'ready': normalize(sfx_root_lock(), 0.55),
         'collect': normalize(sfx_chord([86, 90, 93, 98], 0.07, 1.2, bell, shimmer=0.15), 0.8),
         'appear': normalize(sfx_chord([93, 100], 0.12, 1.0, bell, shimmer=0.08), 0.5),
         'hitmarker': normalize(sfx_hitmarker(), 0.6),

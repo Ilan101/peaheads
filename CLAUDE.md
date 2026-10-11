@@ -89,7 +89,8 @@ Assets/PeaHeads/
 │   │               Minimap (uGUI built in code, added by GameMenu: top-right, whole play area, own side at bottom;
 │   │                 terrain/cover image baked once by downward raycasts; icons for you, rival, dummies, Sporelights;
 │   │                 nearest Sporelight glows, no key row; M enlarges), UiSprites (procedural icon sprites incl. Flower/Thorn/Sprout/Camera/Shield/Slash),
-│   │               StoryIntro (uGUI built in code: 7-slide typewriter cutscene with animated UI drawings, played by
+│   │               StoryIntro (uGUI built in code: 5 player-paced slides (SPACE next, ESC skip; no mouse): lore, plant, dodge,
+│   │                 aim (closing one eye = faster, straight pea), role + scoring; animated drawings with control prompts lit in sync; played by
 │   │                 GameMenu on connect; ends on "YOU ARE BLOOM/BLIGHT"; static IsPlaying hides the IMGUI HUDs),
 │   │               GameMenu (uGUI built in code: start Host/Join, Connecting/Cancel, Esc pause menu —
 │   │                 Resume, Restart Match (host, MatchManager.RestartNow), Leave, with a Controls panel on the right; sets PlayerInput.Paused; during the

@@ -25,8 +25,8 @@ namespace PeaHeads
             ("WASD", "Move"),
             ("Space", "Plant / Unplant"),
             ("Lean Your Head", "Peek / Dodge"),
-            ("Open Mouth", "Fire"),
-            ("Wink", "Zoom"),
+            ("Open Mouth", "Spit"),
+            ("Close One Eye", "Aim: fast, straight pea"),
             ("C", "Recenter Head"),
             ("M", "Big Map"),
             ("Esc", "Menu"),
@@ -54,6 +54,10 @@ namespace PeaHeads
         private GameObject _controlsPanel;
         private GameObject _restartButton;
         private Text _musicLabel;
+        private RectTransform _title;
+        private RectTransform _bloomBadge;
+        private RectTransform _blightBadge;
+        private RectTransform _spinner;
         private Text _faceLabel;
         private Text _startInfo;
         private Text _startStatus;
@@ -127,6 +131,20 @@ namespace PeaHeads
                 input.Paused = screen is MenuScreen.Pause or MenuScreen.Story;
             if (player && player.TryGetComponent(out PlayerHealth health)) health.SetShielded(story);
             RefreshText(screen, nm);
+            Animate(screen);
+        }
+
+        // Title breathes and the faction badges sway on the start screen; the spinner turns while connecting.
+        private void Animate(MenuScreen screen)
+        {
+            float t = Time.unscaledTime;
+            if (screen == MenuScreen.Start && _title)
+            {
+                _title.localScale = Vector3.one * (1f + 0.025f * Mathf.Sin(t * 2f));
+                _bloomBadge.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 1.6f) * 12f);
+                _blightBadge.localRotation = Quaternion.Euler(0f, 0f, t * -40f);
+            }
+            if (screen == MenuScreen.Connecting && _spinner) _spinner.localRotation = Quaternion.Euler(0f, 0f, t * -300f);
         }
 
         private void Show(MenuScreen screen, NetworkManager nm)
@@ -246,34 +264,47 @@ namespace PeaHeads
             _backdrop.transform.SetParent(canvasGo.transform, false);
             Stretch(_backdrop.GetComponent<RectTransform>());
             _backdrop.GetComponent<Image>().color = _backdropColor;
+            Image vignette = UiBuild.Image(_backdrop.transform, UiBuild.Vignette, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.6f));
+            UiBuild.Stretch(vignette.rectTransform);
 
             _startPanel = AddPanel("Start");
             AddTitle(_startPanel);
-            AddLabel(_startPanel, "Bloom vs Blight", 22, _textColor, FontStyle.Italic);
-            _startInfo = AddLabel(_startPanel, "", 16, _textColor);
+            Text subtitle = AddLabel(_startPanel,
+                $"<color=#{ColorUtility.ToHtmlStringRGB(Faction.BloomColor)}>BLOOM</color>  vs  " +
+                $"<color=#{ColorUtility.ToHtmlStringRGB(Faction.BlightColor)}>BLIGHT</color>", 30, _textColor);
+            subtitle.font = UiBuild.DisplayFont;
+            UiBuild.Outline(subtitle, new Color(0f, 0f, 0f, 0.6f));
+            _startInfo = AddLabel(_startPanel, "", 15, new Color(1f, 1f, 1f, 0.6f));
             AddAddressField(_startPanel);
             AddButton(_startPanel, "Join", OnJoin);
             AddButton(_startPanel, "Host", OnHost);
             _startStatus = AddLabel(_startPanel, "", 16, _textColor);
+            AddLabel(_startPanel, "Start head_tracker.py first: your face is the controller.", 14, new Color(1f, 1f, 1f, 0.55f),
+                FontStyle.Italic);
 
             _connectingPanel = AddPanel("Connecting");
+            _spinner = AddSpinner(_connectingPanel);
             _connectingText = AddLabel(_connectingPanel, "", 22, _textColor);
             _connectingStatus = AddLabel(_connectingPanel, "", 16, _textColor);
-            AddButton(_connectingPanel, "Cancel", OnLeave);
+            AddButton(_connectingPanel, "Cancel", OnLeave, false);
 
             _pausePanel = AddPanel("Pause");
-            AddLabel(_pausePanel, "Paused", 40, _accentColor, FontStyle.Bold);
+            Text paused = AddLabel(_pausePanel, "Paused", 48, _accentColor);
+            paused.font = UiBuild.DisplayFont;
+            UiBuild.Outline(paused, new Color(0.08f, 0.2f, 0.05f, 0.85f), 2f);
             _pauseInfo = AddLabel(_pausePanel, "", 16, _textColor);
             AddButton(_pausePanel, "Resume", OnResume);
             _restartButton = AddButton(_pausePanel, "Restart Match", OnRestart);
             _musicLabel = AddButton(_pausePanel, MusicLabel(), OnToggleMusic).GetComponentInChildren<Text>();
             _faceLabel = AddButton(_pausePanel, FaceLabel(), OnToggleFace).GetComponentInChildren<Text>();
-            AddButton(_pausePanel, "Leave", OnLeave);
+            AddButton(_pausePanel, "Leave", OnLeave, false);
             _pauseStatus = AddLabel(_pausePanel, "", 16, _textColor);
 
             // Controls sit to the right of the pause panel; the pair is centred together.
             _controlsPanel = AddPanel("Controls");
-            AddLabel(_controlsPanel, "Controls", 24, _accentColor, FontStyle.Bold);
+            Text controls = AddLabel(_controlsPanel, "Controls", 32, _accentColor);
+            controls.font = UiBuild.DisplayFont;
+            UiBuild.Outline(controls, new Color(0.08f, 0.2f, 0.05f, 0.85f), 2f);
             foreach (var (keys, action) in ControlLines) AddControlRow(_controlsPanel, keys, action);
             _pausePanel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-(PanelWidth + PanelGap) * 0.5f, 0f);
             _controlsPanel.GetComponent<RectTransform>().anchoredPosition = new Vector2((PanelWidth + PanelGap) * 0.5f, 0f);
@@ -290,9 +321,16 @@ namespace PeaHeads
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(PanelWidth, 0f);
-            go.GetComponent<Image>().color = _panelColor;
+            var image = go.GetComponent<Image>();
+            image.sprite = UiBuild.Rounded;
+            image.type = Image.Type.Sliced;
+            image.color = _panelColor;
+            UiBuild.Outline(image, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.35f));
+            Shadow shadow = go.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+            shadow.effectDistance = new Vector2(0f, -8f);
             var layout = go.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(28, 28, 24, 24);
+            layout.padding = new RectOffset(32, 32, 26, 26);
             layout.spacing = 12f;
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = true;
@@ -325,25 +363,52 @@ namespace PeaHeads
             layout.spacing = 12f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
-            AddLabel(row, keys, 16, _accentColor, FontStyle.Bold).alignment = TextAnchor.MiddleLeft;
-            AddLabel(row, action, 16, _textColor).alignment = TextAnchor.MiddleRight;
+            layout.childForceExpandWidth = false;
+            var key = new GameObject("Key", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            key.transform.SetParent(row.transform, false);
+            var keyImage = key.GetComponent<Image>();
+            keyImage.sprite = UiBuild.Rounded;
+            keyImage.type = Image.Type.Sliced;
+            keyImage.pixelsPerUnitMultiplier = 2f;
+            keyImage.color = new Color(0.92f, 0.92f, 0.86f);
+            var keyLayout = key.GetComponent<LayoutElement>();
+            keyLayout.preferredWidth = 150f;
+            keyLayout.flexibleWidth = 0f;
+            keyLayout.preferredHeight = 28f;
+            var keyText = new GameObject("Text", typeof(RectTransform), typeof(Text));
+            keyText.transform.SetParent(key.transform, false);
+            Stretch(keyText.GetComponent<RectTransform>());
+            Text keyLabel = keyText.GetComponent<Text>();
+            ConfigureText(keyLabel, keys, 17, new Color(0.08f, 0.1f, 0.07f));
+            keyLabel.font = UiBuild.DisplayFont;
+            Text actionLabel = AddLabel(row, action, 16, _textColor);
+            actionLabel.alignment = TextAnchor.MiddleRight;
+            actionLabel.GetComponent<LayoutElement>().flexibleWidth = 1f;
         }
 
-        private GameObject AddButton(GameObject parent, string text, UnityAction onClick)
+        private GameObject AddButton(GameObject parent, string text, UnityAction onClick, bool primary = true)
         {
-            var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement),
+                typeof(UiHover));
             go.transform.SetParent(parent.transform, false);
-            go.GetComponent<LayoutElement>().preferredHeight = 48f;
+            go.GetComponent<LayoutElement>().preferredHeight = 52f;
             var image = go.GetComponent<Image>();
+            image.sprite = UiBuild.Rounded;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1.4f;
             image.color = Color.white;
+            Shadow drop = go.AddComponent<Shadow>();
+            drop.effectColor = new Color(0f, 0f, 0f, 0.4f);
+            drop.effectDistance = new Vector2(0f, -4f);
             var button = go.GetComponent<Button>();
             button.targetGraphic = image;
             ColorBlock colors = button.colors;
-            colors.normalColor = _buttonColor;
-            colors.highlightedColor = _buttonHoverColor;
-            colors.selectedColor = _buttonColor;
-            colors.pressedColor = _buttonColor * 0.8f;
+            Color normal = primary ? _buttonColor : new Color(0.16f, 0.22f, 0.18f, 1f);
+            Color hover = primary ? _buttonHoverColor : new Color(0.26f, 0.34f, 0.28f, 1f);
+            colors.normalColor = normal;
+            colors.highlightedColor = hover;
+            colors.selectedColor = normal;
+            colors.pressedColor = normal * 0.8f;
             colors.colorMultiplier = 1f;
             button.colors = colors;
             button.onClick.AddListener(onClick);
@@ -352,7 +417,10 @@ namespace PeaHeads
             var labelGo = new GameObject("Text", typeof(RectTransform), typeof(Text));
             labelGo.transform.SetParent(go.transform, false);
             Stretch(labelGo.GetComponent<RectTransform>());
-            ConfigureText(labelGo.GetComponent<Text>(), text, 22, _textColor);
+            Text label = labelGo.GetComponent<Text>();
+            ConfigureText(label, text, 26, _textColor);
+            label.font = UiBuild.DisplayFont;
+            UiBuild.Outline(label, new Color(0f, 0f, 0f, 0.35f), 1.2f);
             return go;
         }
 
@@ -362,7 +430,11 @@ namespace PeaHeads
                 typeof(LayoutElement));
             go.transform.SetParent(parent.transform, false);
             go.GetComponent<LayoutElement>().preferredHeight = 44f;
-            go.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.92f);
+            var fieldImage = go.GetComponent<Image>();
+            fieldImage.sprite = UiBuild.Rounded;
+            fieldImage.type = Image.Type.Sliced;
+            fieldImage.pixelsPerUnitMultiplier = 1.6f;
+            fieldImage.color = new Color(1f, 1f, 1f, 0.92f);
 
             var textGo = new GameObject("Text", typeof(RectTransform), typeof(Text));
             textGo.transform.SetParent(go.transform, false);
@@ -396,13 +468,48 @@ namespace PeaHeads
         // "PeaHeads" in Chewy (Resources/Fonts, Apache 2.0): bubbly, plant-cartoon title with a dark outline.
         private void AddTitle(GameObject parent)
         {
-            Text title = AddLabel(parent, "PeaHeads", 64, _accentColor);
-            Font chewy = Resources.Load<Font>("Fonts/Chewy-Regular");
-            if (chewy) title.font = chewy;
-            title.GetComponent<LayoutElement>().minHeight = 80f;
+            Text title = AddLabel(parent, "PeaHeads", 92, _accentColor);
+            title.font = UiBuild.DisplayFont;
+            title.GetComponent<LayoutElement>().minHeight = 104f;
             Outline outline = title.gameObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0.08f, 0.2f, 0.05f, 0.85f);
-            outline.effectDistance = new Vector2(2f, -2f);
+            outline.effectColor = new Color(0.08f, 0.2f, 0.05f, 0.9f);
+            outline.effectDistance = new Vector2(3f, -3f);
+            Shadow shadow = title.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+            shadow.effectDistance = new Vector2(0f, -6f);
+            _title = title.rectTransform;
+
+            // Glow sits on the panel behind the title (a child of the title would draw over the letters).
+            Image glow = UiBuild.Image(parent.transform, UiBuild.Glow, new Vector2(0.5f, 1f), new Vector2(0f, 37f),
+                new Vector2(560f, 230f), new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.22f));
+            glow.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            glow.transform.SetAsFirstSibling();
+            _bloomBadge = Badge(UiBuild.Flower, Faction.BloomColor, -205f);
+            _blightBadge = Badge(UiBuild.Thorn, Faction.BlightColor, 205f);
+        }
+
+        private RectTransform Badge(Sprite sprite, Color color, float x)
+        {
+            Image badge = UiBuild.Image(_title, sprite, new Vector2(x, 4f), new Vector2(54f, 54f), color);
+            badge.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            Shadow shadow = badge.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+            shadow.effectDistance = new Vector2(2f, -3f);
+            return badge.rectTransform;
+        }
+
+        // Quarter ring that the menu turns while connecting.
+        private RectTransform AddSpinner(GameObject parent)
+        {
+            var holder = new GameObject("Spinner", typeof(RectTransform), typeof(LayoutElement));
+            holder.transform.SetParent(parent.transform, false);
+            holder.GetComponent<LayoutElement>().preferredHeight = 64f;
+            Image track = UiBuild.Image(holder.transform, UiBuild.Ring, Vector2.zero, new Vector2(52f, 52f), new Color(1f, 1f, 1f, 0.15f));
+            Image arc = UiBuild.Image(holder.transform, UiBuild.Ring, Vector2.zero, new Vector2(52f, 52f), _accentColor);
+            arc.type = Image.Type.Filled;
+            arc.fillMethod = Image.FillMethod.Radial360;
+            arc.fillAmount = 0.3f;
+            return arc.rectTransform;
         }
 
         private void ConfigureText(Text text, string value, int size, Color color)
