@@ -60,7 +60,7 @@ Assets/PeaHeads/
 │   │               PlayerMovement (CharacterController, owner only, Teleport; acceleration/deceleration/brake glide, walls stop
 │   │                 the glide; Speed01 (remote copies measure it from the synced position)),
 │   │               PlayerCameraRig (first person: yaw/pitch, head offset + wall clamp with max lean/rise/duck sliders, zoom;
-│   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote; local walk feel: step hop/sway/roll, run FOV, Sfx.Step
+│   │                 HeadOffset (metres) synced; SetLocal, ApplyRemote; no walk bob; Sfx.Step
 │   │                 footfalls, Perlin shake (AddShake: spit, hits, planting); camera rests while StoryIntro covers the screen),
 │   │               PlayerShooting (NetworkBehaviour: TryFire() owner → FireRpc → host spawns pea),
 │   │               PlayerHealth (NetworkBehaviour: server HP var, owner-write Shielded var, flash/SFX/hide on all, 3 s respawn, Died/Revived; on death the host sends CleansedRpc(killerTeam, position): 0.3 s tint to the killer's colour via property blocks, renderers hide 0.35 s after death (colliders at once), tint cleared on revive)

@@ -25,15 +25,9 @@ namespace PeaHeads
         [Header("Shake")]
         [SerializeField, Range(0f, 10f)] private float _shakeDegrees = 2.5f;
 
-        [Header("Walk (local camera)")]
-        [Tooltip("Hop height of the camera per step at full speed, metres.")]
-        [SerializeField, Range(0f, 0.15f)] private float _bobHeight = 0.04f;
-        [SerializeField, Range(0f, 0.1f)] private float _bobSway = 0.022f;
-        [SerializeField, Range(0f, 5f)] private float _bobRoll = 0.8f;
+        [Header("Footsteps (local)")]
         [Tooltip("Steps per second at full speed.")]
         [SerializeField, Range(0.5f, 5f)] private float _stepRate = 2.2f;
-        [Tooltip("Extra field of view at full speed, degrees.")]
-        [SerializeField, Range(0f, 15f)] private float _runFov = 4f;
         [SerializeField, Range(0f, 1f)] private float _stepVolume = 0.3f;
 
         [Header("Zoom")]
@@ -56,7 +50,6 @@ namespace PeaHeads
         private bool _isLocal;
         private float _shake;
         private Quaternion _cameraRest;
-        private Vector3 _cameraRestPosition;
         private PlayerMovement _movement;
         private float _walk;
         private float _stepPhase;
@@ -69,7 +62,6 @@ namespace PeaHeads
             _pivotBase = _headPivot.localPosition;
             _baseFov = _camera.fieldOfView;
             _cameraRest = _camera.transform.localRotation;
-            _cameraRestPosition = _camera.transform.localPosition;
             _movement = GetComponent<PlayerMovement>();
         }
 
@@ -117,11 +109,12 @@ namespace PeaHeads
                 IsZoomed = input.ZoomHeld;
                 float speed = _movement ? _movement.Speed01 : 0f;
                 _walk = Mathf.MoveTowards(_walk, speed, Time.deltaTime * 5f);
-                float fov = (_baseFov + _runFov * _walk) / (IsZoomed ? _zoomFactor : 1f);
+                float fov = IsZoomed ? _baseFov / _zoomFactor : _baseFov;
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_zoomSpeed * Time.deltaTime));
                 _head = Vector2.Lerp(_head, input.Head, blend);
                 HeadOffset = ClampedOffset();
-                ApplyWalkAndShake(speed);
+                PlayFootsteps(speed);
+                ApplyShake();
             }
             else
             {
@@ -137,28 +130,24 @@ namespace PeaHeads
         // Local camera only: 0..1 trauma, decays on its own (shot kick, getting hit, knockouts).
         public void AddShake(float amount) => _shake = Mathf.Min(1f, _shake + amount);
 
-        // Walking: a little hop per step with sway and roll, a soft step sound at the bottom of each hop. The bob fades
-        // out within ~0.2 s of stopping, long before planting finishes, so it never moves the aim.
-        private void ApplyWalkAndShake(float speed)
+        // A soft step sound per step while walking; the camera itself never bobs.
+        private void PlayFootsteps(float speed)
         {
-            float dt = Time.deltaTime;
             float previous = _stepPhase;
-            if (_walk > 0.01f) _stepPhase += dt * _stepRate * Mathf.Lerp(0.6f, 1f, speed);
+            if (_walk > 0.01f) _stepPhase += Time.deltaTime * _stepRate * Mathf.Lerp(0.6f, 1f, speed);
             else _stepPhase = Mathf.Round(_stepPhase); // settle at a step boundary, ready for the next walk
             if (Mathf.Floor(_stepPhase) > Mathf.Floor(previous) && speed > 0.3f)
                 GameAudio.Play(Sfx.Step, _stepVolume * speed, 0.12f);
+        }
 
-            float hop = Mathf.Sin(_stepPhase * Mathf.PI); // 0 at each footfall, ±1 mid-step (alternating feet)
-            float side = hop; // sways left on one step, right on the next
-            Vector3 bob = new(side * _bobSway, (Mathf.Abs(hop) - 0.6f) * _bobHeight, 0f);
-            _camera.transform.localPosition = _cameraRestPosition + bob * _walk;
-
-            _shake = Mathf.MoveTowards(_shake, 0f, dt * 2.5f);
+        private void ApplyShake()
+        {
+            _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 2.5f);
             float s = _shake * _shake * _shakeDegrees;
             float t = Time.time * 25f;
             _camera.transform.localRotation = _cameraRest * Quaternion.Euler(
                 (Mathf.PerlinNoise(t, 0.3f) - 0.5f) * 2f * s, (Mathf.PerlinNoise(0.7f, t) - 0.5f) * 2f * s,
-                (Mathf.PerlinNoise(t, t) - 0.5f) * s - side * _bobRoll * _walk);
+                (Mathf.PerlinNoise(t, t) - 0.5f) * s);
         }
 
         // Rest position sinks with the planted body.
