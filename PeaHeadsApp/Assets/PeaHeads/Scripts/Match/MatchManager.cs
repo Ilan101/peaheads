@@ -6,10 +6,11 @@ using UnityEngine;
 
 namespace PeaHeads
 {
-    public enum MatchState : byte { Playing, Ended }
+    public enum MatchState : byte { Playing, Ended, Lobby }
 
-    // Host keeps score (kills + mushrooms). The match ends at the target score or when the clock runs out (most
-    // points wins, a tie is a draw), then restarts after a delay.
+    // Host keeps score (kills + mushrooms). A session opens in the lobby; the host's START begins the first round.
+    // A round ends at the target score or when the clock runs out (most points wins, a tie is a draw), then restarts
+    // after a delay. Players joining mid-round wait in the lobby until the next round.
     public class MatchManager : NetworkBehaviour
     {
         [SerializeField, Range(1, 100)] private int _targetScore = 20;
@@ -36,6 +37,8 @@ namespace PeaHeads
         // Client ids per team, shuffled by the host at every match start. Allocated in Awake (native memory).
         private NetworkList<ulong> _team0;
         private NetworkList<ulong> _team1;
+        // Joined mid-round: wait in the lobby until the next round starts. Allocated in Awake (native memory).
+        private NetworkList<ulong> _waiting;
         private readonly System.Random _rng = new();
 
         public static MatchManager Instance { get; private set; }
@@ -55,6 +58,8 @@ namespace PeaHeads
         // Counting down (not waiting for the intro story, not ended).
         public bool ClockRunning => IsSpawned && !IsEnded && !ClockWaiting;
         public bool IsEnded => _state.Value == (byte)MatchState.Ended;
+        // Waiting for the host's START (no clock, no scoring). Only at the start of a session.
+        public bool IsLobby => _state.Value == (byte)MatchState.Lobby;
         // -1 with IsEnded = draw.
         public int Winner => _winner.Value;
         // Full duration while the clock waits for the intro story, 0 once ended.
@@ -70,6 +75,38 @@ namespace PeaHeads
 
         public static bool HasTeam(ulong clientId) =>
             Instance && (Instance._team0.Contains(clientId) || Instance._team1.Contains(clientId));
+
+        public static bool IsWaiting(ulong clientId) => Instance && Instance._waiting.Contains(clientId);
+
+        public static int SmallerTeam(int bloomCount, int blightCount) => bloomCount <= blightCount ? 0 : 1;
+
+        // Lobby slots in order: everyone while the match waits in the lobby, otherwise only mid-round joiners.
+        public static List<ulong> LobbyMembers(bool inLobby, IEnumerable<ulong> team0, IEnumerable<ulong> team1,
+            IEnumerable<ulong> waiting)
+        {
+            var ids = new List<ulong>();
+            if (inLobby)
+            {
+                ids.AddRange(team0);
+                ids.AddRange(team1);
+            }
+            else ids.AddRange(waiting);
+            ids.Sort();
+            if (ids.Count > SessionController.MaxPlayers)
+                ids.RemoveRange(SessionController.MaxPlayers, ids.Count - SessionController.MaxPlayers);
+            return ids;
+        }
+
+        public static List<ulong> LobbyMembers() => Instance
+            ? LobbyMembers(Instance.IsLobby, ToList(Instance._team0), ToList(Instance._team1), ToList(Instance._waiting))
+            : new List<ulong>();
+
+        private static List<ulong> ToList(NetworkList<ulong> list)
+        {
+            var ids = new List<ulong>(list.Count);
+            for (int i = 0; i < list.Count; i++) ids.Add(list[i]);
+            return ids;
+        }
 
         // Shuffle, then deal alternately: team sizes differ by at most one and nobody is tied to a team.
         public static int[] AssignTeams(IReadOnlyList<ulong> clientIds, System.Random rng)
@@ -92,6 +129,7 @@ namespace PeaHeads
         {
             _team0 = new NetworkList<ulong>();
             _team1 = new NetworkList<ulong>();
+            _waiting = new NetworkList<ulong>();
             // Evening light + team-tinted fog; added here so older scenes get it without an edit.
             if (!TryGetComponent(out AtmosphereController _)) gameObject.AddComponent<AtmosphereController>();
             if (!TryGetComponent(out KillSites _)) gameObject.AddComponent<KillSites>();
@@ -112,7 +150,8 @@ namespace PeaHeads
             _score0.Value = 0;
             _score1.Value = 0;
             _winner.Value = -1;
-            _state.Value = (byte)MatchState.Playing;
+            _waiting.Clear();
+            _state.Value = (byte)MatchState.Lobby;
             ArmClock();
             PlayerHealth.Killed += OnKilled;
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
@@ -138,7 +177,7 @@ namespace PeaHeads
 
         public void AddPoints(int team, int points)
         {
-            if (!IsServer || IsEnded || points <= 0) return;
+            if (!IsServer || IsEnded || IsLobby || points <= 0) return;
             NetworkVariable<int> score = team == 0 ? _score0 : _score1;
             score.Value = Mathf.Min(_targetScore, score.Value + points);
             if (score.Value >= _targetScore) EndMatch(team);
@@ -146,7 +185,7 @@ namespace PeaHeads
 
         private void Update()
         {
-            if (!IsServer || !IsSpawned || IsEnded) return;
+            if (!IsServer || !IsSpawned || IsEnded || IsLobby) return;
             if (ClockWaiting)
             {
                 if (Time.time >= _clockArmedAt + ClockGrace && !AnyoneInStory())
@@ -188,10 +227,18 @@ namespace PeaHeads
             if (team != TeamOf(victim.OwnerClientId)) AddPoints(team, _killPoints);
         }
 
-        // A rival arriving starts a fresh match, so points the host scored alone don't count.
+        // In the lobby a new pea reshuffles the teams (nothing is at stake yet). Mid-round it joins the smaller team
+        // and waits in the lobby until the next round starts; the match carries on.
         private void OnClientConnected(ulong clientId)
         {
-            if (clientId != NetworkManager.ServerClientId) RestartNow();
+            if (clientId == NetworkManager.ServerClientId) return;
+            if (IsLobby)
+            {
+                ShuffleTeams();
+                return;
+            }
+            (SmallerTeam(_team0.Count, _team1.Count) == 0 ? _team0 : _team1).Add(clientId);
+            _waiting.Add(clientId);
         }
 
         // A leaver's slot is dropped; the remaining players keep their teams until the next round.
@@ -199,6 +246,7 @@ namespace PeaHeads
         {
             _team0.Remove(clientId);
             _team1.Remove(clientId);
+            _waiting.Remove(clientId);
         }
 
         private void ShuffleTeams()
@@ -217,15 +265,24 @@ namespace PeaHeads
         // Host's menu button. Also cancels the automatic restart if the match had already ended.
         public void RestartNow()
         {
-            if (!IsServer || !IsSpawned) return;
+            if (!IsServer || !IsSpawned || IsLobby) return;
             CancelInvoke(nameof(Restart));
             Restart();
         }
 
-        private void Restart()
+        // Host's START in the lobby: the lobby teams stand (the story already told everyone their side).
+        public void StartMatch()
+        {
+            if (IsServer && IsSpawned && IsLobby) BeginRound(false);
+        }
+
+        private void Restart() => BeginRound(true);
+
+        private void BeginRound(bool shuffle)
         {
             if (!IsSpawned) return;
-            ShuffleTeams();
+            if (shuffle) ShuffleTeams();
+            _waiting.Clear();
             _score0.Value = 0;
             _score1.Value = 0;
             _winner.Value = -1;
