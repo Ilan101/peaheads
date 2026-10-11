@@ -27,7 +27,6 @@ namespace PeaHeads
             ("Lean Your Head", "Peek / Dodge"),
             ("Open Mouth", "Fire"),
             ("Wink", "Zoom"),
-            ("Wink + Hold Mouth Open", "Full Auto"),
             ("C", "Recenter Head"),
             ("M", "Big Map"),
             ("Esc", "Menu"),

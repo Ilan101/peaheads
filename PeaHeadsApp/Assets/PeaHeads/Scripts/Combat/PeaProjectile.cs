@@ -10,11 +10,21 @@ namespace PeaHeads
         [SerializeField, Range(0.05f, 1f)] private float _radius = 0.2f;
         [SerializeField, Range(0.5f, 10f)] private float _lifetime = 4f;
         [SerializeField, Range(1, 5)] private int _damage = 1;
+        [Tooltip("Metres the pea flies straight before gravity kicks in (not zoomed).")]
+        [SerializeField, Range(0f, 50f)] private float _dropAfter = 5f;
+        [Tooltip("Metres the pea flies straight before gravity kicks in when fired zoomed.")]
+        [SerializeField, Range(0f, 50f)] private float _zoomedDropAfter = 10f;
+        [Tooltip("Launch speed multiplier when fired zoomed.")]
+        [SerializeField, Range(1f, 3f)] private float _zoomedSpeedMultiplier = 1.25f;
+        [Tooltip("Downward acceleration (m/s²) once past the drop distance.")]
+        [SerializeField, Range(0f, 50f)] private float _gravity = 9.81f;
 
         private Transform _owner;
         private ulong _attacker;
         private PlayerShooting _shooter;
         private float _despawnTime;
+        private Vector3 _velocity;
+        private float _straightLeft;
         private bool _done;
         // Shooter's team; set by the host before Spawn so every copy has it on its first frame.
         private readonly NetworkVariable<byte> _team = new();
@@ -34,8 +44,10 @@ namespace PeaHeads
 
         // Server only, right after Spawn(). sweepFrom is a point inside the shooter (head centre): the gap from
         // there to the spawn point is checked first, so a mouth poking through a wall can't fire through it.
-        public void Launch(Transform owner, Vector3 sweepFrom)
+        public void Launch(Transform owner, Vector3 sweepFrom, bool zoomed)
         {
+            _velocity = transform.forward * (zoomed ? _speed * _zoomedSpeedMultiplier : _speed);
+            _straightLeft = zoomed ? _zoomedDropAfter : _dropAfter;
             _owner = owner;
             _attacker = owner.GetComponent<NetworkObject>().OwnerClientId;
             _shooter = owner.GetComponent<PlayerShooting>();
@@ -55,13 +67,18 @@ namespace PeaHeads
                 return;
             }
 
-            float step = _speed * Time.deltaTime;
-            if (Sweep(transform.position, transform.forward, step, out RaycastHit hit))
+            float dt = Time.deltaTime;
+            if (_straightLeft > 0f) _straightLeft -= _velocity.magnitude * dt;
+            else _velocity += Vector3.down * (_gravity * dt);
+
+            float step = _velocity.magnitude * dt;
+            Vector3 direction = _velocity.normalized;
+            if (Sweep(transform.position, direction, step, out RaycastHit hit))
             {
                 Impact(hit);
                 return;
             }
-            transform.position += transform.forward * step;
+            transform.position += direction * step;
         }
 
         private bool Sweep(Vector3 origin, Vector3 direction, float distance, out RaycastHit hit) =>
