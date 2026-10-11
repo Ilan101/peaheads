@@ -34,5 +34,12 @@ namespace PeaHeads.Tests
         [Test]
         public void Stage_DoesNotContainTheArena() =>
             Assert.IsFalse(LobbyStage.Contains(UnityEngine.Vector3.zero));
+
+        [TestCase(false, true, false, ExpectedResult = false)]
+        [TestCase(true, true, false, ExpectedResult = true)]
+        [TestCase(true, false, true, ExpectedResult = true)]
+        [TestCase(true, false, false, ExpectedResult = false)]
+        public bool ShouldOpen_AfterTheStory_InLobbyOrWaiting(bool storyDone, bool matchIsLobby, bool waiting) =>
+            LobbyView.ShouldOpen(storyDone, matchIsLobby, waiting);
     }
 }
