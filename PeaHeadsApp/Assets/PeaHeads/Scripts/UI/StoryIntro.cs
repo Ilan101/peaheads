@@ -67,7 +67,6 @@ namespace PeaHeads
         private Text _hint;
         private RectTransform _art;
         private Image[] _dots;
-        private GameObject _skipButton;
         private RectTransform[] _spores;
         private Image[] _sporeImages;
         private float[] _sporeSpeed;
@@ -166,7 +165,6 @@ namespace PeaHeads
             _body.text = "";
             for (int i = _art.childCount - 1; i >= 0; i--) Destroy(_art.GetChild(i).gameObject);
             _animate = slide.Draw(_art);
-            _skipButton.SetActive(index != Last);
             _hint.text = index == Last ? "PRESS SPACE TO PLAY" : "SPACE: NEXT          ESC: SKIP";
             _hint.fontSize = index == Last ? 24 : 16;
             _hint.color = new Color(1f, 1f, 1f, 0.6f);
@@ -798,7 +796,7 @@ namespace PeaHeads
             scaler.matchWidthOrHeight = 0.5f;
             var root = (RectTransform)_canvas.transform;
 
-            // The whole background is the "next" button; Skip sits above it and wins the raycast.
+            // The whole background is the "next" button.
             RectTransform backgroundRect = Node(root, "Background", Vector2.zero, Vector2.zero);
             Stretch(backgroundRect);
             _background = backgroundRect.gameObject.AddComponent<Image>();
@@ -848,18 +846,6 @@ namespace PeaHeads
                 dot.type = Image.Type.Sliced;
                 dot.pixelsPerUnitMultiplier = 3.2f;
             }
-
-            RectTransform skip = Node(root, "Skip", new Vector2(-24f, -20f), new Vector2(140f, 44f));
-            skip.anchorMin = skip.anchorMax = skip.pivot = Vector2.one;
-            Image skipImage = skip.gameObject.AddComponent<Image>();
-            skipImage.color = new Color(0f, 0f, 0f, 0.45f);
-            var skipButton = skip.gameObject.AddComponent<Button>();
-            skipButton.targetGraphic = skipImage;
-            skipButton.onClick.AddListener(Skip);
-            Text skipLabel = Label(skip, Vector2.zero, Vector2.zero, 20, FontStyle.Bold);
-            Stretch(skipLabel.rectTransform);
-            skipLabel.text = "ESC  SKIP";
-            _skipButton = skip.gameObject;
 
             _canvas.SetActive(false);
         }
