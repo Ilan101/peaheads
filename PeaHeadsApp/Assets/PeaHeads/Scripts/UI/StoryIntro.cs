@@ -12,20 +12,20 @@ namespace PeaHeads
     {
         private const float FadeTime = 0.35f;
         private const float GroundY = -120f;
-        private const int SporeCount = 32;
+        private const int SporeCount = 40;
+        private const int SlideCount = 4;
         // Pea drawing (scale 1, facing right): face centre and mouth relative to the root at the leaf base.
         private static readonly Vector2 FaceOffset = new(0f, 108f);
         private static readonly Vector2 MouthOffset = new(74f, 102f);
         private static readonly Vector2 Reference = new(1280f, 720f);
         private static readonly Color Gold = new(1f, 0.84f, 0.42f);
-        private static readonly Color Rot = new(0.5f, 0.32f, 0.55f);
         private static readonly Color Cream = new(0.95f, 0.9f, 0.8f);
         private static readonly Color Soil = new(0.24f, 0.16f, 0.1f);
         private static readonly Color Skin = new(0.96f, 0.8f, 0.65f);
         private static readonly Color Ink = new(0.08f, 0.06f, 0.05f);
 
         [SerializeField] private Font _font;
-        [SerializeField, Range(10f, 200f)] private float _charsPerSecond = 55f;
+        [SerializeField, Range(10f, 200f)] private float _charsPerSecond = 60f;
 
         // Read by the IMGUI HUDs, which would otherwise draw over the cutscene.
         public static bool IsPlaying { get; private set; }
@@ -64,6 +64,7 @@ namespace PeaHeads
         private Text _body;
         private Text _hint;
         private RectTransform _art;
+        private Image[] _dots;
         private GameObject _skipButton;
         private RectTransform[] _spores;
         private Image[] _sporeImages;
@@ -105,7 +106,7 @@ namespace PeaHeads
 
         private Slide[] BuildFor(int team) =>
             BuildSlides(team, _match ? _match.TargetScore : 20, _match ? _match.MushroomPoints : 3,
-                _match ? _match.KillPoints : 2, _match ? Mathf.RoundToInt(_match.MatchDuration) : 120);
+                _match ? _match.KillPoints : 2);
 
         // Teams are reshuffled when a client joins, possibly mid-story: retell it for the team we have now.
         private void OnTeamsChanged()
@@ -140,6 +141,9 @@ namespace PeaHeads
             _typed = Mathf.Min(slide.Body.Length, _typed + dt * _charsPerSecond);
             _body.text = slide.Body.Substring(0, (int)_typed);
             _animate?.Invoke(_slideTime);
+            // The hint pulses once the text is fully shown: the player decides when to move on.
+            bool typed = _typed >= slide.Body.Length;
+            _hint.color = new Color(1f, 1f, 1f, typed ? 0.65f + 0.35f * Mathf.Sin(_slideTime * 4f) : 0.35f);
 
             Keyboard kb = Keyboard.current;
             if (kb == null) return;
@@ -161,7 +165,14 @@ namespace PeaHeads
             for (int i = _art.childCount - 1; i >= 0; i--) Destroy(_art.GetChild(i).gameObject);
             _animate = slide.Draw(_art);
             _skipButton.SetActive(index != Last);
-            _hint.text = index == Last ? "Click or press Space to begin" : "Click / Space: next        Esc: skip";
+            _hint.text = index == Last ? "PRESS SPACE OR CLICK TO PLAY" : "SPACE / CLICK: NEXT          ESC: SKIP";
+            _hint.fontSize = index == Last ? 24 : 16;
+            _hint.color = new Color(1f, 1f, 1f, 0.6f);
+            for (int i = 0; i < _dots.Length; i++)
+            {
+                _dots[i].color = i == index ? slide.TitleColor : new Color(1f, 1f, 1f, 0.25f);
+                _dots[i].rectTransform.sizeDelta = i == index ? new Vector2(26f, 10f) : new Vector2(10f, 10f);
+            }
             GameAudio.Play(Sfx.Page, 0.7f, 0.05f);
         }
 
@@ -203,7 +214,7 @@ namespace PeaHeads
 
         // ---------- Story ----------
 
-        private Slide[] BuildSlides(int team, int target, int mushroomPoints, int killPoints, int seconds)
+        private Slide[] BuildSlides(int team, int target, int mushroomPoints, int killPoints)
         {
             Color mine = Faction.Color(team);
             Color rival = Faction.Color(1 - team);
@@ -211,104 +222,34 @@ namespace PeaHeads
             {
                 new Slide
                 {
-                    Title = "THE HOLLOW GROVE",
-                    Body = "Deep in the forest grow the Sporelights: glowing mushrooms that hold the life of the whole " +
-                           "Grove. For a thousand seasons, their light kept everything green.",
-                    TitleColor = Gold, Background = new Color(0.05f, 0.12f, 0.14f), Spore = Gold, Draw = DrawGrove,
-                },
-                new Slide
-                {
-                    Title = "THE ROT",
-                    Body = "Then the Rot crept up from the roots. One by one the Sporelights began to flicker... " +
-                           "and the Grove began to die.",
-                    TitleColor = new Color(0.78f, 0.55f, 0.88f), Background = new Color(0.11f, 0.06f, 0.12f),
-                    Spore = Rot, Draw = DrawRot,
-                },
-                new Slide
-                {
-                    Title = "TWO SEEDS, ONE POD",
-                    Body = "From a single pod fell two PeaHeads. One drank the last of the light and became BLOOM. " +
-                           "The other drank the Rot and became BLIGHT. Only one can claim the Grove.",
-                    TitleColor = Cream, Background = new Color(0.08f, 0.1f, 0.11f),
+                    Title = "SAVE THE GROVE",
+                    Body = "The Rot is draining the Sporelights, the glowing mushrooms that keep the Grove alive.\n" +
+                           "Two PeaHeads will decide its fate: BLOOM and BLIGHT.",
+                    TitleColor = Gold, Background = new Color(0.07f, 0.09f, 0.11f),
                     Spore = Color.Lerp(Faction.BloomColor, Faction.BlightColor, 0.5f), Draw = DrawSeeds,
                 },
                 new Slide
                 {
-                    Title = "PLANT TO FIGHT",
-                    Body = "A PeaHead can walk or fight, never both. Press Space to plant your roots: only a planted " +
-                           "PeaHead can spit peas. Press Space again to uproot and run.",
+                    Title = "PLANT TO SPIT",
+                    Body = "You can walk OR fight, never both.\nPlant your roots to spit peas, uproot to move again.",
                     TitleColor = mine, Background = new Color(0.06f, 0.12f, 0.08f), Spore = mine,
                     Draw = art => DrawPlanting(art, mine),
                 },
                 new Slide
                 {
-                    Title = "A NIMBLE NECK",
-                    Body = "Planted, your body can't move, but your neck can. Lean your REAL head to dodge: your " +
-                           "PeaHead leans much further. Open your mouth to spit. Close one eye to zoom.\n" +
-                           "Only your real head can dodge.",
+                    Title = "DODGE WITH YOUR REAL HEAD",
+                    Body = "The webcam is your controller.\nYour PeaHead copies your real head: lean out of the way!",
                     TitleColor = mine, Background = new Color(0.06f, 0.1f, 0.12f), Spore = mine,
                     Draw = art => DrawNeck(art, mine, rival),
                 },
                 new Slide
                 {
-                    Title = "CLAIM THE GROVE",
-                    Body = $"Plant beside a glowing Sporelight to drink its essence: +{mushroomPoints}. Knock out your " +
-                           $"rival with peas: +{killPoints}. First to {target} wins; if the {seconds}-second clock runs out, " +
-                           "the most points decides the fate of the Grove.",
-                    TitleColor = Gold, Background = new Color(0.07f, 0.1f, 0.13f), Spore = Gold,
-                    Draw = art => DrawClaim(art, mine, rival, mushroomPoints, killPoints),
-                },
-                new Slide
-                {
                     Title = $"YOU ARE {Faction.Name(team)}",
-                    Body = Faction.Goal(team),
+                    Body = $"Score for {Faction.Name(team)} and claim the Grove.\n" +
+                           $"First to {target} points wins. Good luck, little pea!",
                     TitleColor = mine, Background = Shade(mine, 0.16f), Spore = mine,
-                    Draw = art => DrawRole(art, mine, team == 1),
+                    Draw = art => DrawClaim(art, mine, rival, mushroomPoints, killPoints, target),
                 },
-            };
-        }
-
-        private Action<float> DrawGrove(RectTransform art)
-        {
-            Ground(art);
-            float[] xs = { -230f, 0f, 230f };
-            float[] scales = { 1f, 1.35f, 1.1f };
-            var glows = new Image[xs.Length];
-            for (int i = 0; i < xs.Length; i++) glows[i] = Sporelight(art, xs[i], Gold, scales[i], out _);
-            return t =>
-            {
-                for (int i = 0; i < glows.Length; i++)
-                    glows[i].color = WithAlpha(Gold, 0.4f + 0.2f * Mathf.Sin(t * 2f + i * 2.1f));
-            };
-        }
-
-        private Action<float> DrawRot(RectTransform art)
-        {
-            Ground(art);
-            var blobs = new RectTransform[7];
-            for (int i = 0; i < blobs.Length; i++)
-            {
-                blobs[i] = Shape(art, new Vector2(-330f + i * 110f, GroundY), new Vector2(130f, 46f),
-                    Shade(Rot, 0.7f)).rectTransform;
-                blobs[i].localScale = Vector3.zero;
-            }
-            float[] xs = { -230f, 0f, 230f };
-            float[] scales = { 1f, 1.35f, 1.1f };
-            var glows = new Image[xs.Length];
-            var caps = new Image[xs.Length];
-            for (int i = 0; i < xs.Length; i++) glows[i] = Sporelight(art, xs[i], Gold, scales[i], out caps[i]);
-            return t =>
-            {
-                float k = Mathf.Clamp01(t / 4f);
-                for (int i = 0; i < blobs.Length; i++)
-                    blobs[i].localScale = Vector3.one * Smooth(Mathf.Clamp01(k * 1.6f - Mathf.Abs(i - 3) * 0.15f));
-                for (int i = 0; i < caps.Length; i++)
-                {
-                    Color c = Color.Lerp(Gold, Rot, Mathf.Clamp01(k * 1.5f - i * 0.15f));
-                    caps[i].color = c;
-                    float flicker = Mathf.PerlinNoise(t * 7f, i * 3.1f);
-                    glows[i].color = WithAlpha(c, Mathf.Lerp(0.5f, 0.08f, k) * flicker);
-                }
             };
         }
 
@@ -349,7 +290,9 @@ namespace PeaHeads
             Ground(art);
             Pea pea = MakePea(art, color, false);
             RectTransform spit = Shape(art, Vector2.zero, new Vector2(22f, 22f), Shade(color, 1.2f)).rectTransform;
-            Text caption = Label(art, new Vector2(0f, 120f), new Vector2(600f, 34f), 24, FontStyle.Bold);
+            Prompt walkKeys = KeyPrompt(art, -280f, "WALK", "W", "A", "S", "D");
+            Prompt plantKey = KeyPrompt(art, 0f, "PLANT", "SPACE");
+            Prompt spitKeys = IconPrompt(art, 280f, "SPIT", MouthIcon, MouseIcon(true));
             return t =>
             {
                 float p = t % 5f;
@@ -366,8 +309,9 @@ namespace PeaHeads
                 spit.gameObject.SetActive(firing);
                 spit.anchoredPosition = mouth + new Vector2(shot * 700f, 0f);
 
-                caption.text = p < 1.6f ? "WASD: walk" : p < 2.7f ? "Space: plant your roots" : "Planted: spit peas!";
-                caption.color = Color.Lerp(Color.white, color, 0.4f);
+                Light(walkKeys, p < 1.6f, color, p < 1.6f && Mathf.Repeat(p, 0.4f) < 0.2f);
+                Light(plantKey, p >= 1.6f && p < 2.7f, color, p >= 1.75f && p < 2f);
+                Light(spitKeys, firing, color, firing && shot < 0.15f);
             };
         }
 
@@ -406,6 +350,9 @@ namespace PeaHeads
 
             Image shot = Shape(art, Vector2.zero, new Vector2(30f, 30f), Color.white);
             Vector2 headRest = new(180f, 10f);
+            Prompt leanPrompt = IconPrompt(art, -280f, "LEAN = DODGE", LeanIcon);
+            Prompt mouthPrompt = IconPrompt(art, 0f, "OPEN MOUTH = SPIT", MouthIcon, MouseIcon(true));
+            Prompt winkPrompt = IconPrompt(art, 280f, "WINK = ZOOM", WinkIcon, MouseIcon(false));
             const float speed = 2.2f;
             float period = Mathf.PI / speed; // time between full leans
             return t =>
@@ -433,10 +380,16 @@ namespace PeaHeads
                 bool open = cycle > 1.2f && cycle < 1.7f;
                 mouth.sizeDelta = open ? new Vector2(22f, 20f) : new Vector2(26f, 8f);
                 snout.localScale = Vector3.one * (open ? 1.25f : 1f);
+
+                bool winking = cycle > 2.6f && cycle < 3.4f;
+                Light(leanPrompt, Mathf.Abs(sway) > 0.55f, color, false);
+                leanPrompt.Icon.localRotation = Quaternion.Euler(0f, 0f, -sway * 18f);
+                Light(mouthPrompt, open, color, open);
+                Light(winkPrompt, winking, color, winking);
             };
         }
 
-        private Action<float> DrawClaim(RectTransform art, Color mine, Color rival, int mushroomPoints, int killPoints)
+        private Action<float> DrawClaim(RectTransform art, Color mine, Color rival, int mushroomPoints, int killPoints, int winScore)
         {
             Ground(art);
             Image glow = Sporelight(art, -300f, Gold, 1.1f, out _);
@@ -457,6 +410,9 @@ namespace PeaHeads
             Vector2 sink = pea.Root.anchoredPosition + FaceOffset;
             Vector2 mouth = pea.Root.anchoredPosition + MouthOffset;
             Vector2 target = enemy.Root.anchoredPosition + FaceOffset;
+            Prompt sporelight = IconPrompt(art, -280f, $"+{mushroomPoints}  PLANT ON A SPORELIGHT", SporelightIcon);
+            Prompt knockout = IconPrompt(art, 0f, $"+{killPoints}  KNOCK OUT YOUR RIVAL", parent => PeaIcon(parent, mine));
+            Prompt win = IconPrompt(art, 280f, $"FIRST TO {winScore} WINS", parent => MedalIcon(parent, winScore));
             return t =>
             {
                 glow.color = WithAlpha(Gold, 0.4f + 0.2f * Mathf.Sin(t * 3f));
@@ -479,20 +435,177 @@ namespace PeaHeads
                 enemy.Face.color = Color.Lerp(Color.white, enemyColor, hit);
                 plusThree.rectTransform.anchoredPosition = target + new Vector2(0f, 60f + hit * 40f);
                 plusThree.color = WithAlpha(mine, c >= 0.6f ? 1f - hit : 0f);
+
+                Light(sporelight, a < 0.35f, Gold, a < 0.12f);
+                Light(knockout, c >= 0.6f && c < 1.4f, mine, c >= 0.6f && c < 0.8f);
+                Light(win, true, Gold, false);
             };
         }
 
-        private Action<float> DrawRole(RectTransform art, Color color, bool faceLeft)
+        // ---------- Control prompts ----------
+
+        // A dark chip under the drawing: keycaps or icons plus a label. Lit = team colour, pressed = keys dip.
+        private sealed class Prompt
         {
-            Ground(art);
-            Image glow = Shape(art, new Vector2(0f, -10f), new Vector2(360f, 360f), WithAlpha(color, 0.4f), _glow);
-            Pea pea = MakePea(art, color, faceLeft);
-            PlacePea(pea, Vector2.zero, 1.3f, faceLeft);
-            return t =>
+            public Image Back;
+            public Text Label;
+            public RectTransform Icon;
+            public readonly System.Collections.Generic.List<(Image key, Text text, RectTransform rect, Vector2 rest)> Keys = new();
+        }
+
+        private const float PromptY = -180f;
+        private static readonly Vector2 PromptSize = new(262f, 58f);
+
+        private Prompt NewPrompt(RectTransform art, float x, string label)
+        {
+            var prompt = new Prompt { Back = Shape(art, new Vector2(x, PromptY), PromptSize, new Color(0f, 0f, 0f, 0.45f), UiBuild.Rounded) };
+            prompt.Back.type = Image.Type.Sliced;
+            prompt.Back.pixelsPerUnitMultiplier = 1.3f;
+            prompt.Label = Label(prompt.Back.rectTransform, new Vector2(0f, -40f), new Vector2(PromptSize.x + 40f, 22f), 15, FontStyle.Normal);
+            prompt.Label.font = UiBuild.DisplayFont;
+            prompt.Label.text = label;
+            return prompt;
+        }
+
+        private Prompt KeyPrompt(RectTransform art, float x, string label, params string[] keys)
+        {
+            Prompt prompt = NewPrompt(art, x, label);
+            float[] widths = new float[keys.Length];
+            float total = 0f;
+            for (int i = 0; i < keys.Length; i++) total += widths[i] = keys[i].Length > 1 ? 120f : 36f;
+            total += (keys.Length - 1) * 8f;
+            float left = -total * 0.5f;
+            for (int i = 0; i < keys.Length; i++)
             {
-                glow.color = WithAlpha(color, 0.35f + 0.15f * Mathf.Sin(t * 2.5f));
-                pea.Head.anchoredPosition = new Vector2(0f, Mathf.Sin(t * 3f) * 6f);
-            };
+                var rest = new Vector2(left + widths[i] * 0.5f, 3f);
+                left += widths[i] + 8f;
+                Image key = Shape(prompt.Back.rectTransform, rest, new Vector2(widths[i], 36f), new Color(0.92f, 0.92f, 0.88f), UiBuild.Rounded);
+                key.type = Image.Type.Sliced;
+                key.pixelsPerUnitMultiplier = 2.2f;
+                Shadow shadow = key.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, 0.6f);
+                shadow.effectDistance = new Vector2(0f, -4f);
+                Text text = Label(key.rectTransform, Vector2.zero, new Vector2(widths[i], 36f), keys[i].Length > 1 ? 18 : 20, FontStyle.Normal);
+                text.font = UiBuild.DisplayFont;
+                text.text = keys[i];
+                text.GetComponent<Shadow>().enabled = false;
+                prompt.Keys.Add((key, text, key.rectTransform, rest));
+            }
+            return prompt;
+        }
+
+        // Icons laid out left to right with a small "or" between them; the first icon is Prompt.Icon.
+        private Prompt IconPrompt(RectTransform art, float x, string label, params Func<RectTransform, RectTransform>[] icons)
+        {
+            Prompt prompt = NewPrompt(art, x, label);
+            float spacing = 64f;
+            float left = -(icons.Length - 1) * spacing * 0.5f;
+            for (int i = 0; i < icons.Length; i++)
+            {
+                RectTransform holder = Node(prompt.Back.rectTransform, "Icon", new Vector2(left + i * spacing, 0f), Vector2.zero);
+                RectTransform icon = icons[i](holder);
+                if (i == 0) prompt.Icon = icon;
+                if (i == 0) continue;
+                Text or = Label(prompt.Back.rectTransform, new Vector2(left + (i - 0.5f) * spacing, 0f), new Vector2(40f, 20f), 13, FontStyle.Italic);
+                or.text = "or";
+                or.color = new Color(1f, 1f, 1f, 0.6f);
+            }
+            return prompt;
+        }
+
+        private static void Light(Prompt prompt, bool on, Color color, bool pressed)
+        {
+            prompt.Back.color = on ? new Color(color.r * 0.35f, color.g * 0.35f, color.b * 0.35f, 0.85f) : new Color(0f, 0f, 0f, 0.45f);
+            prompt.Label.color = on ? Color.Lerp(color, Color.white, 0.35f) : new Color(1f, 1f, 1f, 0.55f);
+            prompt.Back.rectTransform.localScale = Vector3.one * (on ? 1.04f : 1f);
+            foreach ((Image key, Text text, RectTransform rect, Vector2 rest) in prompt.Keys)
+            {
+                key.color = on ? Color.Lerp(color, Color.white, 0.25f) : new Color(0.92f, 0.92f, 0.88f);
+                text.color = Ink;
+                rect.anchoredPosition = rest + (pressed ? new Vector2(0f, -3f) : Vector2.zero);
+            }
+        }
+
+        // ---------- Icons (each draws into a holder centred on its slot, returns what animates) ----------
+
+        private RectTransform Face(RectTransform parent)
+        {
+            RectTransform face = Shape(parent, Vector2.zero, new Vector2(38f, 42f), Skin).rectTransform;
+            Shape(face, new Vector2(0f, 16f), new Vector2(40f, 16f), new Color(0.3f, 0.2f, 0.12f));
+            return face;
+        }
+
+        private RectTransform MouthIcon(RectTransform parent)
+        {
+            RectTransform face = Face(parent);
+            Shape(face, new Vector2(-8f, 3f), new Vector2(6f, 6f), Ink);
+            Shape(face, new Vector2(8f, 3f), new Vector2(6f, 6f), Ink);
+            Shape(face, new Vector2(0f, -10f), new Vector2(13f, 12f), new Color(0.45f, 0.08f, 0.08f));
+            return face;
+        }
+
+        private RectTransform WinkIcon(RectTransform parent)
+        {
+            RectTransform face = Face(parent);
+            Shape(face, new Vector2(-8f, 3f), new Vector2(6f, 6f), Ink);
+            Shape(face, new Vector2(8f, 3f), new Vector2(9f, 2.5f), Ink, null);
+            Shape(face, new Vector2(0f, -10f), new Vector2(12f, 3f), Ink, null);
+            return face;
+        }
+
+        private RectTransform LeanIcon(RectTransform parent)
+        {
+            Text arrows = Label(parent, new Vector2(0f, 0f), new Vector2(90f, 30f), 22, FontStyle.Bold);
+            arrows.text = "<       >";
+            arrows.color = new Color(1f, 1f, 1f, 0.8f);
+            RectTransform face = Face(parent);
+            Shape(face, new Vector2(-8f, 3f), new Vector2(6f, 6f), Ink);
+            Shape(face, new Vector2(8f, 3f), new Vector2(6f, 6f), Ink);
+            Shape(face, new Vector2(0f, -10f), new Vector2(12f, 3f), Ink, null);
+            return face;
+        }
+
+        // Mouse with the left or right button highlighted.
+        private Func<RectTransform, RectTransform> MouseIcon(bool left) => parent =>
+        {
+            Image body = Shape(parent, Vector2.zero, new Vector2(28f, 40f), new Color(0.92f, 0.92f, 0.88f), UiBuild.Rounded);
+            body.type = Image.Type.Sliced;
+            body.pixelsPerUnitMultiplier = 1.2f;
+            Shape(body.rectTransform, new Vector2(left ? -6.5f : 6.5f, 9f), new Vector2(11f, 16f), Gold, null);
+            Shape(body.rectTransform, new Vector2(0f, 9f), new Vector2(2f, 18f), Ink, null);
+            return body.rectTransform;
+        };
+
+        private RectTransform SporelightIcon(RectTransform parent)
+        {
+            RectTransform root = Node(parent, "Sporelight", new Vector2(0f, -14f), Vector2.zero);
+            root.localScale = Vector3.one * 0.45f;
+            Image glow = Shape(root, new Vector2(0f, 50f), new Vector2(150f, 150f), WithAlpha(Gold, 0.45f), _glow);
+            Shape(root, new Vector2(0f, 22f), new Vector2(20f, 44f), Cream, null);
+            Shape(root, new Vector2(0f, 48f), new Vector2(78f, 46f), Gold);
+            return glow.rectTransform;
+        }
+
+        private RectTransform PeaIcon(RectTransform parent, Color color)
+        {
+            RectTransform head = Shape(parent, Vector2.zero, new Vector2(34f, 34f), color).rectTransform;
+            Shape(head, new Vector2(16f, -2f), new Vector2(16f, 14f), Shade(color, 0.85f));
+            Shape(head, new Vector2(5f, 6f), new Vector2(10f, 10f), Color.white);
+            Shape(head, new Vector2(7f, 6f), new Vector2(5f, 5f), Color.black);
+            return head;
+        }
+
+        // Gold medal with the winning score on it.
+        private RectTransform MedalIcon(RectTransform parent, int score)
+        {
+            Image medal = Shape(parent, Vector2.zero, new Vector2(40f, 40f), Gold);
+            Shape(medal.rectTransform, Vector2.zero, new Vector2(30f, 30f), Shade(Gold, 0.8f));
+            Text number = Label(medal.rectTransform, new Vector2(0f, 1f), new Vector2(40f, 30f), 18, FontStyle.Normal);
+            number.font = UiBuild.DisplayFont;
+            number.text = score.ToString();
+            number.color = Ink;
+            number.GetComponent<Shadow>().enabled = false;
+            return medal.rectTransform;
         }
 
         // ---------- Drawing helpers ----------
@@ -631,12 +744,31 @@ namespace PeaHeads
             Stretch(content);
             _content = content.gameObject.AddComponent<CanvasGroup>();
             _content.blocksRaycasts = false;
-            _title = Label(content, new Vector2(0f, 270f), new Vector2(1100f, 70f), 48, FontStyle.Bold);
+            Image vignette = Shape(root, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.55f), UiBuild.Vignette);
+            Stretch(vignette.rectTransform);
+            vignette.transform.SetSiblingIndex(content.GetSiblingIndex());
+
+            _title = Label(content, new Vector2(0f, 268f), new Vector2(1200f, 80f), 64, FontStyle.Normal);
+            _title.font = UiBuild.DisplayFont;
+            UiBuild.Outline(_title, new Color(0.05f, 0.04f, 0.03f, 0.85f), 2.5f);
+            Image glow = Shape(content, new Vector2(0f, 60f), new Vector2(760f, 380f), new Color(1f, 1f, 1f, 0.06f), _glow);
+            glow.raycastTarget = false;
             _art = Node(content, "Art", new Vector2(0f, 60f), new Vector2(820f, 300f));
-            _body = Label(content, new Vector2(0f, -180f), new Vector2(1000f, 150f), 26, FontStyle.Normal);
-            _body.alignment = TextAnchor.UpperCenter;
-            _hint = Label(content, new Vector2(0f, -320f), new Vector2(900f, 30f), 18, FontStyle.Normal);
-            _hint.color = new Color(1f, 1f, 1f, 0.6f);
+            Image card = Shape(content, new Vector2(0f, -224f), new Vector2(1060f, 84f), new Color(0f, 0f, 0f, 0.38f), UiBuild.Rounded);
+            card.type = Image.Type.Sliced;
+            _body = Label(content, new Vector2(0f, -224f), new Vector2(1020f, 80f), 26, FontStyle.Bold);
+            _body.alignment = TextAnchor.MiddleCenter;
+            _hint = Label(content, new Vector2(0f, -297f), new Vector2(900f, 34f), 16, FontStyle.Normal);
+            _hint.font = UiBuild.DisplayFont;
+            _dots = new Image[SlideCount];
+            for (int i = 0; i < SlideCount; i++)
+                _dots[i] = Shape(content, new Vector2((i - (SlideCount - 1) * 0.5f) * 34f, -334f), new Vector2(10f, 10f),
+                    Color.white, UiBuild.Rounded);
+            foreach (Image dot in _dots)
+            {
+                dot.type = Image.Type.Sliced;
+                dot.pixelsPerUnitMultiplier = 3.2f;
+            }
 
             RectTransform skip = Node(root, "Skip", new Vector2(-24f, -20f), new Vector2(140f, 44f));
             skip.anchorMin = skip.anchorMax = skip.pivot = Vector2.one;

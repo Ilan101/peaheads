@@ -90,6 +90,7 @@ namespace PeaHeads
             if (!TryGetComponent(out FaceFeed _)) gameObject.AddComponent<FaceFeed>();
             if (!TryGetComponent(out ViewRecorder _)) gameObject.AddComponent<ViewRecorder>();
             if (!TryGetComponent(out KillcamView _)) gameObject.AddComponent<KillcamView>();
+            if (!TryGetComponent(out WorldPolish _)) gameObject.AddComponent<WorldPolish>();
             EnsureEventSystem();
             BuildCanvas();
         }

@@ -319,6 +319,8 @@ namespace PeaHeads
             _go.enabled = _goSub.enabled = _warn.enabled = false;
 
             BuildBanner();
+            UiBuild.Display(_scores[0], _scores[1], _names[0], _names[1], _popups[0], _popups[1], _clock, _go, _goSub, _warn,
+                _bannerTitle, _bannerResult);
         }
 
         private void BuildBanner()

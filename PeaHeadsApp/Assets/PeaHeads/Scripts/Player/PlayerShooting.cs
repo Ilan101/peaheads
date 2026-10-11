@@ -75,6 +75,7 @@ namespace PeaHeads
                 : cam.position + cam.forward * _maxAimDistance;
             FireRpc(_mouth.position, (target - _mouth.position).normalized, cam.position);
             PlayFireSfx(_mouth.position); // the shooter hears it now; everyone else via PlayFireSfxRpc
+            _rig.AddShake(0.25f);
             return true;
         }
 

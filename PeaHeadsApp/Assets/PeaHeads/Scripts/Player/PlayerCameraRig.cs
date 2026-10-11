@@ -22,6 +22,9 @@ namespace PeaHeads
         [Tooltip("Lean stops this far from walls so the camera can't see through them.")]
         [SerializeField, Range(0.05f, 1f)] private float _headCollisionRadius = 0.3f;
 
+        [Header("Shake")]
+        [SerializeField, Range(0f, 10f)] private float _shakeDegrees = 2.5f;
+
         [Header("Zoom")]
         [SerializeField, Range(1f, 4f)] private float _zoomFactor = 1.5f;
         [SerializeField, Range(1f, 30f)] private float _zoomSpeed = 12f;
@@ -40,6 +43,8 @@ namespace PeaHeads
         private float _pitchTarget;
         private float _baseFov;
         private bool _isLocal;
+        private float _shake;
+        private Quaternion _cameraRest;
 
         private void Awake()
         {
@@ -47,6 +52,7 @@ namespace PeaHeads
             _input = GetComponent<PlayerInput>();
             _pivotBase = _headPivot.localPosition;
             _baseFov = _camera.fieldOfView;
+            _cameraRest = _camera.transform.localRotation;
         }
 
         public void SetLocal(bool isLocal)
@@ -76,6 +82,7 @@ namespace PeaHeads
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_zoomSpeed * Time.deltaTime));
                 _head = Vector2.Lerp(_head, input.Head, blend);
                 HeadOffset = ClampedOffset();
+                ApplyShake();
             }
             else
             {
@@ -86,6 +93,19 @@ namespace PeaHeads
 
             _headPivot.localPosition = RestPosition() + HeadOffset;
             _headPivot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+        }
+
+        // Local camera only: 0..1 trauma, decays on its own (shot kick, getting hit, knockouts).
+        public void AddShake(float amount) => _shake = Mathf.Min(1f, _shake + amount);
+
+        private void ApplyShake()
+        {
+            _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 2.5f);
+            float s = _shake * _shake * _shakeDegrees;
+            float t = Time.time * 25f;
+            _camera.transform.localRotation = _cameraRest * Quaternion.Euler(
+                (Mathf.PerlinNoise(t, 0.3f) - 0.5f) * 2f * s, (Mathf.PerlinNoise(0.7f, t) - 0.5f) * 2f * s,
+                (Mathf.PerlinNoise(t, t) - 0.5f) * s);
         }
 
         // Rest position sinks with the planted body.

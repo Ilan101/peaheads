@@ -73,6 +73,9 @@ Assets/PeaHeads/
 │   │                 (killed, victim id) → KillcamView.OnLocalKill → killer sees only their own face live (−1 s…+1.6 s, slow-mo on the hit) +
 │   │                 SendKillcam (view + face, −1.5…+1.5 s) → KillcamChunkRpc → victim sees "THE SHOT" | "THE FACE" full
 │   │                 screen over the death screen. Frames decode on demand (one reused texture per panel).
+│   ├── Visual/     WorldPolish (added by GameMenu; on top of AtmosphereController, never touches sky/fog/sun): global URP
+│   │                 Volume (bloom, neutral tonemap, grading, vignette) + SMAA on screen cameras, arena spores, Sporelight
+│   │                 beams + collect rings, pea glow + trails (DecoratePea), plant dirt bursts (PlantBurst)
 │   ├── Audio/      GameAudio (static: Sfx enum → Resources "Sfx/<name>" clips, variants name_0..n; PlayAt 3D / Play 2D; returns
 │   │                 false if missing so inspector clips stay as fallback), MusicPlayer (added by GameMenu: crossfades
 │   │                 menu/story/game loops from Resources "Music/", ducks when paused / under end stinger, Muted in PlayerPrefs)

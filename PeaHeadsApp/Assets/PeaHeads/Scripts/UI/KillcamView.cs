@@ -311,6 +311,7 @@ namespace PeaHeads
             Text title = UiBuild.Label(playback.Root, "KILL CAM", big ? 34 : 22, Bad, TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 0.5f), new Vector2(0f, titleY), new Vector2(600f, 40f));
             UiBuild.Outline(title, new Color(0f, 0f, 0f, 0.6f), 2f);
+            UiBuild.Display(title);
             playback.Root.gameObject.SetActive(false);
         }
 

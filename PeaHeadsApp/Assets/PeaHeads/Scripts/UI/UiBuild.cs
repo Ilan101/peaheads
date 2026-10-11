@@ -9,10 +9,12 @@ namespace PeaHeads
     {
         public static readonly Color Glass = new(0.04f, 0.07f, 0.05f, 0.78f);
 
-        private static Font _font;
+        private static Font _font, _display;
         private static Sprite _rounded, _circle, _ring, _glow, _heart, _cross, _vignette, _mushroom, _flower, _thorn, _sprout, _scope, _shield;
 
         public static Font Font => _font ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        // Chewy (Resources/Fonts, Apache 2.0): the game's bubbly display face for titles, numbers and callouts.
+        public static Font DisplayFont => _display ? _display : _display = Resources.Load<Font>("Fonts/Chewy-Regular") ?? Font;
         public static Sprite Rounded => _rounded ? _rounded : _rounded = UiSprites.RoundedRect();
         public static Sprite Circle => _circle ? _circle : _circle = UiSprites.Circle();
         public static Sprite Ring => _ring ? _ring : _ring = UiSprites.Ring(96, 0.12f);
@@ -97,6 +99,18 @@ namespace PeaHeads
                 s.effectDistance = new Vector2(1.5f, -1.5f);
             }
             return text;
+        }
+
+        // Switch labels to the display face (it has no bold; size up a touch to match).
+        public static void Display(params Text[] labels)
+        {
+            foreach (Text label in labels)
+            {
+                if (!label) continue;
+                label.font = DisplayFont;
+                label.fontStyle = FontStyle.Normal;
+                label.fontSize = Mathf.RoundToInt(label.fontSize * 1.08f);
+            }
         }
 
         public static Outline Outline(Graphic graphic, Color color, float distance = 1.5f)

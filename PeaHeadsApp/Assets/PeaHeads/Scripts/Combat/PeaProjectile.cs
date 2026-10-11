@@ -27,7 +27,9 @@ namespace PeaHeads
         // Same colour as the shooter's head.
         public override void OnNetworkSpawn()
         {
-            if (TryGetComponent(out Renderer peaRenderer)) peaRenderer.material.color = Faction.Color(_team.Value);
+            TryGetComponent(out Renderer peaRenderer);
+            if (peaRenderer) peaRenderer.material.color = Faction.Color(_team.Value);
+            WorldPolish.DecoratePea(gameObject, peaRenderer, Faction.Color(_team.Value));
         }
 
         // Server only, right after Spawn(). sweepFrom is a point inside the shooter (head centre): the gap from

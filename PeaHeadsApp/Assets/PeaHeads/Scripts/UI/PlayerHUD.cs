@@ -135,6 +135,7 @@ namespace PeaHeads
         private void OnHitConfirmed(bool killed)
         {
             _markerAt = Time.time;
+            _rig.AddShake(killed ? 0.5f : 0.15f);
             _markerKill = killed;
             GameAudio.Play(killed ? Sfx.Kill : Sfx.HitMarker, killed ? 0.9f : 0.7f, 0.04f);
             if (!killed) return;
@@ -177,6 +178,7 @@ namespace PeaHeads
             if (hp < _lastHealth)
             {
                 _damagedAt = Time.time;
+                _rig.AddShake(0.7f);
                 for (int i = Mathf.Max(hp, 0); i < Mathf.Min(_lastHealth, _heartLostAt.Length); i++) _heartLostAt[i] = Time.time;
                 if (hp <= 0)
                 {
@@ -355,6 +357,7 @@ namespace PeaHeads
                 new Vector2(900f, 60f));
             UiBuild.Outline(_toast, new Color(0f, 0f, 0f, 0.65f), 2f);
             _toast.enabled = false;
+            UiBuild.Display(_toast, _deathTitle, _deathBy, _deathCount);
         }
 
         private void BuildScope()
@@ -446,6 +449,7 @@ namespace PeaHeads
             _blockedText = UiBuild.Label(_crosshairCanvas, "Plant first!  Press Space", 17, Warn, TextAnchor.MiddleCenter, Centre,
                 new Vector2(0f, -46f), new Vector2(400f, 26f));
             _blockedText.enabled = false;
+            UiBuild.Display(_blockedText, _stateText);
         }
 
         private static void AddShadow(Graphic graphic)
