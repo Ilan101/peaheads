@@ -8081,7 +8081,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: PeaHeads::PeaHeads.MushroomSpawner
   ShowTopMostFoldoutHeaderGroup: 1
-  _activeCount: 3
+  _activeCount: 4
   _respawnDelay: 5
   _collectRadius: 1.5
   _collectTime: 2
