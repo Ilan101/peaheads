@@ -26,5 +26,13 @@ namespace PeaHeads.Tests
         public void LobbyMembers_CappedAtFourSlots() =>
             Assert.AreEqual(4,
                 MatchManager.LobbyMembers(true, new ulong[] { 0, 2, 4 }, new ulong[] { 1, 3 }, new ulong[0]).Count);
+
+        [Test]
+        public void Stage_ContainsPointsNearItsOrigin() =>
+            Assert.IsTrue(LobbyStage.Contains(LobbyStage.Origin + new UnityEngine.Vector3(5f, 1f, -3f)));
+
+        [Test]
+        public void Stage_DoesNotContainTheArena() =>
+            Assert.IsFalse(LobbyStage.Contains(UnityEngine.Vector3.zero));
     }
 }
