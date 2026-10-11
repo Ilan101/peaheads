@@ -66,10 +66,11 @@ namespace PeaHeads
         // The texture follows the screen size; call every frame while the lobby is open.
         public void SetRendering(bool on)
         {
-            if (on && (!Texture || Texture.width != Screen.width || Texture.height != Screen.height))
+            int w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            if (on && (!Texture || Texture.width != w || Texture.height != h))
             {
                 ReleaseTexture();
-                Texture = new RenderTexture(Screen.width, Screen.height, 24);
+                Texture = new RenderTexture(w, h, 24);
                 Camera.targetTexture = Texture;
             }
             Camera.enabled = on;

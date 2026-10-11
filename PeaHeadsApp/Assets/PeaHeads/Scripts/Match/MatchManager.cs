@@ -214,9 +214,12 @@ namespace PeaHeads
         private bool AnyoneInStory()
         {
             foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+            {
+                if (_waiting.Contains(client.ClientId)) continue;
                 if (client.PlayerObject && client.PlayerObject.TryGetComponent(out PlayerHealth health) &&
                     health.IsShielded)
                     return true;
+            }
             return false;
         }
 
@@ -273,7 +276,7 @@ namespace PeaHeads
         // Host's START in the lobby: the lobby teams stand (the story already told everyone their side).
         public void StartMatch()
         {
-            if (IsServer && IsSpawned && IsLobby) BeginRound(false);
+            if (IsServer && IsSpawned && IsLobby) BeginRound(Mathf.Abs(_team0.Count - _team1.Count) > 1);
         }
 
         private void Restart() => BeginRound(true);

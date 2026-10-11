@@ -38,6 +38,7 @@ namespace PeaHeads.Tests
         [TestCase(false, true, false, ExpectedResult = false)]
         [TestCase(true, true, false, ExpectedResult = true)]
         [TestCase(true, false, true, ExpectedResult = true)]
+        [TestCase(false, false, true, ExpectedResult = true)]
         [TestCase(true, false, false, ExpectedResult = false)]
         public bool ShouldOpen_AfterTheStory_InLobbyOrWaiting(bool storyDone, bool matchIsLobby, bool waiting) =>
             LobbyView.ShouldOpen(storyDone, matchIsLobby, waiting);

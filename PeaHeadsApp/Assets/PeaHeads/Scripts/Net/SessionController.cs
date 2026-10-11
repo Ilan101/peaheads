@@ -113,7 +113,7 @@ namespace PeaHeads.Net
             NetworkTransport.DisconnectEvents disconnectEvent, string reason = null)
         {
             if (leaving) return null;
-            if (reason == LobbyFullReason) return $"Lobby full ({MaxPlayers} peas).";
+            if (reason != null && reason.Contains(LobbyFullReason)) return $"Lobby full ({MaxPlayers} peas).";
             if (remoteClientLeft) return $"Player {clientId} left.";
             if (!wasConnected) return "Could not reach host. Same Wi-Fi? Firewall?";
             return disconnectEvent == NetworkTransport.DisconnectEvents.ProtocolTimeout

@@ -26,8 +26,9 @@ three others) facing them, move only their heads, frame and calibrate their webc
   - in `Playing`/`Ended` → added to the smaller team (pure helper `SmallerTeam(count0, count1)`) and to a host-written
     `NetworkList<ulong> _waiting` (joined mid-round), no reshuffle, no restart. `Restart` clears `_waiting` and
     reshuffles everyone as usual. Disconnects are removed from `_waiting`.
-- A player is in the lobby (`LobbyView.IsOpen`, static, like `StoryIntro.IsPlaying`) once their story has finished
-  and either the state is `Lobby` or their id is in `_waiting`. Otherwise they are in the arena. So START closes the
+- A player is in the lobby (`LobbyView.IsOpen`, static, like `StoryIntro.IsPlaying`) while their id is in
+  `_waiting` (mid-round joiners go there straight away, under the story), or once their story has finished while the
+  state is `Lobby`. Otherwise they are in the arena. So START closes the
   lobby everywhere, a mid-round joiner waits until the next `Restart`, and someone still in the story at START goes
   straight to the arena.
 

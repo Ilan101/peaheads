@@ -42,7 +42,7 @@ namespace PeaHeads
         private int _appliedSlot = -1;
 
         public static bool ShouldOpen(bool storyDone, bool matchIsLobby, bool waiting) =>
-            storyDone && (matchIsLobby || waiting);
+            waiting || (storyDone && matchIsLobby);
 
         private void OnDisable() => IsOpen = false;
 
@@ -64,7 +64,9 @@ namespace PeaHeads
             NetworkObject player = _modePlayer;
             if (player) SetPlayerMode(player, false);
             // START normally moves us via RespawnOnSideRpc; this covers a lobby closed any other way.
-            if (player && LobbyStage.Contains(player.transform.position) &&
+            NetworkManager nm = NetworkManager.Singleton;
+            if (player && nm && nm.IsConnectedClient && !nm.ShutdownInProgress &&
+                LobbyStage.Contains(player.transform.position) &&
                 player.TryGetComponent(out PlayerNetSync sync)) sync.Respawn();
         }
 
