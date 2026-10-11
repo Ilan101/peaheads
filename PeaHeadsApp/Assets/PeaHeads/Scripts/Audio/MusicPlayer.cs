@@ -82,7 +82,7 @@ namespace PeaHeads
         private static MusicTrack Desired(out bool paused)
         {
             paused = false;
-            if (StoryIntro.IsPlaying) return MusicTrack.Story;
+            if (LobbyView.HidesGame) return MusicTrack.Story;
             NetworkManager nm = NetworkManager.Singleton;
             if (!nm || nm.ShutdownInProgress || !(nm.IsHost || nm.IsConnectedClient)) return MusicTrack.Menu;
             NetworkObject local = nm.LocalClient?.PlayerObject;

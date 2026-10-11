@@ -153,7 +153,7 @@ namespace PeaHeads
             bool dead = _health.IsDead;
             Scoped = _scope > 0.5f && !dead;
 
-            bool show = !StoryIntro.IsPlaying;
+            bool show = !LobbyView.HidesGame;
             if (_canvas.gameObject.activeSelf != show) SetCanvasesActive(show);
             if (!show) return;
 

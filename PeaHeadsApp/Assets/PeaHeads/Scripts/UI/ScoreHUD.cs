@@ -83,7 +83,7 @@ namespace PeaHeads
             CheckRival();
             UpdateChargeSound(local);
 
-            bool show = !StoryIntro.IsPlaying;
+            bool show = !LobbyView.HidesGame;
             if (_canvas.gameObject.activeSelf != show) _canvas.gameObject.SetActive(show);
             if (!show) return;
             _scoreboard.gameObject.SetActive(!PlayerHUD.Scoped);
@@ -144,7 +144,8 @@ namespace PeaHeads
             _nextRivalCheck = Time.unscaledTime + 0.5f;
             _rivalShielded = false;
             foreach (PlayerNetSync player in FindObjectsByType<PlayerNetSync>(FindObjectsSortMode.None))
-                if (!player.IsOwner && player.TryGetComponent(out PlayerHealth health) && health.IsShielded)
+                if (!player.IsOwner && !MatchManager.IsWaiting(player.OwnerClientId) &&
+                    player.TryGetComponent(out PlayerHealth health) && health.IsShielded)
                     _rivalShielded = true;
         }
 

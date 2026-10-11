@@ -84,7 +84,7 @@ namespace PeaHeads
             int team = MatchManager.TeamOf(nm.LocalClientId);
             if (team != _bakedTeam) Bake(team);
 
-            bool show = !StoryIntro.IsPlaying; // stays visible over the scope vignette
+            bool show = !LobbyView.HidesGame; // stays visible over the scope vignette
             if (_canvas.activeSelf != show) _canvas.SetActive(show);
             if (!show) return;
 
@@ -127,7 +127,7 @@ namespace PeaHeads
 
                 icon.Root.anchoredPosition = WorldToMap(health.transform.position);
                 icon.Heading.localRotation = Quaternion.Euler(0f, 0f, -health.transform.eulerAngles.y);
-                icon.Root.gameObject.SetActive(isLocal || !health.IsDead);
+                icon.Root.gameObject.SetActive((isLocal || !health.IsDead) && !LobbyStage.Contains(health.transform.position));
                 icon.Group.alpha = health.IsDead ? 0.35f : health.IsShielded && !isLocal ? 0.45f : 1f;
 
                 icon.Cone.enabled = isLocal;

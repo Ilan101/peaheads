@@ -225,7 +225,7 @@ namespace PeaHeads
             _wasDead = dead;
 
             float now = Time.unscaledTime;
-            bool story = StoryIntro.IsPlaying;
+            bool story = LobbyView.HidesGame;
             bool victimPlaying = _victim.Playing(now);
             bool waiting = dead && !victimPlaying && now - _diedAt < (health ? health.RespawnDelay : 0f);
             bool fullscreen = victimPlaying && dead;

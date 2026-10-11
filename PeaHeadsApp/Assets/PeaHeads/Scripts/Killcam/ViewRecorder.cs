@@ -76,7 +76,7 @@ namespace PeaHeads
             Camera source = LocalCamera();
             if (source != _source) Attach(source);
 
-            if (_capture && KillClip.Now >= _nextCapture && !StoryIntro.IsPlaying)
+            if (_capture && KillClip.Now >= _nextCapture && !LobbyView.HidesGame)
             {
                 _nextCapture = KillClip.Now + 1.0 / _fps;
                 _capture.fieldOfView = _source.fieldOfView;

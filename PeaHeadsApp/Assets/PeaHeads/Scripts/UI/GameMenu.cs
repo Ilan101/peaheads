@@ -9,10 +9,10 @@ using UnityEngine.UI;
 
 namespace PeaHeads
 {
-    public enum MenuScreen { None, Start, Connecting, Pause, Story }
+    public enum MenuScreen { None, Start, Connecting, Pause, Story, Lobby }
 
     // Mouse-driven start / connecting / pause menu, built in code so the scene only needs this component. Plays the
-    // StoryIntro once a session connects; the local plant is paused and can't be hit until it ends.
+    // StoryIntro once a session connects, then opens the LobbyView; the local plant can't be hit until both are over.
     [RequireComponent(typeof(SessionController))]
     public class GameMenu : MonoBehaviour
     {
@@ -45,6 +45,8 @@ namespace PeaHeads
         private SessionController _session;
         private StoryIntro _story;
         private bool _storyStarted;
+        private bool _storyDone;
+        private LobbyView _lobby;
         private MatchManager _match;
         private GameObject _backdrop;
         private GameObject _startPanel;
@@ -67,11 +69,12 @@ namespace PeaHeads
         private bool _pauseOpen;
         private MenuScreen? _shown;
 
-        public static MenuScreen ScreenFor(bool sessionActive, bool connected, bool pauseOpen)
+        public static MenuScreen ScreenFor(bool sessionActive, bool connected, bool pauseOpen, bool lobby = false)
         {
             if (!sessionActive) return MenuScreen.Start;
             if (!connected) return MenuScreen.Connecting;
-            return pauseOpen ? MenuScreen.Pause : MenuScreen.None;
+            if (pauseOpen) return MenuScreen.Pause;
+            return lobby ? MenuScreen.Lobby : MenuScreen.None;
         }
 
         public static bool ShowRestart(bool isHost, bool matchExists) => isHost && matchExists;
@@ -87,6 +90,7 @@ namespace PeaHeads
         {
             if (!_font) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (!TryGetComponent(out _story)) _story = gameObject.AddComponent<StoryIntro>();
+            if (!TryGetComponent(out _lobby)) _lobby = gameObject.AddComponent<LobbyView>();
             if (!TryGetComponent(out Minimap _)) gameObject.AddComponent<Minimap>();
             if (!TryGetComponent(out MusicPlayer _)) gameObject.AddComponent<MusicPlayer>();
             if (!TryGetComponent(out FaceFeed _)) gameObject.AddComponent<FaceFeed>();
@@ -108,6 +112,7 @@ namespace PeaHeads
             {
                 _pauseOpen = false;
                 _storyStarted = false;
+                _storyDone = false;
                 _story.Stop();
             }
             // Teams are reshuffled when a client joins; wait for ours so the story tells the right side.
@@ -115,20 +120,26 @@ namespace PeaHeads
                      (!FindFirstObjectByType<MatchManager>() || MatchManager.HasTeam(nm.LocalClientId)))
             {
                 _storyStarted = true;
-                _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(), null);
+                _story.Play(MatchManager.TeamOf(nm.LocalClientId), FindFirstObjectByType<MatchManager>(),
+                    () => _storyDone = true);
             }
 
             bool story = StoryIntro.IsPlaying;
+            MatchManager match = MatchManager.Instance;
+            bool lobby = connected &&
+                         LobbyView.ShouldOpen(_storyDone, match && match.IsLobby, MatchManager.IsWaiting(nm.LocalClientId));
+            _lobby.SetOpen(lobby);
+
             Keyboard kb = Keyboard.current;
             if (connected && !story && kb != null && kb.escapeKey.wasPressedThisFrame) _pauseOpen = !_pauseOpen;
 
-            MenuScreen screen = story ? MenuScreen.Story : ScreenFor(active, connected, _pauseOpen);
+            MenuScreen screen = story ? MenuScreen.Story : ScreenFor(active, connected, _pauseOpen, lobby);
             if (screen != _shown) Show(screen, nm);
 
             NetworkObject player = nm.LocalClient?.PlayerObject;
             if (player && player.TryGetComponent(out PlayerInput input))
                 input.Paused = screen is MenuScreen.Pause or MenuScreen.Story;
-            if (player && player.TryGetComponent(out PlayerHealth health)) health.SetShielded(story);
+            if (player && player.TryGetComponent(out PlayerHealth health)) health.SetShielded(story || lobby);
             RefreshText(screen, nm);
             Animate(screen);
         }
@@ -148,9 +159,9 @@ namespace PeaHeads
 
         private void Show(MenuScreen screen, NetworkManager nm)
         {
-            bool wasOverlay = _shown is MenuScreen.Pause or MenuScreen.Story;
+            bool wasOverlay = _shown is MenuScreen.Pause or MenuScreen.Story or MenuScreen.Lobby;
             _shown = screen;
-            _backdrop.SetActive(screen is not (MenuScreen.None or MenuScreen.Story));
+            _backdrop.SetActive(screen is not (MenuScreen.None or MenuScreen.Story or MenuScreen.Lobby));
             _backdrop.GetComponent<Image>().color = screen == MenuScreen.Pause ? _backdropColor : _startBackdropColor;
             _startPanel.SetActive(screen == MenuScreen.Start);
             _connectingPanel.SetActive(screen == MenuScreen.Connecting);
@@ -160,7 +171,7 @@ namespace PeaHeads
             if (screen == MenuScreen.Pause)
             {
                 _match = FindFirstObjectByType<MatchManager>();
-                _restartButton.SetActive(ShowRestart(nm.IsHost, _match));
+                _restartButton.SetActive(ShowRestart(nm.IsHost, _match && !_match.IsLobby));
                 MatchPausePanels();
             }
 

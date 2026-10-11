@@ -44,5 +44,17 @@ namespace PeaHeads.Tests
         [TestCase(false, false, ExpectedResult = false)]
         public bool ShowRestart_OnlyHostWithMatch(bool isHost, bool matchExists) =>
             GameMenu.ShowRestart(isHost, matchExists);
+
+        [Test]
+        public void ScreenFor_ConnectedInLobby_IsLobby() =>
+            Assert.AreEqual(MenuScreen.Lobby, GameMenu.ScreenFor(true, true, false, true));
+
+        [Test]
+        public void ScreenFor_PauseOverLobby_IsPause() =>
+            Assert.AreEqual(MenuScreen.Pause, GameMenu.ScreenFor(true, true, true, true));
+
+        [Test]
+        public void ScreenFor_IdleIgnoresLobbyFlag() =>
+            Assert.AreEqual(MenuScreen.Start, GameMenu.ScreenFor(false, false, false, true));
     }
 }
