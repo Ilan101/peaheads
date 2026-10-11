@@ -7,13 +7,13 @@ using UnityEngine.UI;
 namespace PeaHeads
 {
     // Intro cutscene played when a session starts: typewriter story slides over small animated drawings, ending on
-    // the local player's faction card. Built in code like GameMenu. Space/Enter/click advance, Esc skips to the end.
+    // the local player's faction card. Built in code like GameMenu. Space/Enter advance, Esc skips to the end.
     public class StoryIntro : MonoBehaviour
     {
         private const float FadeTime = 0.35f;
         private const float GroundY = -120f;
         private const int SporeCount = 40;
-        private const int SlideCount = 4;
+        private const int SlideCount = 5;
         // Pea drawing (scale 1, facing right): face centre and mouth relative to the root at the leaf base.
         private static readonly Vector2 FaceOffset = new(0f, 108f);
         private static readonly Vector2 MouthOffset = new(74f, 102f);
@@ -46,6 +46,8 @@ namespace PeaHeads
             public RectTransform Head;
             public RectTransform Mouth;
             public Image Face;
+            public Image Eye;
+            public Image Pupil;
         }
 
         private Slide[] _slides;
@@ -165,7 +167,7 @@ namespace PeaHeads
             for (int i = _art.childCount - 1; i >= 0; i--) Destroy(_art.GetChild(i).gameObject);
             _animate = slide.Draw(_art);
             _skipButton.SetActive(index != Last);
-            _hint.text = index == Last ? "PRESS SPACE OR CLICK TO PLAY" : "SPACE / CLICK: NEXT          ESC: SKIP";
+            _hint.text = index == Last ? "PRESS SPACE TO PLAY" : "SPACE: NEXT          ESC: SKIP";
             _hint.fontSize = index == Last ? 24 : 16;
             _hint.color = new Color(1f, 1f, 1f, 0.6f);
             for (int i = 0; i < _dots.Length; i++)
@@ -238,9 +240,18 @@ namespace PeaHeads
                 new Slide
                 {
                     Title = "DODGE WITH YOUR REAL HEAD",
-                    Body = "The webcam is your controller.\nYour PeaHead copies your real head: lean out of the way!",
+                    Body = "The webcam is your controller: your PeaHead copies your real head.\n" +
+                           "Lean to dodge peas, open your mouth to spit.",
                     TitleColor = mine, Background = new Color(0.06f, 0.1f, 0.12f), Spore = mine,
                     Draw = art => DrawNeck(art, mine, rival),
+                },
+                new Slide
+                {
+                    Title = "CLOSE ONE EYE TO AIM",
+                    Body = "Aiming zooms in, and your pea flies faster and dead straight.\n" +
+                           "Without aiming, peas start to drop after a short distance.",
+                    TitleColor = Gold, Background = new Color(0.08f, 0.09f, 0.12f), Spore = Gold,
+                    Draw = art => DrawAim(art, mine, rival),
                 },
                 new Slide
                 {
@@ -292,7 +303,7 @@ namespace PeaHeads
             RectTransform spit = Shape(art, Vector2.zero, new Vector2(22f, 22f), Shade(color, 1.2f)).rectTransform;
             Prompt walkKeys = KeyPrompt(art, -280f, "WALK", "W", "A", "S", "D");
             Prompt plantKey = KeyPrompt(art, 0f, "PLANT", "SPACE");
-            Prompt spitKeys = IconPrompt(art, 280f, "SPIT", MouthIcon, MouseIcon(true));
+            Prompt spitKeys = IconPrompt(art, 280f, "OPEN MOUTH = SPIT", MouthIcon);
             return t =>
             {
                 float p = t % 5f;
@@ -351,8 +362,8 @@ namespace PeaHeads
             Image shot = Shape(art, Vector2.zero, new Vector2(30f, 30f), Color.white);
             Vector2 headRest = new(180f, 10f);
             Prompt leanPrompt = IconPrompt(art, -280f, "LEAN = DODGE", LeanIcon);
-            Prompt mouthPrompt = IconPrompt(art, 0f, "OPEN MOUTH = SPIT", MouthIcon, MouseIcon(true));
-            Prompt winkPrompt = IconPrompt(art, 280f, "WINK = ZOOM", WinkIcon, MouseIcon(false));
+            Prompt mouthPrompt = IconPrompt(art, 0f, "OPEN MOUTH = SPIT", MouthIcon);
+            Prompt winkPrompt = IconPrompt(art, 280f, "CLOSE ONE EYE = AIM", WinkIcon);
             const float speed = 2.2f;
             float period = Mathf.PI / speed; // time between full leans
             return t =>
@@ -386,6 +397,85 @@ namespace PeaHeads
                 leanPrompt.Icon.localRotation = Quaternion.Euler(0f, 0f, -sway * 18f);
                 Light(mouthPrompt, open, color, open);
                 Light(winkPrompt, winking, color, winking);
+            };
+        }
+
+        // Normal shot drops short of the rival; the aimed one (one eye closed) flies faster and straight into them.
+        private Action<float> DrawAim(RectTransform art, Color color, Color rival)
+        {
+            const float period = 5.2f, fireAt = 0.7f, gravity = 900f, ground = GroundY + 8f;
+            Ground(art);
+            Pea pea = MakePea(art, color, false);
+            PlacePea(pea, new Vector2(-300f, -22f), 1f, false);
+            Pea target = MakePea(art, rival, true);
+            PlacePea(target, new Vector2(300f, -22f), 1f, true);
+            Color targetColor = target.Face.color;
+            Vector2 mouth = pea.Root.anchoredPosition + MouthOffset;
+            Vector2 hitPoint = target.Root.anchoredPosition + FaceOffset;
+
+            var trail = new Image[10];
+            for (int i = 0; i < trail.Length; i++)
+                trail[i] = Shape(art, Vector2.zero, new Vector2(12f - i * 0.6f, 12f - i * 0.6f), Color.clear);
+            RectTransform shot = Shape(art, Vector2.zero, new Vector2(24f, 24f), Shade(color, 1.2f)).rectTransform;
+            RectTransform splat = Shape(art, Vector2.zero, new Vector2(44f, 14f), Shade(color, 0.9f)).rectTransform;
+            Image scope = Shape(art, hitPoint, new Vector2(130f, 130f), Color.white, UiBuild.Ring);
+            Text tag = Label(art, new Vector2(0f, 128f), new Vector2(760f, 36f), 26, FontStyle.Normal);
+            tag.font = UiBuild.DisplayFont;
+            Prompt eyePrompt = IconPrompt(art, -280f, "CLOSE ONE EYE = AIM", WinkIcon);
+            Prompt mouthPrompt = IconPrompt(art, 0f, "OPEN MOUTH = SPIT", MouthIcon);
+            Prompt straightPrompt = IconPrompt(art, 280f, "AIMED: FASTER + STRAIGHT", parent => PeaIcon(parent, color));
+
+            Vector2 Position(bool aimed, float s)
+            {
+                float speed = aimed ? 640f : 380f;
+                float x = speed * s;
+                float straight = aimed ? 2000f : 150f;
+                float y = x > straight ? -0.5f * gravity * Mathf.Pow((x - straight) / speed, 2f) : 0f;
+                return mouth + new Vector2(x, y);
+            }
+
+            float ImpactTime(bool aimed) => aimed
+                ? (hitPoint.x - mouth.x) / 640f
+                : 150f / 380f + Mathf.Sqrt(2f * (mouth.y - ground) / gravity);
+
+            return t =>
+            {
+                float p = t % period;
+                bool aimed = p >= period * 0.5f;
+                float since = (aimed ? p - period * 0.5f : p) - fireAt;
+                float impact = ImpactTime(aimed);
+                bool fired = since >= 0f, landed = since >= impact;
+
+                pea.Eye.rectTransform.localScale = new Vector3(1f, aimed ? 0.15f : 1f, 1f);
+                pea.Pupil.enabled = !aimed;
+                pea.Mouth.localScale = Vector3.one * (fired && since < 0.15f ? 1.9f : 1f);
+
+                shot.gameObject.SetActive(fired && !landed);
+                shot.anchoredPosition = Position(aimed, Mathf.Min(Mathf.Max(since, 0f), impact));
+                for (int i = 0; i < trail.Length; i++)
+                {
+                    float s = Mathf.Min(since, impact) - i * 0.04f;
+                    bool visible = fired && s >= 0f && since - impact < 0.35f;
+                    trail[i].enabled = visible;
+                    if (!visible) continue;
+                    trail[i].rectTransform.anchoredPosition = Position(aimed, s);
+                    trail[i].color = WithAlpha(Shade(color, 1.2f), 0.55f * (1f - i / (float)trail.Length));
+                }
+
+                splat.gameObject.SetActive(!aimed && landed && since - impact < 1f);
+                splat.anchoredPosition = new Vector2(Position(false, impact).x, GroundY - 2f);
+                float flash = aimed && landed ? Mathf.Clamp01((since - impact) / 0.6f) : 1f;
+                target.Face.color = Color.Lerp(Color.white, targetColor, flash);
+
+                scope.enabled = aimed;
+                scope.color = WithAlpha(Gold, 0.55f + 0.25f * Mathf.Sin(t * 8f));
+                scope.rectTransform.localScale = Vector3.one * (1f + 0.05f * Mathf.Sin(t * 4f));
+                tag.text = aimed ? "AIMED: FAST AND STRAIGHT" : "NORMAL SHOT: DROPS SHORT";
+                tag.color = aimed ? Gold : new Color(1f, 1f, 1f, 0.75f);
+
+                Light(eyePrompt, aimed, color, false);
+                Light(mouthPrompt, fired && since < 0.25f, color, fired && since < 0.15f);
+                Light(straightPrompt, aimed && fired, Gold, false);
             };
         }
 
@@ -565,17 +655,6 @@ namespace PeaHeads
             return face;
         }
 
-        // Mouse with the left or right button highlighted.
-        private Func<RectTransform, RectTransform> MouseIcon(bool left) => parent =>
-        {
-            Image body = Shape(parent, Vector2.zero, new Vector2(28f, 40f), new Color(0.92f, 0.92f, 0.88f), UiBuild.Rounded);
-            body.type = Image.Type.Sliced;
-            body.pixelsPerUnitMultiplier = 1.2f;
-            Shape(body.rectTransform, new Vector2(left ? -6.5f : 6.5f, 9f), new Vector2(11f, 16f), Gold, null);
-            Shape(body.rectTransform, new Vector2(0f, 9f), new Vector2(2f, 18f), Ink, null);
-            return body.rectTransform;
-        };
-
         private RectTransform SporelightIcon(RectTransform parent)
         {
             RectTransform root = Node(parent, "Sporelight", new Vector2(0f, -14f), Vector2.zero);
@@ -626,9 +705,9 @@ namespace PeaHeads
             Shape(face, new Vector2(50f, -6f), new Vector2(50f, 40f), Shade(color, 0.88f));
             Image skin = Shape(face, Vector2.zero, new Vector2(92f, 92f), color);
             RectTransform mouth = Shape(face, new Vector2(74f, -6f), new Vector2(18f, 18f), Ink).rectTransform;
-            Shape(face, new Vector2(14f, 16f), new Vector2(28f, 28f), Color.white);
-            Shape(face, new Vector2(19f, 16f), new Vector2(13f, 13f), Color.black);
-            var pea = new Pea { Root = root, Head = head, Mouth = mouth, Face = skin };
+            Image eye = Shape(face, new Vector2(14f, 16f), new Vector2(28f, 28f), Color.white);
+            Image pupil = Shape(face, new Vector2(19f, 16f), new Vector2(13f, 13f), Color.black);
+            var pea = new Pea { Root = root, Head = head, Mouth = mouth, Face = skin, Eye = eye, Pupil = pupil };
             PlacePea(pea, Vector2.zero, 1f, faceLeft);
             return pea;
         }
@@ -779,7 +858,7 @@ namespace PeaHeads
             skipButton.onClick.AddListener(Skip);
             Text skipLabel = Label(skip, Vector2.zero, Vector2.zero, 20, FontStyle.Bold);
             Stretch(skipLabel.rectTransform);
-            skipLabel.text = "Skip  >>";
+            skipLabel.text = "ESC  SKIP";
             _skipButton = skip.gameObject;
 
             _canvas.SetActive(false);
